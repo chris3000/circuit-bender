@@ -1,15 +1,29 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
 import { resistorDefinition } from '@/components/definitions/Resistor';
 import { ComponentDrawer } from '@/views/ComponentDrawer/ComponentDrawer';
 
 describe('ComponentDrawer', () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     const registry = ComponentRegistry.getInstance();
     registry.clear();
     registry.register(resistorDefinition);
   });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Helper: type into search and flush the 200ms debounce */
+  function searchFor(value: string) {
+    const searchInput = screen.getByPlaceholderText('Search components...');
+    fireEvent.change(searchInput, { target: { value } });
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+  }
 
   it('should render the component drawer sidebar', () => {
     render(<ComponentDrawer />);
@@ -22,6 +36,13 @@ describe('ComponentDrawer', () => {
     render(<ComponentDrawer />);
 
     const searchInput = screen.getByPlaceholderText('Search components...');
+    expect(searchInput).toBeInTheDocument();
+  });
+
+  it('should have aria-label on search input', () => {
+    render(<ComponentDrawer />);
+
+    const searchInput = screen.getByLabelText('Search components');
     expect(searchInput).toBeInTheDocument();
   });
 
@@ -57,8 +78,7 @@ describe('ComponentDrawer', () => {
   it('should filter components by name when searching', () => {
     render(<ComponentDrawer />);
 
-    const searchInput = screen.getByPlaceholderText('Search components...');
-    fireEvent.change(searchInput, { target: { value: 'resist' } });
+    searchFor('resist');
 
     expect(screen.getByText('Resistor')).toBeInTheDocument();
   });
@@ -66,8 +86,7 @@ describe('ComponentDrawer', () => {
   it('should hide components that do not match search', () => {
     render(<ComponentDrawer />);
 
-    const searchInput = screen.getByPlaceholderText('Search components...');
-    fireEvent.change(searchInput, { target: { value: 'capacitor' } });
+    searchFor('capacitor');
 
     expect(screen.queryByText('Resistor')).not.toBeInTheDocument();
   });
@@ -75,8 +94,7 @@ describe('ComponentDrawer', () => {
   it('should filter by description', () => {
     render(<ComponentDrawer />);
 
-    const searchInput = screen.getByPlaceholderText('Search components...');
-    fireEvent.change(searchInput, { target: { value: 'limits current' } });
+    searchFor('limits current');
 
     expect(screen.getByText('Resistor')).toBeInTheDocument();
   });
@@ -84,8 +102,7 @@ describe('ComponentDrawer', () => {
   it('should filter case-insensitively', () => {
     render(<ComponentDrawer />);
 
-    const searchInput = screen.getByPlaceholderText('Search components...');
-    fireEvent.change(searchInput, { target: { value: 'RESISTOR' } });
+    searchFor('RESISTOR');
 
     expect(screen.getByText('Resistor')).toBeInTheDocument();
   });
@@ -93,8 +110,7 @@ describe('ComponentDrawer', () => {
   it('should hide empty categories when search yields no results in that category', () => {
     render(<ComponentDrawer />);
 
-    const searchInput = screen.getByPlaceholderText('Search components...');
-    fireEvent.change(searchInput, { target: { value: 'nonexistent' } });
+    searchFor('nonexistent');
 
     expect(screen.queryByText('Passive Components')).not.toBeInTheDocument();
   });
@@ -117,11 +133,40 @@ describe('ComponentDrawer', () => {
     expect(categoryContent).toBeVisible();
   });
 
+  it('should toggle category with keyboard Enter key', () => {
+    render(<ComponentDrawer />);
+
+    const categoryHeader = screen.getByRole('button', { name: /passive components/i });
+    const categoryContent = screen.getByTestId('category-content-passive');
+
+    expect(categoryContent).toBeVisible();
+
+    // Press Enter to collapse
+    fireEvent.keyDown(categoryHeader, { key: 'Enter' });
+    expect(categoryContent).not.toBeVisible();
+
+    // Press Enter to expand
+    fireEvent.keyDown(categoryHeader, { key: 'Enter' });
+    expect(categoryContent).toBeVisible();
+  });
+
+  it('should toggle category with keyboard Space key', () => {
+    render(<ComponentDrawer />);
+
+    const categoryHeader = screen.getByRole('button', { name: /passive components/i });
+    const categoryContent = screen.getByTestId('category-content-passive');
+
+    expect(categoryContent).toBeVisible();
+
+    // Press Space to collapse
+    fireEvent.keyDown(categoryHeader, { key: ' ' });
+    expect(categoryContent).not.toBeVisible();
+  });
+
   it('should show a message when no components match the search', () => {
     render(<ComponentDrawer />);
 
-    const searchInput = screen.getByPlaceholderText('Search components...');
-    fireEvent.change(searchInput, { target: { value: 'zzzznotfound' } });
+    searchFor('zzzznotfound');
 
     expect(screen.getByText('No components found')).toBeInTheDocument();
   });
@@ -129,9 +174,25 @@ describe('ComponentDrawer', () => {
   it('should filter by category name', () => {
     render(<ComponentDrawer />);
 
-    const searchInput = screen.getByPlaceholderText('Search components...');
-    fireEvent.change(searchInput, { target: { value: 'passive' } });
+    searchFor('passive');
 
     expect(screen.getByText('Resistor')).toBeInTheDocument();
+  });
+
+  it('should debounce search input', () => {
+    render(<ComponentDrawer />);
+
+    const searchInput = screen.getByPlaceholderText('Search components...');
+    fireEvent.change(searchInput, { target: { value: 'capacitor' } });
+
+    // Before debounce fires, Resistor should still be visible
+    expect(screen.getByText('Resistor')).toBeInTheDocument();
+
+    // After debounce, filter applies
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(screen.queryByText('Resistor')).not.toBeInTheDocument();
   });
 });

@@ -1,3 +1,4 @@
+import React from 'react';
 import type { ComponentDefinition } from '@/types/circuit';
 import styles from './ComponentCard.module.css';
 
@@ -5,7 +6,7 @@ interface ComponentCardProps {
   definition: ComponentDefinition;
 }
 
-export function ComponentCard({ definition }: ComponentCardProps) {
+export const ComponentCard = React.memo(function ComponentCard({ definition }: ComponentCardProps) {
   const { type, metadata, schematic } = definition;
   const { symbol } = schematic;
 
@@ -30,4 +31,4 @@ export function ComponentCard({ definition }: ComponentCardProps) {
       </span>
     </div>
   );
-}
+});

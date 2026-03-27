@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
 import type { ComponentDefinition } from '@/types/circuit';
 import { SearchBar } from './SearchBar';
@@ -47,14 +47,33 @@ function groupByCategory(
 }
 
 export function ComponentDrawer() {
+  const [inputValue, setInputValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const registry = ComponentRegistry.getInstance();
-  const allComponents = registry.listAll();
+
+  const handleSearchChange = useCallback((value: string) => {
+    setInputValue(value);
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    debounceRef.current = setTimeout(() => {
+      setSearchQuery(value);
+    }, 200);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, []);
 
   const filteredComponents = useMemo(
-    () => filterComponents(allComponents, searchQuery),
-    [allComponents, searchQuery]
+    () => filterComponents(registry.listAll(), searchQuery),
+    [registry, searchQuery]
   );
 
   const groupedComponents = useMemo(
@@ -68,7 +87,7 @@ export function ComponentDrawer() {
         <span className={styles.title}>Components</span>
       </div>
 
-      <SearchBar value={searchQuery} onChange={setSearchQuery} />
+      <SearchBar value={inputValue} onChange={handleSearchChange} />
 
       <div className={styles.content}>
         {groupedComponents.size === 0 && (
