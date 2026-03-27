@@ -66,6 +66,15 @@ export interface Circuit {
   metadata: CircuitMetadata;
 }
 
+// Serialized format for JSON - Maps converted to arrays of entries
+export interface SerializedCircuit {
+  id: string;
+  name: string;
+  components: [ComponentId, Component][]; // Array of [key, value] pairs
+  connections: Connection[];
+  metadata: CircuitMetadata;
+}
+
 // Component Definition types for the plugin system
 export interface PinDefinition {
   id: PinId;

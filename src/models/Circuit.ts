@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid';
 import type {
-  Circuit as CircuitType,
+  SerializedCircuit,
   Component,
   Connection,
   ComponentId,
@@ -27,13 +27,13 @@ export class Circuit {
     };
   }
 
-  static fromJSON(data: CircuitType): Circuit {
+  static fromJSON(data: SerializedCircuit): Circuit {
     const circuit = Object.create(Circuit.prototype);
     // Use Object.defineProperty to set readonly properties
     Object.defineProperty(circuit, 'id', { value: data.id, writable: false });
     Object.defineProperty(circuit, 'name', { value: data.name, writable: false });
     Object.defineProperty(circuit, 'components', {
-      value: new Map(data.components),
+      value: new Map(data.components), // Convert array of entries back to Map
       writable: false,
     });
     Object.defineProperty(circuit, 'connections', {
@@ -129,21 +129,38 @@ export class Circuit {
   }
 
   // Serialization
-  toJSON(): CircuitType {
+  toJSON(): SerializedCircuit {
     return {
       id: this.id,
       name: this.name,
-      components: new Map(this.components),
+      components: Array.from(this.components.entries()), // Convert Map to array of [key, value] pairs
       connections: [...this.connections],
       metadata: { ...this.metadata },
     };
   }
 
   // Private helpers
-  private clone(updates: Partial<CircuitType>): Circuit {
+  private clone(updates: Partial<{
+    id: string;
+    name: string;
+    components: Map<ComponentId, Component>;
+    connections: Connection[];
+    metadata: CircuitMetadata;
+  }>): Circuit {
+    const serialized = this.toJSON();
+    const serializedUpdates: Partial<SerializedCircuit> = {};
+
+    if (updates.components) {
+      serializedUpdates.components = Array.from(updates.components.entries());
+    }
+    if (updates.id) serializedUpdates.id = updates.id;
+    if (updates.name) serializedUpdates.name = updates.name;
+    if (updates.connections) serializedUpdates.connections = updates.connections;
+    if (updates.metadata) serializedUpdates.metadata = updates.metadata;
+
     return Circuit.fromJSON({
-      ...this.toJSON(),
-      ...updates,
+      ...serialized,
+      ...serializedUpdates,
     });
   }
 
