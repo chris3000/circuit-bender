@@ -1,4 +1,3 @@
-import React from 'react';
 import type { ComponentDefinition } from '@/types/circuit';
 import { generatePinId } from '@/utils/ids';
 
