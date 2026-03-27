@@ -27,6 +27,13 @@
   background-color: #f0f0f0;
 }
 
+.dropZone {
+  flex: 1;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+
 .canvas {
   flex: 1;
   width: 100%;

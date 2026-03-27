@@ -1,4 +1,5 @@
 import React from 'react';
+import { useDraggable } from '@dnd-kit/core';
 import type { ComponentDefinition } from '@/types/circuit';
 import styles from './ComponentCard.module.css';
 
@@ -10,8 +11,21 @@ export const ComponentCard = React.memo(function ComponentCard({ definition }: C
   const { type, metadata, schematic } = definition;
   const { symbol } = schematic;
 
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `drawer-${type}`,
+    data: { componentType: type },
+  });
+
   return (
-    <div className={styles.card} data-testid={`component-card-${type}`}>
+    <div
+      ref={setNodeRef}
+      className={styles.card}
+      data-testid={`component-card-${type}`}
+      data-draggable="true"
+      style={{ opacity: isDragging ? 0.5 : 1 }}
+      {...listeners}
+      {...attributes}
+    >
       <div className={styles.symbol}>
         <svg
           data-testid={`component-symbol-${type}`}
