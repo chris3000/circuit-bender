@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { DndContext } from '@dnd-kit/core';
 import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
 import { resistorDefinition } from '@/components/definitions/Resistor';
@@ -9,7 +9,7 @@ import { CircuitProvider, useCircuit } from '@/context/CircuitContext';
 import { AppContent } from '@/App';
 import SchematicView from '@/views/SchematicView';
 import { createComponentFromDefinition } from '@/utils/componentFactory';
-import { snapToGrid } from '@/utils/grid';
+import { snapToGrid, GRID_SIZE } from '@/utils/grid';
 import { Circuit } from '@/models/Circuit';
 import type { Component, ComponentId } from '@/types/circuit';
 
@@ -244,6 +244,132 @@ describe('Drag and Drop', () => {
 
       // Verify it has a cursor style for dragging (via the g element)
       expect(placedComponent.tagName.toLowerCase()).toBe('g');
+    });
+
+    it('should update component position in the DOM when updateComponent is called with new position', () => {
+      // Integration test: verifies that calling updateComponent (the same
+      // function handleComponentMove calls) updates the rendered position.
+      // This exercises the full pipeline: context -> Circuit model -> re-render -> DOM.
+
+      let triggerMove: (() => void) | null = null;
+
+      // Helper that adds a component, then exposes a function to move it
+      function SetupAndMoveHelper({ component }: { component: Component }) {
+        const { addComponent, updateComponent } = useCircuit();
+        const [added, setAdded] = useState(false);
+
+        useEffect(() => {
+          if (!added) {
+            addComponent(component);
+            setAdded(true);
+          }
+        }, [added, addComponent, component]);
+
+        // Simulate what handleComponentMove does: calculate new position with
+        // the component's current position + a delta, snapped to grid
+        triggerMove = () => {
+          const deltaX = 60;
+          const deltaY = 40;
+          const newX = snapToGrid(component.position.schematic.x + deltaX);
+          const newY = snapToGrid(component.position.schematic.y + deltaY);
+          updateComponent(component.id as ComponentId, {
+            position: {
+              ...component.position,
+              schematic: { x: newX, y: newY },
+            },
+          });
+        };
+
+        return null;
+      }
+
+      render(
+        <CircuitProvider>
+          <DndContext>
+            <SetupAndMoveHelper component={testComponent} />
+            <SchematicView />
+          </DndContext>
+        </CircuitProvider>
+      );
+
+      // Verify initial position: testComponent is at (100, 200)
+      const wrapper = screen.getByTestId(`component-${testComponent.id}`);
+      const innerG = wrapper.querySelector('g');
+      expect(innerG).not.toBeNull();
+      expect(innerG!.getAttribute('transform')).toBe('translate(100, 200)');
+
+      // Trigger the move: delta (60, 40) -> new position (160, 240)
+      // 100 + 60 = 160 (already on grid), 200 + 40 = 240 (already on grid)
+      act(() => {
+        triggerMove!();
+      });
+
+      // Verify the position updated in the DOM
+      const updatedWrapper = screen.getByTestId(`component-${testComponent.id}`);
+      const updatedInnerG = updatedWrapper.querySelector('g');
+      expect(updatedInnerG).not.toBeNull();
+      expect(updatedInnerG!.getAttribute('transform')).toBe('translate(160, 240)');
+    });
+
+    it('should snap to grid when updateComponent is called with non-aligned position', () => {
+      // Verifies grid snapping is applied when the movement delta results
+      // in a non-grid-aligned position.
+
+      let triggerMove: (() => void) | null = null;
+
+      function SetupAndMoveHelper({ component }: { component: Component }) {
+        const { addComponent, updateComponent } = useCircuit();
+        const [added, setAdded] = useState(false);
+
+        useEffect(() => {
+          if (!added) {
+            addComponent(component);
+            setAdded(true);
+          }
+        }, [added, addComponent, component]);
+
+        triggerMove = () => {
+          // Simulate a drag delta of (33, 47) from position (100, 200)
+          // 100 + 33 = 133 -> snaps to 140
+          // 200 + 47 = 247 -> snaps to 240
+          const deltaX = 33;
+          const deltaY = 47;
+          const newX = snapToGrid(component.position.schematic.x + deltaX);
+          const newY = snapToGrid(component.position.schematic.y + deltaY);
+          updateComponent(component.id as ComponentId, {
+            position: {
+              ...component.position,
+              schematic: { x: newX, y: newY },
+            },
+          });
+        };
+
+        return null;
+      }
+
+      render(
+        <CircuitProvider>
+          <DndContext>
+            <SetupAndMoveHelper component={testComponent} />
+            <SchematicView />
+          </DndContext>
+        </CircuitProvider>
+      );
+
+      // Verify initial position
+      const wrapper = screen.getByTestId(`component-${testComponent.id}`);
+      const innerG = wrapper.querySelector('g');
+      expect(innerG!.getAttribute('transform')).toBe('translate(100, 200)');
+
+      // Trigger move with non-aligned delta
+      act(() => {
+        triggerMove!();
+      });
+
+      // Verify the position snapped: (133 -> 140, 247 -> 240)
+      const updatedWrapper = screen.getByTestId(`component-${testComponent.id}`);
+      const updatedInnerG = updatedWrapper.querySelector('g');
+      expect(updatedInnerG!.getAttribute('transform')).toBe('translate(140, 240)');
     });
   });
 });

@@ -1,3 +1,4 @@
+import React, { useCallback } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
 import type { Component } from '@/types/circuit';
@@ -11,6 +12,16 @@ export const DraggableComponent: React.FC<DraggableComponentProps> = ({ componen
     id: component.id,
     data: { component },
   });
+
+  // Bridge SVGGElement to the HTMLElement ref that dnd-kit expects.
+  // SVGGElement shares the same base Element interface that dnd-kit
+  // needs for measurement (getBoundingClientRect), so the cast is safe.
+  const svgRef = useCallback(
+    (element: SVGGElement | null) => {
+      setNodeRef(element as unknown as HTMLElement | null);
+    },
+    [setNodeRef]
+  );
 
   const registry = ComponentRegistry.getInstance();
   const definition = registry.get(component.type);
@@ -28,7 +39,7 @@ export const DraggableComponent: React.FC<DraggableComponentProps> = ({ componen
 
   return (
     <g
-      ref={setNodeRef}
+      ref={svgRef}
       data-testid={`component-${component.id}`}
       data-draggable="true"
       style={style}
