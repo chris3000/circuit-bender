@@ -1,0 +1,61 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  cursor: grab;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.card:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+  transform: translateY(-1px);
+}
+
+.card:active {
+  cursor: grabbing;
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.1);
+}
+
+.symbol {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.symbol svg {
+  overflow: visible;
+}
+
+.name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #1e293b;
+  text-align: center;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.badge {
+  font-size: 10px;
+  font-weight: 500;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: lowercase;
+}
