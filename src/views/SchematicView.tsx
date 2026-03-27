@@ -1,25 +1,113 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { DndContext, DragEndEvent } from '@dnd-kit/core';
 import { useDroppable } from '@dnd-kit/core';
 import { useCircuit } from '@/context/CircuitContext';
 import { GRID_SIZE, snapToGrid } from '@/utils/grid';
 import { DROPPABLE_CANVAS_ID } from '@/constants/dnd';
 import { DraggableComponent } from './SchematicView/DraggableComponent';
-import type { ComponentId } from '@/types/circuit';
+import { Toolbar } from './SchematicView/Toolbar';
+import { PreviewWire } from './SchematicView/PreviewWire';
+import type { ToolMode } from './SchematicView/Toolbar';
+import type { ComponentId, PinId } from '@/types/circuit';
 import styles from './SchematicView.module.css';
 
 const GRID_COLOR = '#e0e0e0';
+
+type WiringState =
+  | { status: 'idle' }
+  | {
+      status: 'in-progress';
+      fromComponentId: ComponentId;
+      fromPinId: PinId;
+      cursorX: number;
+      cursorY: number;
+    };
 
 function SchematicView() {
   const { circuit, updateComponent } = useCircuit();
   const [zoom, setZoom] = useState(1);
   const [pan] = useState({ x: 0, y: 0 });
+  const [toolMode, setToolMode] = useState<ToolMode>('select');
+  const [wiringState, setWiringState] = useState<WiringState>({ status: 'idle' });
+  const svgRef = useRef<SVGSVGElement>(null);
 
   const { setNodeRef, isOver } = useDroppable({
     id: DROPPABLE_CANVAS_ID,
   });
 
   const components = circuit.getComponents();
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if (key === 'w') {
+        setToolMode('wire');
+      } else if (key === 'v') {
+        setToolMode('select');
+        setWiringState({ status: 'idle' });
+      } else if (key === 'escape') {
+        setToolMode('select');
+        setWiringState({ status: 'idle' });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const handleToolModeChange = useCallback((mode: ToolMode) => {
+    setToolMode(mode);
+    if (mode !== 'wire') {
+      setWiringState({ status: 'idle' });
+    }
+  }, []);
+
+  const handlePinClick = useCallback((componentId: ComponentId, pinId: PinId) => {
+    setWiringState((prev) => {
+      if (prev.status === 'idle') {
+        // Start wiring from this pin
+        return {
+          status: 'in-progress',
+          fromComponentId: componentId,
+          fromPinId: pinId,
+          cursorX: 0,
+          cursorY: 0,
+        };
+      } else {
+        // Complete wiring (stubbed for Task 5)
+        console.log(
+          `Wire: ${prev.fromComponentId}:${prev.fromPinId} -> ${componentId}:${pinId}`
+        );
+        return { status: 'idle' };
+      }
+    });
+  }, []);
+
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent<SVGSVGElement>) => {
+      if (wiringState.status !== 'in-progress') return;
+
+      const svg = svgRef.current;
+      if (!svg) return;
+
+      // Convert screen coordinates to SVG coordinates
+      const rect = svg.getBoundingClientRect();
+      const viewBox = svg.viewBox.baseVal;
+
+      const scaleX = viewBox.width / rect.width;
+      const scaleY = viewBox.height / rect.height;
+
+      const cursorX = (e.clientX - rect.left) * scaleX + viewBox.x;
+      const cursorY = (e.clientY - rect.top) * scaleY + viewBox.y;
+
+      setWiringState((prev) => {
+        if (prev.status !== 'in-progress') return prev;
+        return { ...prev, cursorX, cursorY };
+      });
+    },
+    [wiringState.status]
+  );
 
   const handleComponentMove = useCallback((event: DragEndEvent) => {
     const { active, delta } = event;
@@ -56,10 +144,14 @@ function SchematicView() {
           outline: isOver ? '2px dashed #3b82f6' : 'none',
         }}
       >
+        <Toolbar toolMode={toolMode} onToolModeChange={handleToolModeChange} />
+
         <svg
+          ref={svgRef}
           className={styles.canvas}
           data-testid="schematic-svg"
           viewBox={`${-pan.x} ${-pan.y} ${1000 / zoom} ${800 / zoom}`}
+          onMouseMove={handleMouseMove}
         >
           <defs>
             <pattern
@@ -90,9 +182,25 @@ function SchematicView() {
           {/* Render placed components with drag-to-move support */}
           <DndContext onDragEnd={handleComponentMove}>
             {components.map((component) => (
-              <DraggableComponent key={component.id} component={component} />
+              <DraggableComponent
+                key={component.id}
+                component={component}
+                toolMode={toolMode}
+                onPinClick={handlePinClick}
+              />
             ))}
           </DndContext>
+
+          {/* Render preview wire when wiring is in progress */}
+          {wiringState.status === 'in-progress' && (
+            <PreviewWire
+              fromComponentId={wiringState.fromComponentId}
+              fromPinId={wiringState.fromPinId}
+              toX={wiringState.cursorX}
+              toY={wiringState.cursorY}
+              circuit={circuit}
+            />
+          )}
         </svg>
       </div>
     </div>
