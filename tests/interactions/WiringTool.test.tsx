@@ -280,6 +280,39 @@ describe('Wiring Tool', () => {
 
       expect(screen.queryByTestId('preview-wire')).not.toBeInTheDocument();
     });
+
+    it('should render preview wire with correct attributes when wiring is in progress', () => {
+      render(
+        <CircuitProvider>
+          <DndContext>
+            <AddComponentHelper component={testComponent} />
+            <SchematicView />
+          </DndContext>
+        </CircuitProvider>
+      );
+
+      // Switch to wire mode
+      fireEvent.keyDown(window, { key: 'w' });
+
+      // Click a pin to start wiring
+      const pin = screen.getByTestId(`pin-${testComponent.id}-${testComponent.pins[0].id}`);
+      fireEvent.click(pin);
+
+      // Preview wire should now be rendered
+      const previewWire = screen.getByTestId('preview-wire');
+      expect(previewWire).toBeInTheDocument();
+
+      // Verify dashed stroke
+      expect(previewWire).toHaveAttribute('stroke-dasharray', '4 4');
+
+      // Verify pointer-events is none (doesn't interfere with clicks)
+      expect(previewWire).toHaveAttribute('pointer-events', 'none');
+
+      // Verify it has a valid d attribute (path data)
+      const d = previewWire.getAttribute('d');
+      expect(d).toBeTruthy();
+      expect(d).toMatch(/^M\s/); // Path data should start with M (moveto)
+    });
   });
 
   describe('Tool mode state', () => {
