@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { StorageManager } from '@/storage/StorageManager';
 import { Circuit } from '@/models/Circuit';
+import type { Component, ComponentId } from '@/types/circuit';
 
 describe('StorageManager', () => {
   let storage: StorageManager;
@@ -96,5 +97,39 @@ describe('StorageManager', () => {
 
     const list = storage.listCircuits();
     expect(list).toEqual([]);
+  });
+
+  it('should preserve modified timestamp', () => {
+    vi.useFakeTimers();
+    try {
+      const circuit = new Circuit('Test');
+      const originalModified = circuit.metadata.modified;
+
+      // Advance time so the modified timestamp will differ
+      vi.advanceTimersByTime(1000);
+
+      // Make a change to trigger timestamp update in Circuit model
+      const component: Component = {
+        id: 'comp1' as ComponentId,
+        type: 'resistor',
+        position: {
+          schematic: { x: 0, y: 0 },
+          breadboard: { row: 0, column: 0 },
+        },
+        rotation: 0,
+        parameters: {},
+        pins: [],
+        state: { voltages: new Map(), currents: new Map() },
+      };
+
+      const updated = circuit.addComponent(component);
+      storage.saveCircuit(updated);
+      const loaded = storage.loadCircuit(updated.id);
+
+      expect(loaded?.metadata.modified).not.toBe(originalModified);
+      expect(loaded?.metadata.modified).toBe(updated.metadata.modified);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
