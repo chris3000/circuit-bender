@@ -4,6 +4,8 @@ node_modules/
 # Build outputs
 dist/
 *.local
+src/**/*.js
+!src/**/*.js.map
 
 # Test coverage
 coverage/
