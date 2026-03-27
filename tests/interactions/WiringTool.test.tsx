@@ -315,6 +315,109 @@ describe('Wiring Tool', () => {
     });
   });
 
+  describe('Wire rendering', () => {
+    it('should render a Wire component after completing a connection between two components', () => {
+      render(
+        <CircuitProvider>
+          <DndContext>
+            <AddComponentHelper component={testComponent} />
+            <AddComponentHelper component={testComponent2} />
+            <SchematicView />
+          </DndContext>
+        </CircuitProvider>
+      );
+
+      // Switch to wire mode
+      fireEvent.keyDown(window, { key: 'w' });
+
+      // Click first pin on component 1 to start wiring
+      const fromPin = screen.getByTestId(
+        `pin-${testComponent.id}-${testComponent.pins[1].id}`
+      );
+      fireEvent.click(fromPin);
+
+      // Click first pin on component 2 to complete wiring
+      const toPin = screen.getByTestId(
+        `pin-${testComponent2.id}-${testComponent2.pins[0].id}`
+      );
+      fireEvent.click(toPin);
+
+      // Preview wire should be gone (wiring completed)
+      expect(screen.queryByTestId('preview-wire')).not.toBeInTheDocument();
+
+      // A committed Wire should be rendered
+      const wire = screen.getByTestId(/^wire-/);
+      expect(wire).toBeInTheDocument();
+      expect(wire.tagName.toLowerCase()).toBe('path');
+    });
+
+    it('should render wire with correct path between connected pins', () => {
+      render(
+        <CircuitProvider>
+          <DndContext>
+            <AddComponentHelper component={testComponent} />
+            <AddComponentHelper component={testComponent2} />
+            <SchematicView />
+          </DndContext>
+        </CircuitProvider>
+      );
+
+      // Switch to wire mode and create a connection
+      fireEvent.keyDown(window, { key: 'w' });
+
+      const fromPin = screen.getByTestId(
+        `pin-${testComponent.id}-${testComponent.pins[1].id}`
+      );
+      fireEvent.click(fromPin);
+
+      const toPin = screen.getByTestId(
+        `pin-${testComponent2.id}-${testComponent2.pins[0].id}`
+      );
+      fireEvent.click(toPin);
+
+      const wire = screen.getByTestId(/^wire-/);
+      const d = wire.getAttribute('d');
+      expect(d).toBeTruthy();
+      expect(d).toMatch(/^M\s/); // Valid SVG path
+    });
+
+    it('should alert and reset when connecting a pin to itself', () => {
+      const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {});
+
+      render(
+        <CircuitProvider>
+          <DndContext>
+            <AddComponentHelper component={testComponent} />
+            <SchematicView />
+          </DndContext>
+        </CircuitProvider>
+      );
+
+      // Switch to wire mode
+      fireEvent.keyDown(window, { key: 'w' });
+
+      // Click pin 1 to start wiring
+      const pin = screen.getByTestId(
+        `pin-${testComponent.id}-${testComponent.pins[0].id}`
+      );
+      fireEvent.click(pin);
+
+      // Click the same pin again
+      fireEvent.click(pin);
+
+      // Should show alert with validation error
+      expect(alertMock).toHaveBeenCalled();
+
+      // Preview wire should be gone (reset to idle)
+      expect(screen.queryByTestId('preview-wire')).not.toBeInTheDocument();
+
+      // No committed wire should exist
+      expect(screen.queryByTestId(/^wire-/)).not.toBeInTheDocument();
+
+      alertMock.mockRestore();
+    });
+  });
+
   describe('Tool mode state', () => {
     it('should start in select mode by default', () => {
       render(
