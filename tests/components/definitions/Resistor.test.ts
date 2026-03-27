@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resistorDefinition } from '@/components/definitions/Resistor.tsx';
+import { resistorDefinition } from '@/components/definitions/Resistor';
 
 describe('Resistor Component', () => {
   it('should have correct metadata', () => {
