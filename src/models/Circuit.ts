@@ -133,9 +133,9 @@ export class Circuit {
     return {
       id: this.id,
       name: this.name,
-      components: this.components,
-      connections: this.connections,
-      metadata: this.metadata,
+      components: new Map(this.components),
+      connections: [...this.connections],
+      metadata: { ...this.metadata },
     };
   }
 
