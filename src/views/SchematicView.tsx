@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { DndContext, DragEndEvent } from '@dnd-kit/core';
 import { useDroppable } from '@dnd-kit/core';
 import { useCircuit } from '@/context/CircuitContext';
@@ -19,8 +19,8 @@ type WiringState =
       status: 'in-progress';
       fromComponentId: ComponentId;
       fromPinId: PinId;
-      cursorX: number;
-      cursorY: number;
+      startX: number;
+      startY: number;
     };
 
 function SchematicView() {
@@ -29,17 +29,22 @@ function SchematicView() {
   const [pan] = useState({ x: 0, y: 0 });
   const [toolMode, setToolMode] = useState<ToolMode>('select');
   const [wiringState, setWiringState] = useState<WiringState>({ status: 'idle' });
+  const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
   const svgRef = useRef<SVGSVGElement>(null);
 
   const { setNodeRef, isOver } = useDroppable({
     id: DROPPABLE_CANVAS_ID,
   });
 
-  const components = circuit.getComponents();
+  const components = useMemo(() => circuit.getComponents(), [circuit]);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
       const key = e.key.toLowerCase();
       if (key === 'w') {
         setToolMode('wire');
@@ -67,12 +72,19 @@ function SchematicView() {
     setWiringState((prev) => {
       if (prev.status === 'idle') {
         // Start wiring from this pin
+        const component = circuit.getComponent(componentId);
+        const pin = component?.pins.find(p => p.id === pinId);
+        if (!component || !pin) return prev;
+
+        const startX = component.position.schematic.x + pin.position.x;
+        const startY = component.position.schematic.y + pin.position.y;
+
         return {
           status: 'in-progress',
           fromComponentId: componentId,
           fromPinId: pinId,
-          cursorX: 0,
-          cursorY: 0,
+          startX,
+          startY,
         };
       } else {
         // Complete wiring (stubbed for Task 5)
@@ -82,7 +94,7 @@ function SchematicView() {
         return { status: 'idle' };
       }
     });
-  }, []);
+  }, [circuit]);
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
@@ -101,10 +113,7 @@ function SchematicView() {
       const cursorX = (e.clientX - rect.left) * scaleX + viewBox.x;
       const cursorY = (e.clientY - rect.top) * scaleY + viewBox.y;
 
-      setWiringState((prev) => {
-        if (prev.status !== 'in-progress') return prev;
-        return { ...prev, cursorX, cursorY };
-      });
+      setCursorPos({ x: cursorX, y: cursorY });
     },
     [wiringState.status]
   );
@@ -194,11 +203,10 @@ function SchematicView() {
           {/* Render preview wire when wiring is in progress */}
           {wiringState.status === 'in-progress' && (
             <PreviewWire
-              fromComponentId={wiringState.fromComponentId}
-              fromPinId={wiringState.fromPinId}
-              toX={wiringState.cursorX}
-              toY={wiringState.cursorY}
-              circuit={circuit}
+              fromX={wiringState.startX}
+              fromY={wiringState.startY}
+              toX={cursorPos.x}
+              toY={cursorPos.y}
             />
           )}
         </svg>
