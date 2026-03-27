@@ -5,8 +5,13 @@ export default defineConfig({
   plugins: [react()],
   test: {
     globals: true,
-    environment: 'node',
+    environment: 'happy-dom',
     setupFiles: ['./tests/setup.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html'],
+      exclude: ['node_modules/', 'tests/', '**/*.test.ts', '**/*.test.tsx'],
+    },
   },
   resolve: {
     alias: {
