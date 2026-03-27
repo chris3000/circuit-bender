@@ -134,7 +134,41 @@ describe('Circuit', () => {
     expect(updatedComponent?.parameters.resistance).toBe(2000);
   });
 
+  it('should throw error when updating non-existent component', () => {
+    expect(() => {
+      circuit.updateComponent('nonexistent' as ComponentId, {
+        parameters: { resistance: 2000 },
+      });
+    }).toThrow('Component nonexistent not found');
+  });
+
   it('should add a connection', () => {
+    const component1: Component = {
+      id: 'comp1' as ComponentId,
+      type: 'resistor',
+      position: {
+        schematic: { x: 0, y: 0 },
+        breadboard: { row: 0, column: 0 },
+      },
+      rotation: 0,
+      parameters: {},
+      pins: [],
+      state: { voltages: new Map(), currents: new Map() },
+    };
+
+    const component2: Component = {
+      id: 'comp2' as ComponentId,
+      type: 'resistor',
+      position: {
+        schematic: { x: 0, y: 0 },
+        breadboard: { row: 0, column: 0 },
+      },
+      rotation: 0,
+      parameters: {},
+      pins: [],
+      state: { voltages: new Map(), currents: new Map() },
+    };
+
     const connection: Connection = {
       id: 'conn1' as any,
       from: { componentId: 'comp1' as ComponentId, pinId: 'pin1' as PinId },
@@ -142,7 +176,8 @@ describe('Circuit', () => {
       net: 'net1' as any,
     };
 
-    const newCircuit = circuit.addConnection(connection);
+    const withComponents = circuit.addComponent(component1).addComponent(component2);
+    const newCircuit = withComponents.addConnection(connection);
 
     expect(newCircuit.getConnections()).toHaveLength(1);
     expect(circuit.getConnections()).toHaveLength(0);
@@ -167,7 +202,8 @@ describe('Circuit', () => {
 
     expect(json.id).toBe(circuit.id);
     expect(json.name).toBe('Test Circuit');
-    expect(json.components).toEqual(new Map());
+    expect(Array.isArray(json.components)).toBe(true);
+    expect(json.components).toHaveLength(0);
     expect(json.connections).toEqual([]);
     expect(json.metadata).toBeDefined();
   });

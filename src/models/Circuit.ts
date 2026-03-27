@@ -76,6 +76,18 @@ export class Circuit {
     });
   }
 
+  /**
+   * Updates a component with new values.
+   * Note: This performs a shallow merge. To update nested properties (parameters, position, state),
+   * provide the complete nested object with all existing values plus the changes.
+   *
+   * @example
+   * // To update resistance while keeping other parameters:
+   * const component = circuit.getComponent(id);
+   * circuit.updateComponent(id, {
+   *   parameters: { ...component.parameters, resistance: 2000 }
+   * });
+   */
   updateComponent(
     componentId: ComponentId,
     updates: Partial<Component>
@@ -96,6 +108,14 @@ export class Circuit {
   }
 
   addConnection(connection: Connection): Circuit {
+    // Validate components exist
+    if (!this.components.has(connection.from.componentId)) {
+      throw new Error(`Component ${connection.from.componentId} not found`);
+    }
+    if (!this.components.has(connection.to.componentId)) {
+      throw new Error(`Component ${connection.to.componentId} not found`);
+    }
+
     const newConnections = [...this.connections, connection];
 
     return this.clone({
