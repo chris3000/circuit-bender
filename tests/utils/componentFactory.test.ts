@@ -1,16 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { createComponentFromDefinition } from '@/utils/componentFactory';
-import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
 import { resistorDefinition } from '@/components/definitions/Resistor';
-import type { ComponentDefinition } from '@/types/circuit';
 
 describe('componentFactory', () => {
-  beforeEach(() => {
-    const registry = ComponentRegistry.getInstance();
-    registry.clear();
-    registry.register(resistorDefinition);
-  });
-
   it('should create a component from a definition with correct type', () => {
     const component = createComponentFromDefinition(resistorDefinition, { x: 100, y: 200 });
 
@@ -63,6 +55,15 @@ describe('componentFactory', () => {
     // Mutating component pins should not affect the definition
     component.pins[0].label = 'modified';
     expect(resistorDefinition.pins[0].label).toBe('1');
+  });
+
+  it('should not share pin position reference with definition', () => {
+    const component = createComponentFromDefinition(resistorDefinition, { x: 100, y: 200 });
+
+    // Mutating component pin positions should not affect the definition
+    const originalX = resistorDefinition.pins[0].position.x;
+    component.pins[0].position.x = 999;
+    expect(resistorDefinition.pins[0].position.x).toBe(originalX);
   });
 
   it('should generate a unique component ID', () => {

@@ -19,7 +19,10 @@ export const createComponentFromDefinition = (
     },
     rotation: 0,
     parameters: { ...definition.defaultParameters },
-    pins: definition.pins.map(pin => ({ ...pin })),
+    pins: definition.pins.map(pin => ({
+      ...pin,
+      position: { ...pin.position },
+    })),
     state: {
       voltages: new Map(),
       currents: new Map(),

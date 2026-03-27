@@ -1,6 +1,6 @@
 import type { Position2D } from '@/types/circuit';
 
-export const GRID_SIZE = 10; // Default grid spacing in pixels
+export const GRID_SIZE = 20; // Default grid spacing in pixels
 
 export function snapToGrid(value: number, gridSize: number = GRID_SIZE): number {
   return Math.round(value / gridSize) * gridSize;

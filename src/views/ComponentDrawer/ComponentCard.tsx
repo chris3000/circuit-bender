@@ -1,6 +1,7 @@
 import React from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import type { ComponentDefinition } from '@/types/circuit';
+import { ComponentSymbol } from '@/components/ComponentSymbol';
 import styles from './ComponentCard.module.css';
 
 interface ComponentCardProps {
@@ -8,8 +9,7 @@ interface ComponentCardProps {
 }
 
 export const ComponentCard = React.memo(function ComponentCard({ definition }: ComponentCardProps) {
-  const { type, metadata, schematic } = definition;
-  const { symbol } = schematic;
+  const { type, metadata } = definition;
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `drawer-${type}`,
@@ -27,14 +27,10 @@ export const ComponentCard = React.memo(function ComponentCard({ definition }: C
       {...attributes}
     >
       <div className={styles.symbol}>
-        <svg
-          data-testid={`component-symbol-${type}`}
-          width={60}
-          height={60}
-          viewBox={`${-symbol.width / 2} ${-symbol.height / 2} ${symbol.width} ${symbol.height}`}
-        >
-          {symbol.render(definition.defaultParameters)}
-        </svg>
+        <ComponentSymbol
+          definition={definition}
+          testId={`component-symbol-${type}`}
+        />
       </div>
       <span className={styles.name}>{metadata.name}</span>
       <span

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { useCircuit } from '@/context/CircuitContext';
+import { GRID_SIZE } from '@/utils/grid';
+import { DROPPABLE_CANVAS_ID } from '@/constants/dnd';
 import styles from './SchematicView.module.css';
 
-const GRID_SIZE = 10;
 const GRID_COLOR = '#e0e0e0';
 
 function SchematicView() {
@@ -12,7 +13,7 @@ function SchematicView() {
   const [pan] = useState({ x: 0, y: 0 });
 
   const { setNodeRef, isOver } = useDroppable({
-    id: 'schematic-canvas',
+    id: DROPPABLE_CANVAS_ID,
   });
 
   const components = circuit.getComponents();
