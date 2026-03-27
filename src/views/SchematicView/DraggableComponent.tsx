@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
 import type { Component } from '@/types/circuit';
@@ -7,7 +7,7 @@ interface DraggableComponentProps {
   component: Component;
 }
 
-export const DraggableComponent: React.FC<DraggableComponentProps> = ({ component }) => {
+export const DraggableComponent = React.memo(function DraggableComponent({ component }: DraggableComponentProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: component.id,
     data: { component },
@@ -23,8 +23,10 @@ export const DraggableComponent: React.FC<DraggableComponentProps> = ({ componen
     [setNodeRef]
   );
 
-  const registry = ComponentRegistry.getInstance();
-  const definition = registry.get(component.type);
+  const definition = useMemo(
+    () => ComponentRegistry.getInstance().get(component.type),
+    [component.type]
+  );
 
   if (!definition) return null;
 
@@ -51,4 +53,4 @@ export const DraggableComponent: React.FC<DraggableComponentProps> = ({ componen
       </g>
     </g>
   );
-};
+});

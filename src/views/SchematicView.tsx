@@ -5,7 +5,7 @@ import { useCircuit } from '@/context/CircuitContext';
 import { GRID_SIZE, snapToGrid } from '@/utils/grid';
 import { DROPPABLE_CANVAS_ID } from '@/constants/dnd';
 import { DraggableComponent } from './SchematicView/DraggableComponent';
-import type { Component, ComponentId } from '@/types/circuit';
+import type { ComponentId } from '@/types/circuit';
 import styles from './SchematicView.module.css';
 
 const GRID_COLOR = '#e0e0e0';
@@ -23,22 +23,22 @@ function SchematicView() {
 
   const handleComponentMove = useCallback((event: DragEndEvent) => {
     const { active, delta } = event;
-
-    const component = active.data.current?.component as Component | undefined;
-    if (!component) {
-      return;
-    }
+    const componentId = active.id as ComponentId;
+    const component = circuit.getComponent(componentId);
+    if (!component) return;
 
     const newX = snapToGrid(component.position.schematic.x + delta.x);
     const newY = snapToGrid(component.position.schematic.y + delta.y);
 
-    updateComponent(component.id as ComponentId, {
+    if (newX === component.position.schematic.x && newY === component.position.schematic.y) return;
+
+    updateComponent(componentId, {
       position: {
         ...component.position,
         schematic: { x: newX, y: newY },
       },
     });
-  }, [updateComponent]);
+  }, [circuit, updateComponent]);
 
   return (
     <div className={styles.container}>
