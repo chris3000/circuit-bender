@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { Circuit } from '@/models/Circuit';
 import type {
   Component,
@@ -49,7 +49,7 @@ export function CircuitProvider({ children }: { children: React.ReactNode }) {
     setCircuit(newCircuit);
   }, []);
 
-  const value: CircuitContextType = {
+  const value = useMemo<CircuitContextType>(() => ({
     circuit,
     addComponent,
     removeComponent,
@@ -57,7 +57,7 @@ export function CircuitProvider({ children }: { children: React.ReactNode }) {
     addConnection,
     removeConnection,
     loadCircuit,
-  };
+  }), [circuit, addComponent, removeComponent, updateComponent, addConnection, removeConnection, loadCircuit]);
 
   return (
     <CircuitContext.Provider value={value}>{children}</CircuitContext.Provider>
