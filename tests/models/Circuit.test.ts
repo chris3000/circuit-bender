@@ -184,6 +184,32 @@ describe('Circuit', () => {
   });
 
   it('should remove a connection', () => {
+    const component1: Component = {
+      id: 'comp1' as ComponentId,
+      type: 'resistor',
+      position: {
+        schematic: { x: 0, y: 0 },
+        breadboard: { row: 0, column: 0 },
+      },
+      rotation: 0,
+      parameters: {},
+      pins: [],
+      state: { voltages: new Map(), currents: new Map() },
+    };
+
+    const component2: Component = {
+      id: 'comp2' as ComponentId,
+      type: 'resistor',
+      position: {
+        schematic: { x: 0, y: 0 },
+        breadboard: { row: 0, column: 0 },
+      },
+      rotation: 0,
+      parameters: {},
+      pins: [],
+      state: { voltages: new Map(), currents: new Map() },
+    };
+
     const connection: Connection = {
       id: 'conn1' as any,
       from: { componentId: 'comp1' as ComponentId, pinId: 'pin1' as PinId },
@@ -191,7 +217,8 @@ describe('Circuit', () => {
       net: 'net1' as any,
     };
 
-    const withConnection = circuit.addConnection(connection);
+    const withComponents = circuit.addComponent(component1).addComponent(component2);
+    const withConnection = withComponents.addConnection(connection);
     const withoutConnection = withConnection.removeConnection(connection.id);
 
     expect(withoutConnection.getConnections()).toHaveLength(0);
