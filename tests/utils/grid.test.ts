@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { snapToGrid, gridDistance } from '@/utils/grid';
+import { snapToGrid, gridDistance, snapPositionToGrid } from '@/utils/grid';
 
 describe('Grid Utilities', () => {
   it('should snap coordinates to grid', () => {
@@ -7,6 +7,14 @@ describe('Grid Utilities', () => {
     expect(snapToGrid(27, 10)).toBe(30);
     expect(snapToGrid(25, 10)).toBe(30);
     expect(snapToGrid(100, 20)).toBe(100);
+  });
+
+  it('should snap position to grid', () => {
+    const pos = { x: 23, y: 47 };
+    const snapped = snapPositionToGrid(pos, 10);
+
+    expect(snapped.x).toBe(20);
+    expect(snapped.y).toBe(50);
   });
 
   it('should calculate grid distance', () => {
