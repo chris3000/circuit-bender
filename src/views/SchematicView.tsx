@@ -1,14 +1,17 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { DndContext, DragEndEvent } from '@dnd-kit/core';
 import { useDroppable } from '@dnd-kit/core';
 import { useCircuit } from '@/context/CircuitContext';
-import { GRID_SIZE } from '@/utils/grid';
+import { GRID_SIZE, snapToGrid } from '@/utils/grid';
 import { DROPPABLE_CANVAS_ID } from '@/constants/dnd';
+import { DraggableComponent } from './SchematicView/DraggableComponent';
+import type { Component, ComponentId } from '@/types/circuit';
 import styles from './SchematicView.module.css';
 
 const GRID_COLOR = '#e0e0e0';
 
 function SchematicView() {
-  const { circuit } = useCircuit();
+  const { circuit, updateComponent } = useCircuit();
   const [zoom, setZoom] = useState(1);
   const [pan] = useState({ x: 0, y: 0 });
 
@@ -17,6 +20,25 @@ function SchematicView() {
   });
 
   const components = circuit.getComponents();
+
+  const handleComponentMove = useCallback((event: DragEndEvent) => {
+    const { active, delta } = event;
+
+    const component = active.data.current?.component as Component | undefined;
+    if (!component) {
+      return;
+    }
+
+    const newX = snapToGrid(component.position.schematic.x + delta.x);
+    const newY = snapToGrid(component.position.schematic.y + delta.y);
+
+    updateComponent(component.id as ComponentId, {
+      position: {
+        ...component.position,
+        schematic: { x: newX, y: newY },
+      },
+    });
+  }, [updateComponent]);
 
   return (
     <div className={styles.container}>
@@ -65,19 +87,12 @@ function SchematicView() {
             fill="url(#grid)"
           />
 
-          {/* Render placed components */}
-          {components.map((component) => (
-            <g
-              key={component.id}
-              data-testid={`placed-component-${component.id}`}
-              transform={`translate(${component.position.schematic.x}, ${component.position.schematic.y})`}
-            >
-              <circle r="5" fill="blue" />
-              <text y="15" textAnchor="middle" fontSize="10">
-                {component.type}
-              </text>
-            </g>
-          ))}
+          {/* Render placed components with drag-to-move support */}
+          <DndContext onDragEnd={handleComponentMove}>
+            {components.map((component) => (
+              <DraggableComponent key={component.id} component={component} />
+            ))}
+          </DndContext>
         </svg>
       </div>
     </div>

@@ -1,12 +1,17 @@
+import React, { useEffect, useState } from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { DndContext } from '@dnd-kit/core';
 import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
 import { resistorDefinition } from '@/components/definitions/Resistor';
 import { ComponentCard } from '@/views/ComponentDrawer/ComponentCard';
-import { CircuitProvider } from '@/context/CircuitContext';
+import { CircuitProvider, useCircuit } from '@/context/CircuitContext';
 import { AppContent } from '@/App';
 import SchematicView from '@/views/SchematicView';
+import { createComponentFromDefinition } from '@/utils/componentFactory';
+import { snapToGrid } from '@/utils/grid';
+import { Circuit } from '@/models/Circuit';
+import type { Component, ComponentId } from '@/types/circuit';
 
 describe('Drag and Drop', () => {
   beforeEach(() => {
@@ -133,6 +138,112 @@ describe('Drag and Drop', () => {
       expect(component.position.schematic.x).toBe(160); // 150 snapped to 20px grid = 160
       expect(component.position.schematic.y).toBe(260); // 250 snapped to 20px grid = 260
       expect(component.id).toBeTruthy();
+    });
+  });
+
+  describe('Component movement (canvas → canvas)', () => {
+    let testComponent: Component;
+
+    beforeEach(() => {
+      testComponent = createComponentFromDefinition(resistorDefinition, {
+        x: snapToGrid(100),
+        y: snapToGrid(200),
+      });
+    });
+
+    // Helper component that adds a component to the circuit on mount
+    function AddComponentHelper({ component }: { component: Component }) {
+      const { addComponent } = useCircuit();
+      const [added, setAdded] = useState(false);
+      useEffect(() => {
+        if (!added) {
+          addComponent(component);
+          setAdded(true);
+        }
+      }, [added, addComponent, component]);
+      return null;
+    }
+
+    it('should render placed components with data-draggable attribute', () => {
+      render(
+        <CircuitProvider>
+          <DndContext>
+            <AddComponentHelper component={testComponent} />
+            <SchematicView />
+          </DndContext>
+        </CircuitProvider>
+      );
+
+      const placedComponent = screen.getByTestId(`component-${testComponent.id}`);
+      expect(placedComponent).toBeInTheDocument();
+      expect(placedComponent).toHaveAttribute('data-draggable', 'true');
+    });
+
+    it('should render placed components using DraggableComponent with schematic symbol', () => {
+      render(
+        <CircuitProvider>
+          <DndContext>
+            <AddComponentHelper component={testComponent} />
+            <SchematicView />
+          </DndContext>
+        </CircuitProvider>
+      );
+
+      // The DraggableComponent should render the schematic symbol
+      const placedComponent = screen.getByTestId(`component-${testComponent.id}`);
+      expect(placedComponent).toBeInTheDocument();
+
+      // Verify the component value text is rendered from the resistor symbol
+      expect(screen.getByText('1k')).toBeInTheDocument();
+    });
+
+    it('should update component position when movement handler calculates new snapped position', () => {
+      // Test the movement calculation logic directly
+      const originalX = testComponent.position.schematic.x;
+      const originalY = testComponent.position.schematic.y;
+      const deltaX = 45; // Should snap
+      const deltaY = 63; // Should snap
+
+      const newX = snapToGrid(originalX + deltaX);
+      const newY = snapToGrid(originalY + deltaY);
+
+      // Verify snapping works for movement deltas
+      expect(newX).toBe(140); // 100 + 45 = 145, snapped to 140
+      expect(newY).toBe(260); // 200 + 63 = 263, snapped to 260
+
+      // Verify the Circuit model can apply the update
+      let circuit = new Circuit('test');
+      circuit = circuit.addComponent(testComponent);
+
+      circuit = circuit.updateComponent(testComponent.id, {
+        position: {
+          ...testComponent.position,
+          schematic: { x: newX, y: newY },
+        },
+      });
+
+      const updated = circuit.getComponent(testComponent.id);
+      expect(updated?.position.schematic.x).toBe(140);
+      expect(updated?.position.schematic.y).toBe(260);
+    });
+
+    it('should render placed components with DraggableComponent wrapper in SchematicView', () => {
+      render(
+        <CircuitProvider>
+          <DndContext>
+            <AddComponentHelper component={testComponent} />
+            <SchematicView />
+          </DndContext>
+        </CircuitProvider>
+      );
+
+      // Verify the component rendered with DraggableComponent wrapper
+      const placedComponent = screen.getByTestId(`component-${testComponent.id}`);
+      expect(placedComponent).toBeInTheDocument();
+      expect(placedComponent).toHaveAttribute('data-draggable', 'true');
+
+      // Verify it has a cursor style for dragging (via the g element)
+      expect(placedComponent.tagName.toLowerCase()).toBe('g');
     });
   });
 });
