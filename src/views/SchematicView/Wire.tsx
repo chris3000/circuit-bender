@@ -1,55 +1,36 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { generateOrthogonalPath } from '@/utils/wiring';
-import type { Connection } from '@/types/circuit';
-import { Circuit } from '@/models/Circuit';
+import type { ConnectionId } from '@/types/circuit';
 
 interface WireProps {
-  connection: Connection;
-  circuit: Circuit;
+  connectionId: ConnectionId;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
   isSelected: boolean;
-  onClick: (connectionId: string) => void;
+  onClick: (connectionId: ConnectionId) => void;
 }
 
 export const Wire = React.memo(function Wire({
-  connection,
-  circuit,
+  connectionId,
+  fromX,
+  fromY,
+  toX,
+  toY,
   isSelected,
   onClick,
 }: WireProps) {
-  const pathData = useMemo(() => {
-    const fromComponent = circuit.getComponent(connection.from.componentId);
-    const toComponent = circuit.getComponent(connection.to.componentId);
-
-    if (!fromComponent || !toComponent) return null;
-
-    const fromPin = fromComponent.pins.find(
-      (p) => p.id === connection.from.pinId
-    );
-    const toPin = toComponent.pins.find(
-      (p) => p.id === connection.to.pinId
-    );
-
-    if (!fromPin || !toPin) return null;
-
-    // Calculate absolute pin positions (component position + pin relative position)
-    const fromX = fromComponent.position.schematic.x + fromPin.position.x;
-    const fromY = fromComponent.position.schematic.y + fromPin.position.y;
-    const toX = toComponent.position.schematic.x + toPin.position.x;
-    const toY = toComponent.position.schematic.y + toPin.position.y;
-
-    return generateOrthogonalPath(fromX, fromY, toX, toY);
-  }, [connection, circuit]);
-
-  if (!pathData) return null;
+  const pathData = generateOrthogonalPath(fromX, fromY, toX, toY);
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onClick(connection.id);
+    onClick(connectionId);
   };
 
   return (
     <path
-      data-testid={`wire-${connection.id}`}
+      data-testid={`wire-${connectionId}`}
       d={pathData}
       fill="none"
       stroke={isSelected ? '#4CAF50' : '#333'}

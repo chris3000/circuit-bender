@@ -11,7 +11,7 @@ import { Toolbar } from './SchematicView/Toolbar';
 import { PreviewWire } from './SchematicView/PreviewWire';
 import { Wire } from './SchematicView/Wire';
 import type { ToolMode } from './SchematicView/Toolbar';
-import type { ComponentId, PinId } from '@/types/circuit';
+import type { ComponentId, PinId, ConnectionId } from '@/types/circuit';
 import styles from './SchematicView.module.css';
 
 const GRID_COLOR = '#e0e0e0';
@@ -75,12 +75,16 @@ function SchematicView() {
   const wiringStateRef = useRef<WiringState>(wiringState);
   wiringStateRef.current = wiringState;
 
+  const circuitRef = useRef(circuit);
+  circuitRef.current = circuit;
+
   const handlePinClick = useCallback((componentId: ComponentId, pinId: PinId) => {
     const currentState = wiringStateRef.current;
+    const currentCircuit = circuitRef.current;
 
     if (currentState.status === 'idle') {
       // Start wiring from this pin
-      const component = circuit.getComponent(componentId);
+      const component = currentCircuit.getComponent(componentId);
       const pin = component?.pins.find(p => p.id === pinId);
       if (!component || !pin) return;
 
@@ -101,7 +105,7 @@ function SchematicView() {
         currentState.fromPinId,
         componentId,
         pinId,
-        circuit
+        currentCircuit
       );
 
       if (!validation.valid) {
@@ -120,11 +124,14 @@ function SchematicView() {
 
       setWiringState({ status: 'idle' });
     }
-  }, [circuit, addConnection]);
+  }, [addConnection]);
+
+  const wiringStatusRef = useRef(wiringState.status);
+  wiringStatusRef.current = wiringState.status;
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
-      if (wiringState.status !== 'in-progress') return;
+      if (wiringStatusRef.current !== 'in-progress') return;
 
       const svg = svgRef.current;
       if (!svg) return;
@@ -141,7 +148,7 @@ function SchematicView() {
 
       setCursorPos({ x: cursorX, y: cursorY });
     },
-    [wiringState.status]
+    []
   );
 
   const handleComponentMove = useCallback((event: DragEndEvent) => {
@@ -162,6 +169,27 @@ function SchematicView() {
       },
     });
   }, [circuit, updateComponent]);
+
+  const wiresWithPositions = useMemo(() => {
+    return connections.map(conn => {
+      const fromComp = circuit.getComponent(conn.from.componentId);
+      const toComp = circuit.getComponent(conn.to.componentId);
+      const fromPin = fromComp?.pins.find(p => p.id === conn.from.pinId);
+      const toPin = toComp?.pins.find(p => p.id === conn.to.pinId);
+
+      return {
+        connectionId: conn.id,
+        fromX: fromComp && fromPin ? fromComp.position.schematic.x + fromPin.position.x : 0,
+        fromY: fromComp && fromPin ? fromComp.position.schematic.y + fromPin.position.y : 0,
+        toX: toComp && toPin ? toComp.position.schematic.x + toPin.position.x : 0,
+        toY: toComp && toPin ? toComp.position.schematic.y + toPin.position.y : 0,
+      };
+    });
+  }, [connections, circuit]);
+
+  const handleWireClick = useCallback((_connectionId: ConnectionId) => {
+    // Selection stubbed for Task 10
+  }, []);
 
   return (
     <div className={styles.container}>
@@ -227,13 +255,16 @@ function SchematicView() {
           </DndContext>
 
           {/* Render committed connections */}
-          {connections.map((connection) => (
+          {wiresWithPositions.map((wire) => (
             <Wire
-              key={connection.id}
-              connection={connection}
-              circuit={circuit}
+              key={wire.connectionId}
+              connectionId={wire.connectionId}
+              fromX={wire.fromX}
+              fromY={wire.fromY}
+              toX={wire.toX}
+              toY={wire.toY}
               isSelected={false} // Selection stubbed for Task 10
-              onClick={() => {}} // Selection stubbed for Task 10
+              onClick={handleWireClick} // Selection stubbed for Task 10
             />
           ))}
 
