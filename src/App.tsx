@@ -5,17 +5,16 @@ import { useCircuit } from './context/CircuitContext';
 import { ComponentRegistry } from './components/registry/ComponentRegistry';
 import { createComponentFromDefinition } from './utils/componentFactory';
 import { snapToGrid } from './utils/grid';
-import { DROPPABLE_CANVAS_ID, DROPPABLE_BREADBOARD_ID } from './constants/dnd';
+import { DROPPABLE_CANVAS_ID, DROPPABLE_BOARD_ID } from './constants/dnd';
 import { ComponentSymbol } from './components/ComponentSymbol';
 import SchematicView from './views/SchematicView';
 import { ComponentDrawer } from './views/ComponentDrawer';
 import { AudioEngine } from './audio/AudioEngine';
-import BreadboardView from './views/BreadboardView/BreadboardView';
 import OscilloscopePanel from './views/Oscilloscope/OscilloscopePanel';
 import { ExamplesMenu } from './views/ExamplesMenu';
 import type { Circuit } from './models/Circuit';
 
-type ActiveView = 'schematic' | 'breadboard';
+type ActiveView = 'schematic' | 'board';
 
 export function AppContent() {
   const { circuit, addComponent } = useCircuit();
@@ -106,7 +105,7 @@ export function AppContent() {
           return;
         }
         e.preventDefault();
-        setActiveView((v) => (v === 'schematic' ? 'breadboard' : 'schematic'));
+        setActiveView((v) => (v === 'schematic' ? 'board' : 'schematic'));
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -147,7 +146,7 @@ export function AppContent() {
 
     const { active, over } = event;
 
-    if (!over || (over.id !== DROPPABLE_CANVAS_ID && over.id !== DROPPABLE_BREADBOARD_ID)) {
+    if (!over || (over.id !== DROPPABLE_CANVAS_ID && over.id !== DROPPABLE_BOARD_ID)) {
       return;
     }
 
@@ -232,7 +231,7 @@ export function AppContent() {
           {activeView === 'schematic' ? (
             <SchematicView
               activeView={activeView}
-              onToggleView={() => setActiveView((v) => (v === 'schematic' ? 'breadboard' : 'schematic'))}
+              onToggleView={() => setActiveView((v) => (v === 'schematic' ? 'board' : 'schematic'))}
               ledStates={ledStates}
               onPotChange={useCallback((componentId: string, position: number) => {
                 audioEngineRef.current?.setParam(componentId, 'position', position);
@@ -240,10 +239,9 @@ export function AppContent() {
               onAddProbe={handleAddProbe}
             />
           ) : (
-            <BreadboardView
-              activeView={activeView}
-              onToggleView={() => setActiveView((v) => (v === 'schematic' ? 'breadboard' : 'schematic'))}
-            />
+            <div id="board-canvas" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1a6b3c', color: '#a8d8a8', fontFamily: 'Courier New' }}>
+              Board view coming soon
+            </div>
           )}
         </main>
         <OscilloscopePanel

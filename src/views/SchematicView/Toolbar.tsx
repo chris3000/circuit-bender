@@ -6,7 +6,7 @@ interface ToolbarProps {
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
-  activeView?: 'schematic' | 'breadboard';
+  activeView?: 'schematic' | 'board';
   onToggleView?: () => void;
   zoom?: number;
   onZoomIn?: () => void;
@@ -64,8 +64,8 @@ export const Toolbar = React.memo(function Toolbar({
               Schematic
             </button>
             <button
-              className={`${styles.viewTab} ${activeView === 'breadboard' ? styles.viewTabActive : ''}`}
-              onClick={activeView !== 'breadboard' ? onToggleView : undefined}
+              className={`${styles.viewTab} ${activeView === 'board' ? styles.viewTabActive : ''}`}
+              onClick={activeView !== 'board' ? onToggleView : undefined}
             >
               Board
             </button>
