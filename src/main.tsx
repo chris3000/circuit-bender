@@ -14,6 +14,7 @@ import { diode1N914Definition } from './components/definitions/Diode1N914';
 import { audioOutputJackDefinition } from './components/definitions/AudioOutputJack';
 import { ledDefinition } from './components/definitions/LED';
 import { SimulationEngine } from './simulation/SimulationEngine';
+import 'reactflow/dist/style.css';
 import './styles/globals.css';
 
 // Initialize component registry
