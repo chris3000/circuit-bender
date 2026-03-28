@@ -66,27 +66,31 @@ export const DraggableComponent = React.memo(function DraggableComponent({
     [component.id, component.type, onEditParameter]
   );
 
-  // Potentiometer slider interaction
-  const handleSliderDrag = useCallback(
+  // Potentiometer dial interaction
+  const handleDialDrag = useCallback(
     (e: React.PointerEvent) => {
       if (component.type !== 'potentiometer') return;
       e.stopPropagation();
       e.preventDefault();
 
-      const sliderWidth = 60;
-      const startX = e.clientX;
-      const currentPosition = (component.parameters.position as number) ?? 0.5;
+      const svgEl = (e.target as SVGElement).ownerSVGElement;
+      if (!svgEl) return;
+
+      const ctm = svgEl.getScreenCTM();
+      if (!ctm) return;
+      const centerX = component.position.x * ctm.a + ctm.e;
+      const centerY = component.position.y * ctm.d + ctm.f;
 
       const onMove = (moveEvent: PointerEvent) => {
-        const deltaX = moveEvent.clientX - startX;
-        // Scale deltaX by zoom factor — approximate from SVG viewBox
-        const svgEl = (e.target as SVGElement).ownerSVGElement;
-        const scale = svgEl ? svgEl.getBoundingClientRect().width / svgEl.viewBox.baseVal.width : 1;
-        const newPos = Math.max(0, Math.min(1, currentPosition + (deltaX / scale) / sliderWidth));
+        const dx = moveEvent.clientX - centerX;
+        const dy = moveEvent.clientY - centerY;
+        const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+        let normalized = (angle + 135) / 270;
+        normalized = Math.max(0, Math.min(1, normalized));
         updateComponent(component.id, {
-          parameters: { ...component.parameters, position: newPos },
+          parameters: { ...component.parameters, position: normalized },
         });
-        if (onPotChange) onPotChange(component.id, newPos);
+        if (onPotChange) onPotChange(component.id, normalized);
       };
 
       const onUp = () => {
@@ -166,52 +170,37 @@ export const DraggableComponent = React.memo(function DraggableComponent({
             onPinUp={onPinUp}
           />
         ))}
-        {/* Potentiometer slider */}
+        {/* Potentiometer dial */}
         {component.type === 'potentiometer' && (() => {
           const pos = (component.parameters.position as number) ?? 0.5;
-          const sliderY = height / 2 + 14;
-          const sliderW = 60;
-          const thumbX = -sliderW / 2 + pos * sliderW;
+          const dialY = height / 2 + 20;
+          const dialR = 12;
+          const angle = -135 + pos * 270;
+          const rad = (angle * Math.PI) / 180;
           return (
-            <g>
-              {/* Track background */}
-              <rect
-                x={-sliderW / 2}
-                y={sliderY - 3}
-                width={sliderW}
-                height={6}
-                rx={3}
-                fill="#DDD"
-              />
-              {/* Track fill */}
-              <rect
-                x={-sliderW / 2}
-                y={sliderY - 3}
-                width={pos * sliderW}
-                height={6}
-                rx={3}
-                fill="#FF2D55"
-              />
-              {/* Thumb */}
-              <circle
-                cx={thumbX}
-                cy={sliderY}
-                r={7}
-                fill="white"
+            <g transform={`translate(0, ${dialY})`}>
+              {/* Dial body */}
+              <circle cx={0} cy={0} r={dialR} fill="#555" stroke="#777" strokeWidth="1" />
+              {/* Position indicator */}
+              <line
+                x1={0} y1={0}
+                x2={Math.cos(rad) * (dialR - 3)}
+                y2={Math.sin(rad) * (dialR - 3)}
                 stroke="#FF2D55"
-                strokeWidth={2}
-                style={{ cursor: 'ew-resize' }}
-                onPointerDown={handleSliderDrag}
+                strokeWidth="2"
+                strokeLinecap="round"
               />
-              {/* Value label */}
-              <text
-                x={0}
-                y={sliderY + 16}
-                textAnchor="middle"
-                fontSize="8"
-                fill="#999"
-                pointerEvents="none"
-              >
+              {/* Center dot */}
+              <circle cx={0} cy={0} r="2" fill="#999" />
+              {/* Invisible drag target */}
+              <circle
+                cx={0} cy={0} r={dialR}
+                fill="transparent"
+                style={{ cursor: 'grab' }}
+                onPointerDown={handleDialDrag}
+              />
+              {/* Label */}
+              <text x={0} y={dialR + 12} textAnchor="middle" fontSize="8" fill="#999" pointerEvents="none">
                 {Math.round(pos * 100)}%
               </text>
             </g>

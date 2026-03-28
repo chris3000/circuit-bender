@@ -69,24 +69,33 @@ export const BoardComponent = React.memo(function BoardComponent({
     [component.id, component.type, onEditParameter]
   );
 
-  const handleSliderDrag = useCallback(
+  const handleDialDrag = useCallback(
     (e: React.PointerEvent) => {
       if (component.type !== 'potentiometer') return;
       e.stopPropagation();
       e.preventDefault();
 
-      const sliderWidth = 60;
-      const startX = e.clientX;
-      const currentPosition = (component.parameters.position as number) ?? 0.5;
+      const svgEl = (e.target as SVGElement).ownerSVGElement;
+      if (!svgEl) return;
+
+      // Get the component center in screen coordinates
+      const ctm = svgEl.getScreenCTM();
+      if (!ctm) return;
+      const centerX = component.position.x * ctm.a + ctm.e;
+      const centerY = component.position.y * ctm.d + ctm.f;
 
       const onMove = (moveEvent: PointerEvent) => {
-        const svgEl = (e.target as SVGElement).ownerSVGElement;
-        const scale = svgEl ? svgEl.getBoundingClientRect().width / svgEl.viewBox.baseVal.width : 1;
-        const newPos = Math.max(0, Math.min(1, currentPosition + (moveEvent.clientX - startX) / scale / sliderWidth));
+        // Angle from component center to cursor
+        const dx = moveEvent.clientX - centerX;
+        const dy = moveEvent.clientY - centerY;
+        const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+        // Map angle to 0-1: -135° = 0, +135° = 1 (270° sweep, dead zone at bottom)
+        let normalized = (angle + 135) / 270;
+        normalized = Math.max(0, Math.min(1, normalized));
         updateComponent(component.id, {
-          parameters: { ...component.parameters, position: newPos },
+          parameters: { ...component.parameters, position: normalized },
         });
-        if (onPotChange) onPotChange(component.id, newPos);
+        if (onPotChange) onPotChange(component.id, normalized);
       };
 
       const onUp = () => {
@@ -185,15 +194,19 @@ export const BoardComponent = React.memo(function BoardComponent({
         )}
         {component.type === 'potentiometer' && (() => {
           const pos = (component.parameters.position as number) ?? 0.5;
-          const sliderY = height / 2 + 14;
-          const sliderW = 60;
-          const thumbX = -sliderW / 2 + pos * sliderW;
           return (
             <g>
-              <rect x={-sliderW / 2} y={sliderY - 3} width={sliderW} height={6} rx={3} fill="#444" />
-              <rect x={-sliderW / 2} y={sliderY - 3} width={pos * sliderW} height={6} rx={3} fill="#FF2D55" />
-              <circle cx={thumbX} cy={sliderY} r={7} fill="white" stroke="#FF2D55" strokeWidth={2} style={{ cursor: 'ew-resize' }} onPointerDown={handleSliderDrag} />
-              <text x={0} y={sliderY + 16} textAnchor="middle" fontSize="8" fill="#d4ecd4" pointerEvents="none">
+              {/* Invisible drag target over the dial */}
+              <circle
+                cx={0}
+                cy={0}
+                r={24}
+                fill="transparent"
+                style={{ cursor: 'grab' }}
+                onPointerDown={handleDialDrag}
+              />
+              {/* Percentage label below */}
+              <text x={0} y={height / 2 + 14} textAnchor="middle" fontSize="9" fill="#d4ecd4" opacity="0.7" fontFamily="Courier New" pointerEvents="none">
                 {Math.round(pos * 100)}%
               </text>
             </g>
