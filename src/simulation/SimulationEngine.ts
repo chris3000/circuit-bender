@@ -103,7 +103,7 @@ export class SimulationEngine {
   getSupplyVoltage(): number {
     const components = this.circuit.getComponents();
     for (const comp of components) {
-      if (comp.type === 'power-supply') {
+      if (comp.type === 'power') {
         return (comp.parameters.voltage as number) ?? 0;
       }
     }
@@ -183,6 +183,22 @@ export class SimulationEngine {
     return false;
   }
 
+  /** Map generic pin_N keys from simulate() to actual component pin IDs */
+  private mapOutputsToActualPins(
+    outputs: PinStates,
+    comp: Component
+  ): Map<PinId, { voltage: number; current: number }> {
+    const mapped = new Map<PinId, { voltage: number; current: number }>();
+    for (const key of Object.keys(outputs)) {
+      // key is like "pin_0", "pin_1", "pin_12" etc.
+      const index = parseInt(key.replace('pin_', ''), 10);
+      if (!isNaN(index) && index < comp.pins.length) {
+        mapped.set(comp.pins[index].id, outputs[key]);
+      }
+    }
+    return mapped;
+  }
+
   private resolveSupplyVoltages(components: Component[], nets: Net[]): void {
     this.netVoltages.clear();
     const registry = ComponentRegistry.getInstance();
@@ -200,17 +216,16 @@ export class SimulationEngine {
         inputs[pin.id] = { voltage: 0, current: 0 };
       }
       const outputs = def.simulate(inputs, comp.parameters);
+      const mapped = this.mapOutputsToActualPins(outputs, comp);
 
       // Assign their output voltage to the net
-      {
-        for (const pinId of Object.keys(outputs)) {
-          const net = this.analyzer?.getNetForPin(
-            comp.id as ComponentId,
-            pinId as PinId
-          );
-          if (net) {
-            this.netVoltages.set(net.id, outputs[pinId].voltage);
-          }
+      for (const [pinId, state] of mapped) {
+        const net = this.analyzer?.getNetForPin(
+          comp.id as ComponentId,
+          pinId
+        );
+        if (net) {
+          this.netVoltages.set(net.id, state.voltage);
         }
       }
     }
@@ -237,28 +252,30 @@ export class SimulationEngine {
       const def = registry.get(comp.type);
       if (!def) continue;
 
+      // Build inputs using generic pin_N keys (what simulate() expects)
       const inputs: PinStates = {};
-      for (const pin of comp.pins) {
-        const key = `${comp.id}::${pin.id}`;
-        inputs[pin.id] = {
+      for (let i = 0; i < comp.pins.length; i++) {
+        const key = `${comp.id}::${comp.pins[i].id}`;
+        inputs[`pin_${i}`] = {
           voltage: this.pinVoltages.get(key) ?? 0,
           current: 0,
         };
       }
 
       const outputs = def.simulate(inputs, comp.parameters);
+      const mapped = this.mapOutputsToActualPins(outputs, comp);
 
       // Write output voltages back to pin voltages and net voltages
-      for (const pinId of Object.keys(outputs)) {
+      for (const [pinId, state] of mapped) {
         const key = `${comp.id}::${pinId}`;
-        this.pinVoltages.set(key, outputs[pinId].voltage);
+        this.pinVoltages.set(key, state.voltage);
 
         const net = this.analyzer?.getNetForPin(
           comp.id as ComponentId,
-          pinId as PinId
+          pinId
         );
         if (net) {
-          this.netVoltages.set(net.id, outputs[pinId].voltage);
+          this.netVoltages.set(net.id, state.voltage);
         }
       }
     }

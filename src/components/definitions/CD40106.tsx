@@ -154,30 +154,58 @@ export const cd40106Definition: ComponentDefinition = {
     },
     dimensions: { rows: 7, columns: 2 },
   },
-  simulate: (inputs, _params) => {
-    const vdd = inputs.pin_12?.voltage ?? 0;
-    const highThreshold = vdd * 0.6;
+  simulate: (() => {
+    // Internal oscillator state per gate (capacitor voltage simulation)
+    const capVoltage = [0, 0, 0, 0, 0, 0];
+    const outputState = [false, false, false, false, false, false];
 
-    const result: Record<string, { voltage: number; current: number }> = {};
+    return (inputs: Record<string, { voltage: number; current: number }>, _params: Record<string, number | string | boolean>) => {
+      const vdd = inputs.pin_12?.voltage ?? 0;
+      const highThreshold = vdd * 0.66;
+      const lowThreshold = vdd * 0.33;
 
-    // Pass through power pins
-    result.pin_12 = { voltage: vdd, current: 0 };
-    result.pin_13 = { voltage: inputs.pin_13?.voltage ?? 0, current: 0 };
+      const result: Record<string, { voltage: number; current: number }> = {};
 
-    // For each gate i (0-5): inverts pin_i to pin_{i+6}
-    for (let i = 0; i < 6; i++) {
-      const inputPin = `pin_${i}`;
-      const outputPin = `pin_${i + 6}`;
-      const inputVoltage = inputs[inputPin]?.voltage ?? 0;
+      // Pass through power pins
+      result.pin_12 = { voltage: vdd, current: 0 };
+      result.pin_13 = { voltage: inputs.pin_13?.voltage ?? 0, current: 0 };
 
-      // Pass through input pin state
-      result[inputPin] = { voltage: inputVoltage, current: 0 };
+      if (vdd === 0) {
+        // No power — all outputs low
+        for (let i = 0; i < 6; i++) {
+          result[`pin_${i}`] = { voltage: 0, current: 0 };
+          result[`pin_${i + 6}`] = { voltage: 0, current: 0 };
+          capVoltage[i] = 0;
+          outputState[i] = false;
+        }
+        return result;
+      }
 
-      // Schmitt trigger inverter logic
-      const outputVoltage = inputVoltage > highThreshold ? 0 : vdd;
-      result[outputPin] = { voltage: outputVoltage, current: 0 };
-    }
+      for (let i = 0; i < 6; i++) {
+        const inputPin = `pin_${i}`;
+        const outputPin = `pin_${i + 6}`;
+        // Simulate capacitor charging/discharging
+        // The rate depends on how close input is to thresholds
+        const chargeRate = 0.002; // Simulated time step
+        if (outputState[i]) {
+          // Output is LOW (inverted), capacitor discharges toward 0
+          capVoltage[i] -= (capVoltage[i]) * chargeRate;
+          if (capVoltage[i] < lowThreshold) {
+            outputState[i] = false; // Output goes HIGH
+          }
+        } else {
+          // Output is HIGH, capacitor charges toward VDD
+          capVoltage[i] += (vdd - capVoltage[i]) * chargeRate;
+          if (capVoltage[i] > highThreshold) {
+            outputState[i] = true; // Output goes LOW
+          }
+        }
 
-    return result;
-  },
+        result[inputPin] = { voltage: capVoltage[i], current: 0 };
+        result[outputPin] = { voltage: outputState[i] ? 0 : vdd, current: 0 };
+      }
+
+      return result;
+    };
+  })(),
 };
