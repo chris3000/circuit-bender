@@ -28,7 +28,12 @@ type WiringState =
       startY: number;
     };
 
-function SchematicView() {
+interface SchematicViewProps {
+  activeView?: 'schematic' | 'breadboard';
+  onToggleView?: () => void;
+}
+
+function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
   const {
     circuit,
     updateComponent,
@@ -39,6 +44,10 @@ function SchematicView() {
     selectedConnections,
     setSelection,
     clearSelection,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   } = useCircuit();
   const [zoom, setZoom] = useState(1);
   const [pan] = useState({ x: 0, y: 0 });
@@ -62,6 +71,17 @@ function SchematicView() {
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return;
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      if (((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'z' || e.key === 'Z')) ||
+          ((e.ctrlKey || e.metaKey) && e.key === 'y')) {
+        e.preventDefault();
+        redo();
+        return;
+      }
       const key = e.key.toLowerCase();
       if (key === 'w') {
         setToolMode('wire');
@@ -82,7 +102,7 @@ function SchematicView() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedComponents, selectedConnections, removeComponent, removeConnection, clearSelection]);
+  }, [selectedComponents, selectedConnections, removeComponent, removeConnection, clearSelection, undo, redo]);
 
   const handleToolModeChange = useCallback((mode: ToolMode) => {
     setToolMode(mode);
@@ -262,7 +282,16 @@ function SchematicView() {
           outline: isOver ? '2px dashed #3b82f6' : 'none',
         }}
       >
-        <Toolbar toolMode={toolMode} onToolModeChange={handleToolModeChange} />
+        <Toolbar
+          toolMode={toolMode}
+          onToolModeChange={handleToolModeChange}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          activeView={activeView}
+          onToggleView={onToggleView}
+        />
 
         <svg
           ref={svgRef}
@@ -287,6 +316,13 @@ function SchematicView() {
                 strokeWidth="0.5"
               />
             </pattern>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+              <feMerge>
+                <feMergeNode in="coloredBlur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
           </defs>
 
           <rect
