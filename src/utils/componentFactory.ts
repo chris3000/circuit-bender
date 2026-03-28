@@ -5,6 +5,13 @@ import type {
   ComponentId,
   Position2D,
 } from '@/types/circuit';
+import { BreadboardGrid } from '@/views/BreadboardView/autoPlace';
+
+const breadboardGrid = new BreadboardGrid();
+
+export const resetBreadboardGrid = (): void => {
+  breadboardGrid.clear();
+};
 
 export const createComponentFromDefinition = (
   definition: ComponentDefinition,
@@ -15,7 +22,7 @@ export const createComponentFromDefinition = (
     type: definition.type,
     position: {
       schematic: schematicPosition,
-      breadboard: { row: 0, column: 0 }, // Placeholder for Phase 3
+      breadboard: breadboardGrid.place(definition.type, definition.breadboard.dimensions),
     },
     rotation: 0,
     parameters: { ...definition.defaultParameters },

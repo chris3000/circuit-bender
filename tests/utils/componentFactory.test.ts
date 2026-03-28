@@ -1,8 +1,12 @@
-import { describe, it, expect } from 'vitest';
-import { createComponentFromDefinition } from '@/utils/componentFactory';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createComponentFromDefinition, resetBreadboardGrid } from '@/utils/componentFactory';
 import { resistorDefinition } from '@/components/definitions/Resistor';
 
 describe('componentFactory', () => {
+  beforeEach(() => {
+    resetBreadboardGrid();
+  });
+
   it('should create a component from a definition with correct type', () => {
     const component = createComponentFromDefinition(resistorDefinition, { x: 100, y: 200 });
 
@@ -15,10 +19,11 @@ describe('componentFactory', () => {
     expect(component.position.schematic).toEqual({ x: 100, y: 200 });
   });
 
-  it('should create a component with placeholder breadboard position', () => {
+  it('should create a component with auto-placed breadboard position', () => {
     const component = createComponentFromDefinition(resistorDefinition, { x: 100, y: 200 });
 
-    expect(component.position.breadboard).toEqual({ row: 0, column: 0 });
+    expect(component.position.breadboard.row).toBeGreaterThan(0);
+    expect(component.position.breadboard.column).toBeGreaterThan(0);
   });
 
   it('should create a component with rotation 0', () => {
