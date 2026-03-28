@@ -26,14 +26,19 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
     this.sampleBuffer = new Float32Array(128);
     this.sampleIndex = 0;
 
+    this.debugCount = 0;
+
     this.port.onmessage = (event) => {
       const msg = event.data;
+      this.port.postMessage({ type: 'debug', msg: 'received: ' + msg.type });
       if (msg.type === 'loadCircuit') {
         this.loadCircuit(msg.components, msg.connections);
+        this.port.postMessage({ type: 'debug', msg: 'loaded ' + msg.components.length + ' comps, ' + msg.connections.length + ' conns, ' + this.nets.length + ' nets' });
       } else if (msg.type === 'setParam') {
         this.setParam(msg.componentId, msg.key, msg.value);
       } else if (msg.type === 'start') {
         this.running = true;
+        console.log('[WORKLET] started');
       } else if (msg.type === 'stop') {
         this.running = false;
         this.resetState();
@@ -212,37 +217,30 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
       }
 
       if (comp.type === 'capacitor') {
-        // Find what's connected to each terminal via the net
         const net0 = this.getNetForPin(comp.id, comp.pins[0].id);
         const net1 = this.getNetForPin(comp.id, comp.pins[1].id);
         if (net0 === -1 || net1 === -1) continue;
 
-        const v0 = this.nodeVoltages[net0] || 0;
-        const v1 = this.nodeVoltages[net1] || 0;
-
-        // Find total resistance in the path to a voltage source
-        // by looking for resistors on the same nets
-        const seriesR = this.findSeriesResistance(net0, comp.id);
         const capacitance = (comp.parameters.capacitance || 100e-9);
+        const vCap = this.capStates[comp.id] || 0;
+        const vGnd = this.nodeVoltages[net1] || 0; // typically ground
+
+        // Find the driving voltage: look for a resistor on the same
+        // net as cap pin 0, and find the voltage on the resistor's OTHER pin
+        const drivingV = this.findDrivingVoltage(net0, comp.id);
+        const seriesR = this.findSeriesResistance(net0, comp.id);
 
         if (seriesR > 0) {
-          // RC charging: V_cap approaches V_source with time constant RC
-          const vCap = this.capStates[comp.id] || 0;
-          // The voltage the capacitor is charging toward is the
-          // voltage on the opposite side of the resistor
-          const vTarget = v0; // voltage driving the RC network
+          // RC charging: capacitor voltage approaches driving voltage
           const tau = seriesR * capacitance;
-          // Exponential approach: dV = (Vtarget - Vcap) * (1 - e^(-dt/tau))
-          // For small dt/tau, this ≈ (Vtarget - Vcap) * dt/tau
           const alpha = 1 - Math.exp(-dt / tau);
-          const newVCap = vCap + (vTarget - vCap) * alpha;
+          const newVCap = vCap + (drivingV - vCap) * alpha;
           this.capStates[comp.id] = newVCap;
 
-          // The capacitor's pin 0 side is driven by the source/resistor network
-          // The node voltage at pin 0 = the capacitor voltage (what the Schmitt trigger sees)
+          // Update the node voltage to the capacitor voltage
+          // This is what the Schmitt trigger input sees
           this.setNodeVoltage(net0, newVCap);
         }
-        // Pin 1 is typically connected to ground, already set in phase 1
       }
 
       if (comp.type === 'potentiometer') {
@@ -299,6 +297,24 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
     return totalR || 1000; // Default 1k if no resistor found
   }
 
+  // Find the voltage driving a net through a resistor (the voltage on the resistor's other pin)
+  findDrivingVoltage(netId, excludeCompId) {
+    for (const comp of this.components) {
+      if (comp.id === excludeCompId) continue;
+      if (comp.type === 'resistor' || comp.type === 'potentiometer') {
+        const net0 = this.getNetForPin(comp.id, comp.pins[0].id);
+        const net1 = this.getNetForPin(comp.id, comp.pins[1].id);
+        if (net0 === netId) {
+          return this.nodeVoltages[net1] || 0; // voltage on the OTHER side
+        }
+        if (net1 === netId) {
+          return this.nodeVoltages[net0] || 0;
+        }
+      }
+    }
+    return 0;
+  }
+
   // --- AudioWorkletProcessor interface ---
 
   process(inputs, outputs) {
@@ -314,6 +330,13 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
       } else {
         channel[i] = 0;
       }
+    }
+
+    if (this.running && this.debugCount < 3) {
+      this.debugCount++;
+      const min = Math.min(...channel);
+      const max = Math.max(...channel);
+      this.port.postMessage({ type: 'debug', msg: 'process: comps=' + this.components.length + ' min=' + min.toFixed(4) + ' max=' + max.toFixed(4) + ' nodeV=' + JSON.stringify(this.nodeVoltages) });
     }
 
     // Copy to all output channels

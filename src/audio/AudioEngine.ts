@@ -35,14 +35,16 @@ export class AudioEngine {
   }
 
   async initialize(): Promise<void> {
-    await this.context.audioWorklet.addModule('/audio-worklet-processor.js');
+    await this.context.audioWorklet.addModule('/audio-worklet-processor.js?v=' + Date.now());
     this.workletNode = new AudioWorkletNode(this.context, 'circuit-audio-processor');
     this.workletNode.connect(this.context.destination);
 
-    // Listen for samples posted back from worklet (for oscilloscope)
+    // Listen for messages from worklet
     this.workletNode.port.onmessage = (event) => {
       if (event.data.type === 'samples' && this.onSamplesCallback) {
         this.onSamplesCallback(event.data.samples);
+      } else if (event.data.type === 'debug') {
+        console.log('[WORKLET]', event.data.msg);
       }
     };
   }
@@ -57,6 +59,7 @@ export class AudioEngine {
 
   /** Post circuit topology to the worklet for simulation */
   loadCircuit(components: SerializedComponent[], connections: SerializedConnection[]): void {
+    console.log('[AudioEngine] loadCircuit:', components.length, 'components,', connections.length, 'connections, workletNode:', !!this.workletNode);
     if (!this.workletNode) return;
     this.workletNode.port.postMessage({
       type: 'loadCircuit',
@@ -78,6 +81,7 @@ export class AudioEngine {
 
   /** Tell the worklet to start/stop simulation */
   startSimulation(): void {
+    console.log('[AudioEngine] startSimulation, workletNode:', !!this.workletNode);
     if (!this.workletNode) return;
     this.workletNode.port.postMessage({ type: 'start' });
   }
