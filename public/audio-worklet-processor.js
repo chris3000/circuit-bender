@@ -1,50 +1,335 @@
 /**
- * CircuitAudioProcessor — an AudioWorkletProcessor that receives
- * audio sample data via its message port and outputs it in real-time.
- * Uses a ring buffer (Float32Array) with bitmask indexing for O(1) reads.
+ * CircuitSimulationProcessor — AudioWorkletProcessor that runs a
+ * time-stepped circuit simulation at the exact audio sample rate.
+ *
+ * Receives circuit topology from main thread via postMessage.
+ * Simulates per-sample with real component models (capacitor charging,
+ * Schmitt trigger thresholds). Writes output directly to audio buffer.
  */
-class CircuitAudioProcessor extends AudioWorkletProcessor {
+class CircuitSimulationProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.queue = new Float32Array(65536); // Power of 2 for bitmask
-    this.readPos = 0;
-    this.writePos = 0;
-    this.mask = 65535; // 65536 - 1
+
+    // Circuit topology
+    this.components = [];  // [{ id, type, pins, parameters }]
+    this.connections = [];
+    this.nets = [];        // [{ id, pinKeys: ['compId::pinId', ...] }]
+    this.running = false;
+
+    // Simulation state
+    this.nodeVoltages = {}; // netId -> voltage
+    this.capStates = {};    // componentId -> voltage across capacitor
+    this.schmittStates = {}; // componentId -> [gateOutputHigh x 6]
+    this.supplyVoltage = 9;
+
+    // For posting samples back to main thread (oscilloscope)
+    this.sampleBuffer = new Float32Array(128);
+    this.sampleIndex = 0;
 
     this.port.onmessage = (event) => {
-      if (event.data.type === 'samples') {
-        const samples = event.data.samples;
-        for (let i = 0; i < samples.length; i++) {
-          this.queue[this.writePos & this.mask] = samples[i];
-          this.writePos++;
-        }
-        // Cap: if too far ahead, snap read position
-        if (this.writePos - this.readPos > 48000) {
-          this.readPos = this.writePos - 48000;
-        }
+      const msg = event.data;
+      if (msg.type === 'loadCircuit') {
+        this.loadCircuit(msg.components, msg.connections);
+      } else if (msg.type === 'setParam') {
+        this.setParam(msg.componentId, msg.key, msg.value);
+      } else if (msg.type === 'start') {
+        this.running = true;
+      } else if (msg.type === 'stop') {
+        this.running = false;
+        this.resetState();
       }
     };
   }
 
+  loadCircuit(components, connections) {
+    this.components = components;
+    this.connections = connections;
+    this.buildNets();
+    this.resetState();
+    this.findSupplyVoltage();
+  }
+
+  setParam(componentId, key, value) {
+    const comp = this.components.find(c => c.id === componentId);
+    if (comp) {
+      comp.parameters[key] = value;
+    }
+  }
+
+  resetState() {
+    this.nodeVoltages = {};
+    this.capStates = {};
+    this.schmittStates = {};
+    for (const comp of this.components) {
+      if (comp.type === 'capacitor') {
+        this.capStates[comp.id] = 0;
+      }
+      if (comp.type === 'cd40106') {
+        // 6 gates, all start with output HIGH
+        this.schmittStates[comp.id] = [true, true, true, true, true, true];
+      }
+    }
+  }
+
+  findSupplyVoltage() {
+    for (const comp of this.components) {
+      if (comp.type === 'power') {
+        this.supplyVoltage = comp.parameters.voltage || 9;
+        return;
+      }
+    }
+    this.supplyVoltage = 9;
+  }
+
+  // --- Net building (union-find) ---
+
+  buildNets() {
+    const parent = {};
+    const rank = {};
+
+    const find = (x) => {
+      if (!(x in parent)) { parent[x] = x; rank[x] = 0; }
+      while (parent[x] !== x) {
+        parent[x] = parent[parent[x]]; // path compression
+        x = parent[x];
+      }
+      return x;
+    };
+
+    const union = (a, b) => {
+      const ra = find(a);
+      const rb = find(b);
+      if (ra === rb) return;
+      if (rank[ra] < rank[rb]) { parent[ra] = rb; }
+      else if (rank[ra] > rank[rb]) { parent[rb] = ra; }
+      else { parent[rb] = ra; rank[ra]++; }
+    };
+
+    // Union connected pins
+    for (const conn of this.connections) {
+      const fromKey = conn.from.componentId + '::' + conn.from.pinId;
+      const toKey = conn.to.componentId + '::' + conn.to.pinId;
+      union(fromKey, toKey);
+    }
+
+    // Build net groups
+    const groups = {};
+    for (const key of Object.keys(parent)) {
+      const root = find(key);
+      if (!groups[root]) groups[root] = [];
+      groups[root].push(key);
+    }
+
+    // Assign net IDs
+    this.nets = [];
+    this.pinToNet = {}; // 'compId::pinId' -> netIndex
+    let netId = 0;
+    for (const root of Object.keys(groups)) {
+      const pinKeys = groups[root];
+      this.nets.push({ id: netId, pinKeys });
+      for (const key of pinKeys) {
+        this.pinToNet[key] = netId;
+      }
+      netId++;
+    }
+  }
+
+  getNetForPin(componentId, pinId) {
+    const key = componentId + '::' + pinId;
+    const netId = this.pinToNet[key];
+    return netId !== undefined ? netId : -1;
+  }
+
+  getNodeVoltage(componentId, pinId) {
+    const netId = this.getNetForPin(componentId, pinId);
+    if (netId === -1) return 0;
+    return this.nodeVoltages[netId] || 0;
+  }
+
+  setNodeVoltage(netId, voltage) {
+    this.nodeVoltages[netId] = voltage;
+  }
+
+  // --- Simulation step ---
+
+  step(dt) {
+    const vdd = this.supplyVoltage;
+    if (vdd === 0) return 0;
+
+    // Phase 1: Set fixed voltage sources
+    for (const comp of this.components) {
+      if (comp.type === 'power') {
+        // Pin 0 = positive terminal
+        const posNet = this.getNetForPin(comp.id, comp.pins[0].id);
+        if (posNet !== -1) this.setNodeVoltage(posNet, vdd);
+        // Pin 1 = ground terminal
+        const gndNet = this.getNetForPin(comp.id, comp.pins[1].id);
+        if (gndNet !== -1) this.setNodeVoltage(gndNet, 0);
+      }
+      if (comp.type === 'ground') {
+        const net = this.getNetForPin(comp.id, comp.pins[0].id);
+        if (net !== -1) this.setNodeVoltage(net, 0);
+      }
+    }
+
+    // Phase 2: Resolve Schmitt trigger outputs
+    for (const comp of this.components) {
+      if (comp.type !== 'cd40106') continue;
+
+      const gates = this.schmittStates[comp.id];
+      if (!gates) continue;
+
+      const vddPin = this.getNodeVoltage(comp.id, comp.pins[12].id);
+      const highThresh = vddPin * 0.66;
+      const lowThresh = vddPin * 0.33;
+
+      for (let g = 0; g < 6; g++) {
+        const inputPinId = comp.pins[g].id;      // pins 0-5 = inputs
+        const outputPinId = comp.pins[g + 6].id; // pins 6-11 = outputs
+
+        const vIn = this.getNodeVoltage(comp.id, inputPinId);
+
+        // Schmitt trigger with hysteresis
+        if (gates[g] && vIn > highThresh) {
+          gates[g] = false; // output goes LOW
+        } else if (!gates[g] && vIn < lowThresh) {
+          gates[g] = true;  // output goes HIGH
+        }
+
+        const vOut = gates[g] ? vddPin : 0;
+        const outNet = this.getNetForPin(comp.id, outputPinId);
+        if (outNet !== -1) this.setNodeVoltage(outNet, vOut);
+      }
+    }
+
+    // Phase 3: Compute currents through resistors and update capacitors
+    for (const comp of this.components) {
+      if (comp.type === 'resistor') {
+        // Resistor between two nodes — current flows, but we don't
+        // update node voltages directly (they're set by sources/caps).
+        // The resistor's effect is felt through the capacitor it's in series with.
+        continue;
+      }
+
+      if (comp.type === 'capacitor') {
+        // Find what's connected to each terminal via the net
+        const net0 = this.getNetForPin(comp.id, comp.pins[0].id);
+        const net1 = this.getNetForPin(comp.id, comp.pins[1].id);
+        if (net0 === -1 || net1 === -1) continue;
+
+        const v0 = this.nodeVoltages[net0] || 0;
+        const v1 = this.nodeVoltages[net1] || 0;
+
+        // Find total resistance in the path to a voltage source
+        // by looking for resistors on the same nets
+        const seriesR = this.findSeriesResistance(net0, comp.id);
+        const capacitance = (comp.parameters.capacitance || 100e-9);
+
+        if (seriesR > 0) {
+          // RC charging: V_cap approaches V_source with time constant RC
+          const vCap = this.capStates[comp.id] || 0;
+          // The voltage the capacitor is charging toward is the
+          // voltage on the opposite side of the resistor
+          const vTarget = v0; // voltage driving the RC network
+          const tau = seriesR * capacitance;
+          // Exponential approach: dV = (Vtarget - Vcap) * (1 - e^(-dt/tau))
+          // For small dt/tau, this ≈ (Vtarget - Vcap) * dt/tau
+          const alpha = 1 - Math.exp(-dt / tau);
+          const newVCap = vCap + (vTarget - vCap) * alpha;
+          this.capStates[comp.id] = newVCap;
+
+          // The capacitor's pin 0 side is driven by the source/resistor network
+          // The node voltage at pin 0 = the capacitor voltage (what the Schmitt trigger sees)
+          this.setNodeVoltage(net0, newVCap);
+        }
+        // Pin 1 is typically connected to ground, already set in phase 1
+      }
+
+      if (comp.type === 'potentiometer') {
+        // Variable voltage divider
+        const pin0Net = this.getNetForPin(comp.id, comp.pins[0].id);
+        const pin1Net = this.getNetForPin(comp.id, comp.pins[1].id);
+        const wiperNet = this.getNetForPin(comp.id, comp.pins[2].id);
+        if (pin0Net === -1 || pin1Net === -1 || wiperNet === -1) continue;
+
+        const v0 = this.nodeVoltages[pin0Net] || 0;
+        const v1 = this.nodeVoltages[pin1Net] || 0;
+        const position = (comp.parameters.position || 0.5);
+
+        const wiperV = v0 + (v1 - v0) * position;
+        this.setNodeVoltage(wiperNet, wiperV);
+      }
+    }
+
+    // Phase 4: Read audio output
+    for (const comp of this.components) {
+      if (comp.type === 'audio-output') {
+        const v = this.getNodeVoltage(comp.id, comp.pins[0].id);
+        // Normalize to [-1, 1]
+        const sample = (v / vdd) * 2 - 1;
+        return Math.max(-1, Math.min(1, sample));
+      }
+    }
+
+    return 0;
+  }
+
+  // Find total series resistance connected to a net (excluding the given component)
+  findSeriesResistance(netId, excludeCompId) {
+    let totalR = 0;
+    for (const comp of this.components) {
+      if (comp.id === excludeCompId) continue;
+      if (comp.type === 'resistor') {
+        const net0 = this.getNetForPin(comp.id, comp.pins[0].id);
+        const net1 = this.getNetForPin(comp.id, comp.pins[1].id);
+        if (net0 === netId || net1 === netId) {
+          totalR += (comp.parameters.resistance || 1000);
+        }
+      }
+      if (comp.type === 'potentiometer') {
+        const net0 = this.getNetForPin(comp.id, comp.pins[0].id);
+        const net1 = this.getNetForPin(comp.id, comp.pins[1].id);
+        if (net0 === netId || net1 === netId) {
+          const maxR = comp.parameters.maxResistance || 1000000;
+          const position = comp.parameters.position || 0.5;
+          totalR += maxR * position;
+        }
+      }
+    }
+    return totalR || 1000; // Default 1k if no resistor found
+  }
+
+  // --- AudioWorkletProcessor interface ---
+
   process(inputs, outputs) {
     const output = outputs[0];
     const channel = output[0];
+    if (!channel) return true;
+
+    const dt = 1 / sampleRate;
 
     for (let i = 0; i < channel.length; i++) {
-      if (this.readPos < this.writePos) {
-        channel[i] = this.queue[this.readPos & this.mask];
-        this.readPos++;
+      if (this.running && this.components.length > 0) {
+        channel[i] = this.step(dt);
       } else {
         channel[i] = 0;
       }
     }
 
+    // Copy to all output channels
     for (let ch = 1; ch < output.length; ch++) {
       output[ch].set(channel);
+    }
+
+    // Post samples back to main thread for oscilloscope
+    if (this.running && this.components.length > 0) {
+      this.port.postMessage(
+        { type: 'samples', samples: channel.slice() },
+      );
     }
 
     return true;
   }
 }
 
-registerProcessor('circuit-audio-processor', CircuitAudioProcessor);
+registerProcessor('circuit-audio-processor', CircuitSimulationProcessor);

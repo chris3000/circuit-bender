@@ -9,12 +9,11 @@ import { DROPPABLE_CANVAS_ID, DROPPABLE_BREADBOARD_ID } from './constants/dnd';
 import { ComponentSymbol } from './components/ComponentSymbol';
 import SchematicView from './views/SchematicView';
 import { ComponentDrawer } from './views/ComponentDrawer';
-import { SimulationEngine } from './simulation/SimulationEngine';
 import { AudioEngine } from './audio/AudioEngine';
-import { AudioBridge } from './audio/AudioBridge';
 import BreadboardView from './views/BreadboardView/BreadboardView';
 import OscilloscopePanel from './views/Oscilloscope/OscilloscopePanel';
 import { ExamplesMenu } from './views/ExamplesMenu';
+import type { Circuit } from './models/Circuit';
 
 type ActiveView = 'schematic' | 'breadboard';
 
@@ -26,50 +25,40 @@ export function AppContent() {
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(1);
 
-  const simulationRef = useRef<SimulationEngine | null>(null);
   const audioEngineRef = useRef<AudioEngine | null>(null);
-  const audioBridgeRef = useRef<AudioBridge | null>(null);
 
-  // Initialize simulation + audio bridge on mount
+  // Serialize circuit for the worklet
+  const serializeCircuit = useCallback((c: Circuit) => {
+    const components = c.getComponents().map(comp => ({
+      id: comp.id,
+      type: comp.type,
+      pins: comp.pins.map(p => ({ id: p.id, label: p.label, type: p.type })),
+      parameters: { ...comp.parameters },
+    }));
+    const connections = c.getConnections().map(conn => ({
+      id: conn.id,
+      from: { componentId: conn.from.componentId, pinId: conn.from.pinId },
+      to: { componentId: conn.to.componentId, pinId: conn.to.pinId },
+    }));
+    return { components, connections };
+  }, []);
+
+  // Initialize audio engine on mount
   useEffect(() => {
-    const bridge = new AudioBridge();
     const audioEngine = new AudioEngine();
-    const simulation = new SimulationEngine(circuit);
-
-    audioBridgeRef.current = bridge;
     audioEngineRef.current = audioEngine;
-    simulationRef.current = simulation;
-
-    // Connect bridge flush to audio engine
-    bridge.onBufferReady((samples) => {
-      audioEngine.sendSamples(samples);
-    });
-
-    // Connect simulation sample callback to bridge
-    simulation.setSampleCallback((sample) => {
-      bridge.pushSample(sample);
-    });
-
     return () => {
-      simulation.stop();
       audioEngine.close();
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Update simulation when circuit changes
+  // Post circuit to worklet whenever circuit changes
   useEffect(() => {
-    if (simulationRef.current) {
-      simulationRef.current.setCircuit(circuit);
+    if (audioEngineRef.current && audioStarted) {
+      const { components, connections } = serializeCircuit(circuit);
+      audioEngineRef.current.loadCircuit(components, connections);
     }
-  }, [circuit]);
-
-  // Sync volume/mute to bridge
-  useEffect(() => {
-    if (audioBridgeRef.current) {
-      audioBridgeRef.current.setVolume(volume);
-      audioBridgeRef.current.setMuted(muted);
-    }
-  }, [volume, muted]);
+  }, [circuit, audioStarted, serializeCircuit]);
 
   // Tab key handler for view toggle
   useEffect(() => {
@@ -92,16 +81,19 @@ export function AppContent() {
     try {
       await audioEngineRef.current.initialize();
       await audioEngineRef.current.resume();
+
+      // Send current circuit to worklet and start simulation
+      const { components, connections } = serializeCircuit(circuit);
+      audioEngineRef.current.loadCircuit(components, connections);
+      audioEngineRef.current.startSimulation();
       setAudioStarted(true);
-      // Start simulation loop
-      simulationRef.current?.start();
     } catch (err) {
       console.error('Failed to start audio:', err);
     }
-  }, []);
+  }, [circuit, serializeCircuit]);
 
   const handleStopAudio = useCallback(() => {
-    simulationRef.current?.stop();
+    audioEngineRef.current?.stopSimulation();
     audioEngineRef.current?.suspend();
     setAudioStarted(false);
   }, []);
