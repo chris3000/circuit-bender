@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useCallback, useMemo, useReducer } from 'react';
 import { Circuit } from '@/models/Circuit';
-import { resetBreadboardGrid } from '@/utils/componentFactory';
 import type {
   Component,
   Connection,
@@ -118,7 +117,6 @@ function circuitReducer(state: CircuitState, action: CircuitAction): CircuitStat
       };
     }
     case 'LOAD_CIRCUIT':
-      resetBreadboardGrid();
       return {
         ...state,
         circuit: action.circuit,
