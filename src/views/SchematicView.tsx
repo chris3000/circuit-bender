@@ -10,7 +10,6 @@ import { DraggableComponent } from './SchematicView/DraggableComponent';
 import { Toolbar } from './SchematicView/Toolbar';
 import { PreviewWire } from './SchematicView/PreviewWire';
 import { Wire } from './SchematicView/Wire';
-import type { ToolMode } from './SchematicView/Toolbar';
 import { ParameterEditor } from './SchematicView/ParameterEditor';
 import { formatValue } from '@/utils/parameterParser';
 import type { ComponentId, PinId, ConnectionId } from '@/types/circuit';
@@ -51,7 +50,6 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
   } = useCircuit();
   const [zoom, setZoom] = useState(1);
   const [pan] = useState({ x: 0, y: 0 });
-  const [toolMode, setToolMode] = useState<ToolMode>('select');
   const [wiringState, setWiringState] = useState<WiringState>({ status: 'idle' });
   const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
   const [editingComponentId, setEditingComponentId] = useState<ComponentId | null>(null);
@@ -83,13 +81,7 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
         return;
       }
       const key = e.key.toLowerCase();
-      if (key === 'w') {
-        setToolMode('wire');
-      } else if (key === 'v') {
-        setToolMode('select');
-        setWiringState({ status: 'idle' });
-      } else if (key === 'escape') {
-        setToolMode('select');
+      if (key === 'escape') {
         setWiringState({ status: 'idle' });
         clearSelection();
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -103,13 +95,6 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedComponents, selectedConnections, removeComponent, removeConnection, clearSelection, undo, redo]);
-
-  const handleToolModeChange = useCallback((mode: ToolMode) => {
-    setToolMode(mode);
-    if (mode !== 'wire') {
-      setWiringState({ status: 'idle' });
-    }
-  }, []);
 
   const wiringStateRef = useRef<WiringState>(wiringState);
   wiringStateRef.current = wiringState;
@@ -277,8 +262,6 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
         }}
       >
         <Toolbar
-          toolMode={toolMode}
-          onToolModeChange={handleToolModeChange}
           onUndo={undo}
           onRedo={redo}
           canUndo={canUndo}
@@ -376,7 +359,6 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
               <DraggableComponent
                 key={component.id}
                 component={component}
-                toolMode={toolMode}
                 isSelected={selectedComponents.includes(component.id)}
                 onPinClick={handlePinClick}
                 onClick={() => handleComponentClick(component.id)}

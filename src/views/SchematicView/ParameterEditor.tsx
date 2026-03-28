@@ -59,7 +59,7 @@ export const ParameterEditor = React.memo(function ParameterEditor({
         style={{
           width: '100%',
           height: '100%',
-          border: '1px solid #4CAF50',
+          border: '1px solid #FF2D55',
           borderRadius: '3px',
           padding: '2px 4px',
           fontSize: '12px',

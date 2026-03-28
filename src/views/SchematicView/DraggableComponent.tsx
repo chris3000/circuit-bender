@@ -4,11 +4,9 @@ import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
 import { useCircuit } from '@/context/CircuitContext';
 import { PinComponent } from './Pin';
 import type { Component, ComponentId, PinId } from '@/types/circuit';
-import type { ToolMode } from './Toolbar';
 
 interface DraggableComponentProps {
   component: Component;
-  toolMode: ToolMode;
   isSelected: boolean;
   onPinClick: (componentId: ComponentId, pinId: PinId) => void;
   onClick: () => void;
@@ -17,24 +15,18 @@ interface DraggableComponentProps {
 
 export const DraggableComponent = React.memo(function DraggableComponent({
   component,
-  toolMode,
   isSelected,
   onPinClick,
   onClick,
   onEditParameter,
 }: DraggableComponentProps) {
-  const isWireMode = toolMode === 'wire';
   const { updateComponent } = useCircuit();
 
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: component.id,
     data: { component },
-    disabled: isWireMode,
   });
 
-  // Bridge SVGGElement to the HTMLElement ref that dnd-kit expects.
-  // SVGGElement shares the same base Element interface that dnd-kit
-  // needs for measurement (getBoundingClientRect), so the cast is safe.
   const svgRef = useCallback(
     (element: SVGGElement | null) => {
       setNodeRef(element as unknown as HTMLElement | null);
@@ -49,16 +41,14 @@ export const DraggableComponent = React.memo(function DraggableComponent({
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
-      if (toolMode !== 'select') return;
       e.stopPropagation();
       onClick();
     },
-    [toolMode, onClick]
+    [onClick]
   );
 
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
-      if (toolMode !== 'select') return;
       e.stopPropagation();
       if (
         (component.type === 'resistor' || component.type === 'capacitor') &&
@@ -67,7 +57,7 @@ export const DraggableComponent = React.memo(function DraggableComponent({
         onEditParameter(component.id);
       }
     },
-    [toolMode, component.id, component.type, onEditParameter]
+    [component.id, component.type, onEditParameter]
   );
 
   // Potentiometer drag interaction
@@ -80,18 +70,15 @@ export const DraggableComponent = React.memo(function DraggableComponent({
   componentRef.current = component;
 
   useEffect(() => {
-    if (component.type !== 'potentiometer' || toolMode !== 'select') return;
-
-    // Clean up function handles removing listeners
+    if (component.type !== 'potentiometer') return;
     return () => {
       potDragRef.current = null;
     };
-  }, [component.type, toolMode]);
+  }, [component.type]);
 
   const handlePotMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      // Only activate wiper drag with Alt key held
-      if (component.type !== 'potentiometer' || toolMode !== 'select' || !e.altKey) return;
+      if (component.type !== 'potentiometer' || !e.altKey) return;
 
       e.stopPropagation();
       e.preventDefault();
@@ -129,7 +116,7 @@ export const DraggableComponent = React.memo(function DraggableComponent({
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
     },
-    [toolMode, component.type, updateComponent]
+    [component.type, updateComponent]
   );
 
   if (!definition) return null;
@@ -137,7 +124,7 @@ export const DraggableComponent = React.memo(function DraggableComponent({
   const { width, height } = definition.schematic.dimensions;
 
   const style: React.CSSProperties = {
-    cursor: isWireMode ? 'default' : 'move',
+    cursor: 'move',
     opacity: isDragging ? 0.5 : 1,
   };
 
@@ -145,23 +132,20 @@ export const DraggableComponent = React.memo(function DraggableComponent({
     style.transform = `translate(${transform.x}px, ${transform.y}px)`;
   }
 
-  // Only spread drag listeners/attributes when not in wire mode
-  const dragProps = isWireMode ? {} : { ...listeners, ...attributes };
-
   return (
     <g
       ref={svgRef}
       data-testid={`component-${component.id}`}
-      data-draggable={isWireMode ? 'false' : 'true'}
+      data-draggable="true"
       data-selected={isSelected ? 'true' : 'false'}
       style={style}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       onMouseDown={component.type === 'potentiometer' ? handlePotMouseDown : undefined}
-      {...dragProps}
+      {...listeners}
+      {...attributes}
     >
       <g transform={`translate(${component.position.schematic.x}, ${component.position.schematic.y})`}>
-        {/* Selection highlight rendered before symbol */}
         {isSelected && (
           <rect
             x={-width / 2 - 5}
@@ -169,24 +153,22 @@ export const DraggableComponent = React.memo(function DraggableComponent({
             width={width + 10}
             height={height + 10}
             fill="none"
-            stroke="#4CAF50"
-            strokeWidth="2"
+            stroke="#FF2D55"
+            strokeWidth="1.5"
+            strokeDasharray="4 2"
             rx="4"
             data-testid={`selection-highlight-${component.id}`}
           />
         )}
         {definition.schematic.symbol.render(component.parameters)}
-        {/* Render pins after the symbol */}
         {component.pins.map((pin) => (
           <PinComponent
             key={pin.id}
             pin={pin}
             componentId={component.id}
-            toolMode={toolMode}
             onPinClick={onPinClick}
           />
         ))}
-        {/* Visual hint for potentiometer wiper adjustment */}
         {isSelected && component.type === 'potentiometer' && (
           <text
             x={0}

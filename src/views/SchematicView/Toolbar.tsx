@@ -1,11 +1,7 @@
 import React from 'react';
 import styles from './Toolbar.module.css';
 
-export type ToolMode = 'select' | 'wire' | 'pan';
-
 interface ToolbarProps {
-  toolMode: ToolMode;
-  onToolModeChange: (mode: ToolMode) => void;
   onUndo?: () => void;
   onRedo?: () => void;
   canUndo?: boolean;
@@ -18,8 +14,6 @@ interface ToolbarProps {
 }
 
 export const Toolbar = React.memo(function Toolbar({
-  toolMode,
-  onToolModeChange,
   onUndo,
   onRedo,
   canUndo = false,
@@ -32,32 +26,6 @@ export const Toolbar = React.memo(function Toolbar({
 }: ToolbarProps) {
   return (
     <div className={styles.toolbar} data-testid="tool-toolbar">
-      {/* Tool mode */}
-      <button
-        className={`${styles.toolButton} ${toolMode === 'select' ? styles.active : ''}`}
-        aria-label="Select tool"
-        title="Select tool (V)"
-        onClick={() => onToolModeChange('select')}
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14">
-          <path d="M1,13 L6,1 L8,8 L13,6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </button>
-      <button
-        className={`${styles.toolButton} ${toolMode === 'wire' ? styles.active : ''}`}
-        aria-label="Wire tool"
-        title="Wire tool (W)"
-        onClick={() => onToolModeChange('wire')}
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14">
-          <path d="M2,12 Q2,2 12,2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          <circle cx="12" cy="2" r="1.5" fill="currentColor"/>
-          <circle cx="2" cy="12" r="1.5" fill="currentColor"/>
-        </svg>
-      </button>
-
-      <div className={styles.divider} />
-
       {/* Undo/Redo */}
       <button
         className={styles.toolButton}

@@ -126,8 +126,6 @@ const BreadboardView: React.FC<BreadboardViewProps> = ({ activeView, onToggleVie
       style={{ outline: isOver ? '2px dashed #FF2D55' : 'none' }}
     >
       <Toolbar
-        toolMode="select"
-        onToolModeChange={() => {}}
         activeView={activeView}
         onToggleView={onToggleView}
       />
