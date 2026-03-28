@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useMemo, useRef } from 'react';
+import React, { createContext, useContext, useCallback, useMemo, useReducer } from 'react';
 import { Circuit } from '@/models/Circuit';
 import { resetBreadboardGrid } from '@/utils/componentFactory';
 import type {
@@ -30,115 +30,189 @@ interface CircuitContextType {
 
 const CircuitContext = createContext<CircuitContextType | undefined>(undefined);
 
+interface CircuitState {
+  circuit: Circuit;
+  undoStack: Circuit[];
+  redoStack: Circuit[];
+  selectedComponents: ComponentId[];
+  selectedConnections: ConnectionId[];
+}
+
+type CircuitAction =
+  | { type: 'ADD_COMPONENT'; component: Component }
+  | { type: 'REMOVE_COMPONENT'; componentId: ComponentId }
+  | { type: 'UPDATE_COMPONENT'; componentId: ComponentId; updates: Partial<Component> }
+  | { type: 'ADD_CONNECTION'; connection: Connection }
+  | { type: 'REMOVE_CONNECTION'; connectionId: ConnectionId }
+  | { type: 'LOAD_CIRCUIT'; circuit: Circuit }
+  | { type: 'SET_SELECTION'; components: ComponentId[]; connections: ConnectionId[] }
+  | { type: 'CLEAR_SELECTION' }
+  | { type: 'UNDO' }
+  | { type: 'REDO' };
+
+function pushUndoStack(undoStack: Circuit[], current: Circuit): Circuit[] {
+  const next = [...undoStack, current];
+  if (next.length > MAX_UNDO_STACK_SIZE) {
+    return next.slice(next.length - MAX_UNDO_STACK_SIZE);
+  }
+  return next;
+}
+
+function circuitReducer(state: CircuitState, action: CircuitAction): CircuitState {
+  switch (action.type) {
+    case 'ADD_COMPONENT':
+      return {
+        ...state,
+        undoStack: pushUndoStack(state.undoStack, state.circuit),
+        redoStack: [],
+        circuit: state.circuit.addComponent(action.component),
+      };
+    case 'REMOVE_COMPONENT':
+      return {
+        ...state,
+        undoStack: pushUndoStack(state.undoStack, state.circuit),
+        redoStack: [],
+        circuit: state.circuit.removeComponent(action.componentId),
+      };
+    case 'UPDATE_COMPONENT':
+      return {
+        ...state,
+        undoStack: pushUndoStack(state.undoStack, state.circuit),
+        redoStack: [],
+        circuit: state.circuit.updateComponent(action.componentId, action.updates),
+      };
+    case 'ADD_CONNECTION':
+      return {
+        ...state,
+        undoStack: pushUndoStack(state.undoStack, state.circuit),
+        redoStack: [],
+        circuit: state.circuit.addConnection(action.connection),
+      };
+    case 'REMOVE_CONNECTION':
+      return {
+        ...state,
+        undoStack: pushUndoStack(state.undoStack, state.circuit),
+        redoStack: [],
+        circuit: state.circuit.removeConnection(action.connectionId),
+      };
+    case 'UNDO': {
+      if (state.undoStack.length === 0) return state;
+      const newUndoStack = [...state.undoStack];
+      const restored = newUndoStack.pop()!;
+      return {
+        ...state,
+        undoStack: newUndoStack,
+        redoStack: [...state.redoStack, state.circuit],
+        circuit: restored,
+      };
+    }
+    case 'REDO': {
+      if (state.redoStack.length === 0) return state;
+      const newRedoStack = [...state.redoStack];
+      const restored = newRedoStack.pop()!;
+      return {
+        ...state,
+        redoStack: newRedoStack,
+        undoStack: [...state.undoStack, state.circuit],
+        circuit: restored,
+      };
+    }
+    case 'LOAD_CIRCUIT':
+      resetBreadboardGrid();
+      return {
+        ...state,
+        circuit: action.circuit,
+        undoStack: [],
+        redoStack: [],
+      };
+    case 'SET_SELECTION':
+      return {
+        ...state,
+        selectedComponents: action.components,
+        selectedConnections: action.connections,
+      };
+    case 'CLEAR_SELECTION':
+      return {
+        ...state,
+        selectedComponents: [],
+        selectedConnections: [],
+      };
+  }
+}
+
+function createInitialState(): CircuitState {
+  return {
+    circuit: new Circuit('Untitled Circuit'),
+    undoStack: [],
+    redoStack: [],
+    selectedComponents: [],
+    selectedConnections: [],
+  };
+}
+
 export function CircuitProvider({ children }: { children: React.ReactNode }) {
-  const [circuit, setCircuit] = useState<Circuit>(() => new Circuit('Untitled Circuit'));
-  const [undoStack, setUndoStack] = useState<Circuit[]>([]);
-  const [redoStack, setRedoStack] = useState<Circuit[]>([]);
-  const [selectedComponents, setSelectedComponents] = useState<ComponentId[]>([]);
-  const [selectedConnections, setSelectedConnections] = useState<ConnectionId[]>([]);
-
-  // Use a ref to always have the current circuit available for undo/redo stack pushes
-  const circuitRef = useRef(circuit);
-  circuitRef.current = circuit;
-
-  const pushUndo = useCallback(() => {
-    setUndoStack((prev) => {
-      const next = [...prev, circuitRef.current];
-      if (next.length > MAX_UNDO_STACK_SIZE) {
-        return next.slice(next.length - MAX_UNDO_STACK_SIZE);
-      }
-      return next;
-    });
-    setRedoStack([]);
-  }, []);
+  const [state, dispatch] = useReducer(circuitReducer, undefined, createInitialState);
 
   const addComponent = useCallback((component: Component) => {
-    pushUndo();
-    setCircuit((prev) => prev.addComponent(component));
-  }, [pushUndo]);
+    dispatch({ type: 'ADD_COMPONENT', component });
+  }, []);
 
   const removeComponent = useCallback((componentId: ComponentId) => {
-    pushUndo();
-    setCircuit((prev) => prev.removeComponent(componentId));
-  }, [pushUndo]);
+    dispatch({ type: 'REMOVE_COMPONENT', componentId });
+  }, []);
 
   const updateComponent = useCallback(
     (componentId: ComponentId, updates: Partial<Component>) => {
-      pushUndo();
-      setCircuit((prev) => prev.updateComponent(componentId, updates));
+      dispatch({ type: 'UPDATE_COMPONENT', componentId, updates });
     },
-    [pushUndo]
+    []
   );
 
   const addConnection = useCallback((connection: Connection) => {
-    pushUndo();
-    setCircuit((prev) => prev.addConnection(connection));
-  }, [pushUndo]);
+    dispatch({ type: 'ADD_CONNECTION', connection });
+  }, []);
 
   const removeConnection = useCallback((connectionId: ConnectionId) => {
-    pushUndo();
-    setCircuit((prev) => prev.removeConnection(connectionId));
-  }, [pushUndo]);
+    dispatch({ type: 'REMOVE_CONNECTION', connectionId });
+  }, []);
 
   const undo = useCallback(() => {
-    setUndoStack((prev) => {
-      if (prev.length === 0) return prev;
-      const newStack = [...prev];
-      const restored = newStack.pop()!;
-      setRedoStack((redoPrev) => [...redoPrev, circuitRef.current]);
-      setCircuit(restored);
-      return newStack;
-    });
+    dispatch({ type: 'UNDO' });
   }, []);
 
   const redo = useCallback(() => {
-    setRedoStack((prev) => {
-      if (prev.length === 0) return prev;
-      const newStack = [...prev];
-      const restored = newStack.pop()!;
-      setUndoStack((undoPrev) => [...undoPrev, circuitRef.current]);
-      setCircuit(restored);
-      return newStack;
-    });
+    dispatch({ type: 'REDO' });
   }, []);
 
-  const canUndo = undoStack.length > 0;
-  const canRedo = redoStack.length > 0;
-
   const loadCircuit = useCallback((newCircuit: Circuit) => {
-    resetBreadboardGrid();
-    setCircuit(newCircuit);
-    setUndoStack([]);
-    setRedoStack([]);
+    dispatch({ type: 'LOAD_CIRCUIT', circuit: newCircuit });
   }, []);
 
   const setSelection = useCallback((components: ComponentId[], connections: ConnectionId[]) => {
-    setSelectedComponents(components);
-    setSelectedConnections(connections);
+    dispatch({ type: 'SET_SELECTION', components, connections });
   }, []);
 
   const clearSelection = useCallback(() => {
-    setSelectedComponents([]);
-    setSelectedConnections([]);
+    dispatch({ type: 'CLEAR_SELECTION' });
   }, []);
 
   const value = useMemo<CircuitContextType>(() => ({
-    circuit,
+    circuit: state.circuit,
     addComponent,
     removeComponent,
     updateComponent,
     addConnection,
     removeConnection,
     loadCircuit,
-    selectedComponents,
-    selectedConnections,
+    selectedComponents: state.selectedComponents,
+    selectedConnections: state.selectedConnections,
     setSelection,
     clearSelection,
     undo,
     redo,
-    canUndo,
-    canRedo,
-  }), [circuit, addComponent, removeComponent, updateComponent, addConnection, removeConnection, loadCircuit, selectedComponents, selectedConnections, setSelection, clearSelection, undo, redo, canUndo, canRedo]);
+    canUndo: state.undoStack.length > 0,
+    canRedo: state.redoStack.length > 0,
+  }), [state, addComponent, removeComponent, updateComponent, addConnection, removeConnection, loadCircuit, setSelection, clearSelection, undo, redo]);
 
   return (
     <CircuitContext.Provider value={value}>{children}</CircuitContext.Provider>
