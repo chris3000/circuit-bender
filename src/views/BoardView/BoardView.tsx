@@ -215,9 +215,7 @@ export default function BoardView({
   );
 
   const viewBox = useMemo(() => {
-    const w = 1200 / zoom;
-    const h = 800 / zoom;
-    return `${-w / 2 + pan.x} ${-h / 2 + pan.y} ${w} ${h}`;
+    return `${-pan.x} ${-pan.y} ${1000 / zoom} ${800 / zoom}`;
   }, [zoom, pan]);
 
   // Suppress unused variable warning for setPan — kept for future panning interaction
