@@ -8,7 +8,7 @@ import { DROPPABLE_BOARD_ID } from '@/constants/dnd';
 import { snapToGrid } from '@/utils/grid';
 import { BoardBackground } from './BoardBackground';
 import { BoardComponent } from './BoardComponent';
-import { BoardWire, getWireColor } from './BoardWire';
+import { BoardWire, getWireColor, getWireType } from './BoardWire';
 import { ParameterEditor } from '@/views/SchematicView/ParameterEditor';
 import { Toolbar } from '@/views/SchematicView/Toolbar';
 import type { ComponentId, PinId, ConnectionId } from '@/types/circuit';
@@ -64,6 +64,30 @@ export default function BoardView({
 
   const components = useMemo(() => circuit.getComponents(), [circuit]);
   const connections = useMemo(() => circuit.getConnections(), [circuit]);
+
+  const refDesMap = useMemo(() => {
+    const counters: Record<string, number> = {};
+    const prefixMap: Record<string, string> = {
+      resistor: 'R',
+      capacitor: 'C',
+      led: 'D',
+      '1n914': 'D',
+      '2n3904': 'Q',
+      cd40106: 'U',
+      lm741: 'U',
+      potentiometer: 'RV',
+      power: 'V',
+      ground: 'GND',
+      'audio-output': 'J',
+    };
+    const map = new Map<string, string>();
+    for (const comp of components) {
+      const prefix = prefixMap[comp.type] || comp.type.charAt(0).toUpperCase();
+      counters[prefix] = (counters[prefix] || 0) + 1;
+      map.set(comp.id, `${prefix}${counters[prefix]}`);
+    }
+    return map;
+  }, [components]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -270,6 +294,12 @@ export default function BoardView({
                 toComp?.type || '',
                 toPin?.type || '',
               )}
+              wireType={getWireType(
+                fromComp?.type || '',
+                fromPin?.type || '',
+                toComp?.type || '',
+                toPin?.type || '',
+              )}
               isSelected={selectedConnections.includes(conn.id)}
               onClick={handleWireClick}
               onContextMenu={handleWireContextMenu}
@@ -289,6 +319,7 @@ export default function BoardView({
               onClick={() => handleComponentClick(comp.id)}
               onEditParameter={handleEditParameter}
               onPotChange={onPotChange}
+              refDes={refDesMap.get(comp.id)}
             />
           ))}
         </DndContext>

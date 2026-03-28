@@ -8,6 +8,7 @@ interface BoardWireProps {
   toX: number;
   toY: number;
   color: string;
+  wireType: 'power' | 'ground' | 'signal';
   isSelected: boolean;
   onClick: (connectionId: ConnectionId) => void;
   onContextMenu?: (connectionId: ConnectionId, e: React.MouseEvent) => void;
@@ -27,6 +28,12 @@ function generateCurvedPath(x1: number, y1: number, x2: number, y2: number): str
   return `M ${x1},${y1} Q ${cx},${cy} ${x2},${y2}`;
 }
 
+const WIRE_WIDTH = {
+  power: 3,
+  ground: 2.5,
+  signal: 2,
+} as const;
+
 export const BoardWire = React.memo(function BoardWire({
   connectionId,
   fromX,
@@ -34,11 +41,13 @@ export const BoardWire = React.memo(function BoardWire({
   toX,
   toY,
   color,
+  wireType,
   isSelected,
   onClick,
   onContextMenu,
 }: BoardWireProps) {
   const pathData = generateCurvedPath(fromX, fromY, toX, toY);
+  const strokeWidth = isSelected ? WIRE_WIDTH[wireType] + 1 : WIRE_WIDTH[wireType];
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -67,11 +76,13 @@ export const BoardWire = React.memo(function BoardWire({
         d={pathData}
         fill="none"
         stroke={isSelected ? '#FF2D55' : color}
-        strokeWidth={isSelected ? 3 : 2.5}
+        strokeWidth={strokeWidth}
         strokeLinecap="round"
         opacity={0.85}
-        style={{ cursor: 'pointer', pointerEvents: 'none' }}
+        style={{ pointerEvents: 'none' }}
       />
+      <circle cx={fromX} cy={fromY} r={strokeWidth * 0.8} fill="url(#solderGradient)" opacity="0.9" style={{ pointerEvents: 'none' }} />
+      <circle cx={toX} cy={toY} r={strokeWidth * 0.8} fill="url(#solderGradient)" opacity="0.9" style={{ pointerEvents: 'none' }} />
     </g>
   );
 });
@@ -95,4 +106,25 @@ export function getWireColor(
     return '#333';
   }
   return '#4a82c4';
+}
+
+export function getWireType(
+  fromComponentType: string,
+  fromPinType: string,
+  toComponentType: string,
+  toPinType: string,
+): 'power' | 'ground' | 'signal' {
+  if (
+    fromComponentType === 'power' || toComponentType === 'power' ||
+    fromPinType === 'power' || toPinType === 'power'
+  ) {
+    return 'power';
+  }
+  if (
+    fromComponentType === 'ground' || toComponentType === 'ground' ||
+    fromPinType === 'ground' || toPinType === 'ground'
+  ) {
+    return 'ground';
+  }
+  return 'signal';
 }
