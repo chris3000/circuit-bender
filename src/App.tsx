@@ -8,6 +8,7 @@ import { snapToGrid } from './utils/grid';
 import { DROPPABLE_CANVAS_ID, DROPPABLE_BOARD_ID } from './constants/dnd';
 import { ComponentSymbol } from './components/ComponentSymbol';
 import SchematicView from './views/SchematicView';
+import BoardView from './views/BoardView/BoardView';
 import { ComponentDrawer } from './views/ComponentDrawer';
 import { AudioEngine } from './audio/AudioEngine';
 import OscilloscopePanel from './views/Oscilloscope/OscilloscopePanel';
@@ -239,9 +240,15 @@ export function AppContent() {
               onAddProbe={handleAddProbe}
             />
           ) : (
-            <div id="board-canvas" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1a6b3c', color: '#a8d8a8', fontFamily: 'Courier New' }}>
-              Board view coming soon
-            </div>
+            <BoardView
+              activeView={activeView}
+              onToggleView={() => setActiveView((v) => (v === 'schematic' ? 'board' : 'schematic'))}
+              ledStates={ledStates}
+              onPotChange={useCallback((componentId: string, position: number) => {
+                audioEngineRef.current?.setParam(componentId, 'position', position);
+              }, [])}
+              onAddProbe={handleAddProbe}
+            />
           )}
         </main>
         <OscilloscopePanel
