@@ -6,27 +6,6 @@
   position: relative;
 }
 
-.toolbar {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  padding: 0.5rem 1rem;
-  background-color: white;
-  border-bottom: 1px solid #ddd;
-}
-
-.toolbar button {
-  padding: 0.25rem 0.75rem;
-  border: 1px solid #ccc;
-  background-color: white;
-  cursor: pointer;
-  border-radius: 4px;
-}
-
-.toolbar button:hover {
-  background-color: #f0f0f0;
-}
-
 .dropZone {
   flex: 1;
   display: flex;

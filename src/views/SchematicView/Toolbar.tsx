@@ -12,6 +12,9 @@ interface ToolbarProps {
   canRedo?: boolean;
   activeView?: 'schematic' | 'breadboard';
   onToggleView?: () => void;
+  zoom?: number;
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
 }
 
 export const Toolbar = React.memo(function Toolbar({
@@ -23,30 +26,39 @@ export const Toolbar = React.memo(function Toolbar({
   canRedo = false,
   activeView,
   onToggleView,
+  zoom,
+  onZoomIn,
+  onZoomOut,
 }: ToolbarProps) {
   return (
     <div className={styles.toolbar} data-testid="tool-toolbar">
+      {/* Tool mode */}
       <button
-        className={styles.toolButton}
-        data-active={toolMode === 'select' ? 'true' : 'false'}
+        className={`${styles.toolButton} ${toolMode === 'select' ? styles.active : ''}`}
         aria-label="Select tool"
         title="Select tool (V)"
         onClick={() => onToolModeChange('select')}
       >
-        <span className={styles.icon} aria-hidden="true">{'\u2B06'}</span>
+        <svg width="14" height="14" viewBox="0 0 14 14">
+          <path d="M1,13 L6,1 L8,8 L13,6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
       </button>
       <button
-        className={styles.toolButton}
-        data-active={toolMode === 'wire' ? 'true' : 'false'}
+        className={`${styles.toolButton} ${toolMode === 'wire' ? styles.active : ''}`}
         aria-label="Wire tool"
         title="Wire tool (W)"
         onClick={() => onToolModeChange('wire')}
       >
-        <span className={styles.icon} aria-hidden="true">{'\u26A1'}</span>
+        <svg width="14" height="14" viewBox="0 0 14 14">
+          <path d="M2,12 Q2,2 12,2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          <circle cx="12" cy="2" r="1.5" fill="currentColor"/>
+          <circle cx="2" cy="12" r="1.5" fill="currentColor"/>
+        </svg>
       </button>
 
-      <div style={{ width: '1px', height: '24px', background: '#ccc', margin: '0 4px' }} />
+      <div className={styles.divider} />
 
+      {/* Undo/Redo */}
       <button
         className={styles.toolButton}
         aria-label="Undo"
@@ -54,7 +66,10 @@ export const Toolbar = React.memo(function Toolbar({
         disabled={!canUndo}
         onClick={onUndo}
       >
-        <span className={styles.icon} aria-hidden="true">{'\u21A9'}</span>
+        <svg width="14" height="14" viewBox="0 0 14 14">
+          <path d="M4,5 L1,2 L4,2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M2,2 Q2,10 10,10 L12,10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
       </button>
       <button
         className={styles.toolButton}
@@ -63,21 +78,40 @@ export const Toolbar = React.memo(function Toolbar({
         disabled={!canRedo}
         onClick={onRedo}
       >
-        <span className={styles.icon} aria-hidden="true">{'\u21AA'}</span>
+        <svg width="14" height="14" viewBox="0 0 14 14">
+          <path d="M10,5 L13,2 L10,2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M12,2 Q12,10 4,10 L2,10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
       </button>
 
       {onToggleView && (
         <>
-          <div style={{ width: '1px', height: '24px', background: '#ccc', margin: '0 4px' }} />
-          <button
-            className={styles.toolButton}
-            aria-label="Toggle view"
-            title="Toggle view (Tab)"
-            onClick={onToggleView}
-            style={{ width: 'auto', padding: '0 8px', fontSize: '12px' }}
-          >
-            {activeView === 'schematic' ? 'Breadboard' : 'Schematic'} <span style={{ opacity: 0.5 }}>(Tab)</span>
-          </button>
+          <div className={styles.divider} />
+          {/* View toggle */}
+          <div className={styles.viewToggle}>
+            <button
+              className={`${styles.viewTab} ${activeView === 'schematic' ? styles.viewTabActive : ''}`}
+              onClick={activeView !== 'schematic' ? onToggleView : undefined}
+            >
+              Schematic
+            </button>
+            <button
+              className={`${styles.viewTab} ${activeView === 'breadboard' ? styles.viewTabActive : ''}`}
+              onClick={activeView !== 'breadboard' ? onToggleView : undefined}
+            >
+              Board
+            </button>
+          </div>
+        </>
+      )}
+
+      {onZoomIn && onZoomOut && zoom !== undefined && (
+        <>
+          <div className={styles.divider} />
+          {/* Zoom */}
+          <button className={styles.zoomButton} onClick={onZoomOut} aria-label="Zoom out">−</button>
+          <span className={styles.zoomLabel}>{Math.round(zoom * 100)}%</span>
+          <button className={styles.zoomButton} onClick={onZoomIn} aria-label="Zoom in">+</button>
         </>
       )}
     </div>

@@ -4,41 +4,111 @@
   left: 8px;
   z-index: 10;
   display: flex;
-  gap: 4px;
-  padding: 4px;
+  gap: 2px;
+  padding: 3px;
   background: white;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  align-items: center;
+  font-family: 'Courier New', Courier, monospace;
 }
 
 .toolButton {
-  width: 40px;
-  height: 40px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background: white;
+  border: none;
+  border-radius: 7px;
+  background: #F5F5F5;
+  color: #666;
   cursor: pointer;
-  font-size: 18px;
-  transition: background-color 0.15s ease;
+  font-size: 14px;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.toolButton:hover {
-  background-color: #f0f0f0;
+.toolButton:hover:not(:disabled) {
+  background-color: #EBEBEB;
+  color: #222;
 }
 
-.toolButton[data-active='true'] {
-  background-color: #4CAF50;
-  border-color: #4CAF50;
+.toolButton:disabled {
+  color: #CCC;
+  cursor: default;
+}
+
+.active {
+  background-color: #222;
   color: white;
 }
 
-.toolButton[data-active='true']:hover {
-  background-color: #45a049;
+.active:hover {
+  background-color: #333;
+  color: white;
 }
 
-.icon {
-  pointer-events: none;
+.divider {
+  width: 1px;
+  height: 18px;
+  background: #E0E0E0;
+  margin: 0 2px;
+}
+
+.viewToggle {
+  display: flex;
+  background: #F0F0F0;
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.viewTab {
+  padding: 5px 10px;
+  font-size: 10px;
+  font-family: 'Courier New', Courier, monospace;
+  color: #999;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.viewTab:hover {
+  color: #666;
+}
+
+.viewTabActive {
+  background: white;
+  color: #222;
+  font-weight: bold;
+  border-radius: 7px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  cursor: default;
+}
+
+.zoomButton {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #F5F5F5;
+  border: none;
+  border-radius: 5px;
+  color: #999;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.zoomButton:hover {
+  background: #EBEBEB;
+  color: #222;
+}
+
+.zoomLabel {
+  font-size: 10px;
+  color: #999;
+  min-width: 32px;
+  text-align: center;
 }

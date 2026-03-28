@@ -268,18 +268,12 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
 
   return (
     <div className={styles.container}>
-      <div className={styles.toolbar}>
-        <span>Zoom: {Math.round(zoom * 100)}%</span>
-        <button onClick={() => setZoom(Math.min(zoom + 0.1, 3))}>+</button>
-        <button onClick={() => setZoom(Math.max(zoom - 0.1, 0.5))}>-</button>
-      </div>
-
       <div
         ref={setNodeRef}
         data-testid="schematic-drop-zone"
         className={styles.dropZone}
         style={{
-          outline: isOver ? '2px dashed #3b82f6' : 'none',
+          outline: isOver ? '2px dashed #FF2D55' : 'none',
         }}
       >
         <Toolbar
@@ -291,6 +285,9 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
           canRedo={canRedo}
           activeView={activeView}
           onToggleView={onToggleView}
+          zoom={zoom}
+          onZoomIn={() => setZoom(Math.min(zoom + 0.1, 3))}
+          onZoomOut={() => setZoom(Math.max(zoom - 0.1, 0.5))}
         />
 
         <svg
