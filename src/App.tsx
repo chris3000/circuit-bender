@@ -14,6 +14,7 @@ import { AudioEngine } from './audio/AudioEngine';
 import { AudioBridge } from './audio/AudioBridge';
 import BreadboardView from './views/BreadboardView/BreadboardView';
 import OscilloscopePanel from './views/Oscilloscope/OscilloscopePanel';
+import { ExamplesMenu } from './views/ExamplesMenu';
 
 type ActiveView = 'schematic' | 'breadboard';
 
@@ -173,6 +174,8 @@ export function AppContent() {
       <div className="app">
         <header className="app-header">
           <h1>Circuit Bender</h1>
+          <div style={{ width: '1px', height: '18px', background: '#444' }} />
+          <ExamplesMenu />
           <div className="audio-controls" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
             {!audioStarted ? (
               <button className="play-btn" onClick={handleStartAudio}>▶</button>
