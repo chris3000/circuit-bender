@@ -106,6 +106,8 @@ export function CircuitProvider({ children }: { children: React.ReactNode }) {
 
   const loadCircuit = useCallback((newCircuit: Circuit) => {
     setCircuit(newCircuit);
+    setUndoStack([]);
+    setRedoStack([]);
   }, []);
 
   const setSelection = useCallback((components: ComponentId[], connections: ConnectionId[]) => {
