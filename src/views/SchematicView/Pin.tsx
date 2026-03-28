@@ -4,13 +4,15 @@ import type { Pin, ComponentId, PinId } from '@/types/circuit';
 interface PinComponentProps {
   pin: Pin;
   componentId: ComponentId;
-  onPinClick: (componentId: ComponentId, pinId: PinId) => void;
+  onPinDown: (componentId: ComponentId, pinId: PinId) => void;
+  onPinUp: (componentId: ComponentId, pinId: PinId) => void;
 }
 
 export const PinComponent = React.memo(function PinComponent({
   pin,
   componentId,
-  onPinClick,
+  onPinDown,
+  onPinUp,
 }: PinComponentProps) {
   const [hovered, setHovered] = useState(false);
 
@@ -18,15 +20,26 @@ export const PinComponent = React.memo(function PinComponent({
 
   const radius = isActive ? 8 : 5;
   const fill = isActive ? '#FF2D55' : '#999';
-  const cursor = 'crosshair';
 
-  const handleClick = useCallback(
-    (e: React.MouseEvent) => {
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
       e.stopPropagation();
-      onPinClick(componentId, pin.id);
+      onPinDown(componentId, pin.id);
     },
-    [onPinClick, componentId, pin.id]
+    [onPinDown, componentId, pin.id]
   );
+
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      e.stopPropagation();
+      onPinUp(componentId, pin.id);
+    },
+    [onPinUp, componentId, pin.id]
+  );
+
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+  }, []);
 
   const handleMouseEnter = useCallback(() => setHovered(true), []);
   const handleMouseLeave = useCallback(() => setHovered(false), []);
@@ -40,13 +53,12 @@ export const PinComponent = React.memo(function PinComponent({
       fill={fill}
       stroke={isActive ? '#FF2D55' : 'transparent'}
       strokeWidth={isActive ? 1.5 : 0}
-      style={{ cursor, transition: 'r 0.1s ease, fill 0.1s ease' }}
+      style={{ cursor: 'crosshair', transition: 'r 0.1s ease, fill 0.1s ease' }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onClick={handleClick}
-      onPointerDown={(e) => {
-        e.stopPropagation();
-      }}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
     />
   );
 });

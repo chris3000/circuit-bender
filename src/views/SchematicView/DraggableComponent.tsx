@@ -8,7 +8,8 @@ import type { Component, ComponentId, PinId } from '@/types/circuit';
 interface DraggableComponentProps {
   component: Component;
   isSelected: boolean;
-  onPinClick: (componentId: ComponentId, pinId: PinId) => void;
+  onPinDown: (componentId: ComponentId, pinId: PinId) => void;
+  onPinUp: (componentId: ComponentId, pinId: PinId) => void;
   onClick: () => void;
   onEditParameter?: (componentId: ComponentId) => void;
 }
@@ -16,7 +17,8 @@ interface DraggableComponentProps {
 export const DraggableComponent = React.memo(function DraggableComponent({
   component,
   isSelected,
-  onPinClick,
+  onPinDown,
+  onPinUp,
   onClick,
   onEditParameter,
 }: DraggableComponentProps) {
@@ -166,7 +168,8 @@ export const DraggableComponent = React.memo(function DraggableComponent({
             key={pin.id}
             pin={pin}
             componentId={component.id}
-            onPinClick={onPinClick}
+            onPinDown={onPinDown}
+            onPinUp={onPinUp}
           />
         ))}
         {isSelected && component.type === 'potentiometer' && (

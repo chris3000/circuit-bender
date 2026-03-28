@@ -102,52 +102,52 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
   const circuitRef = useRef(circuit);
   circuitRef.current = circuit;
 
-  const handlePinClick = useCallback((componentId: ComponentId, pinId: PinId) => {
-    const currentState = wiringStateRef.current;
+  // Mouse down on a pin starts wiring
+  const handlePinDown = useCallback((componentId: ComponentId, pinId: PinId) => {
     const currentCircuit = circuitRef.current;
+    const component = currentCircuit.getComponent(componentId);
+    const pin = component?.pins.find(p => p.id === pinId);
+    if (!component || !pin) return;
 
-    if (currentState.status === 'idle') {
-      // Start wiring from this pin
-      const component = currentCircuit.getComponent(componentId);
-      const pin = component?.pins.find(p => p.id === pinId);
-      if (!component || !pin) return;
+    const startX = component.position.schematic.x + pin.position.x;
+    const startY = component.position.schematic.y + pin.position.y;
 
-      const startX = component.position.schematic.x + pin.position.x;
-      const startY = component.position.schematic.y + pin.position.y;
+    setWiringState({
+      status: 'in-progress',
+      fromComponentId: componentId,
+      fromPinId: pinId,
+      startX,
+      startY,
+    });
+  }, []);
 
-      setWiringState({
-        status: 'in-progress',
-        fromComponentId: componentId,
-        fromPinId: pinId,
-        startX,
-        startY,
-      });
-    } else {
-      // Complete wiring: validate and create connection
-      const validation = validateConnection(
-        currentState.fromComponentId,
-        currentState.fromPinId,
-        componentId,
-        pinId,
-        currentCircuit
-      );
+  // Mouse up on a pin completes wiring
+  const handlePinUp = useCallback((componentId: ComponentId, pinId: PinId) => {
+    const currentState = wiringStateRef.current;
+    if (currentState.status !== 'in-progress') return;
 
-      if (!validation.valid) {
-        // TODO: Replace alert with toast notification
-        alert(validation.error);
-        setWiringState({ status: 'idle' });
-        return;
-      }
+    const currentCircuit = circuitRef.current;
+    const validation = validateConnection(
+      currentState.fromComponentId,
+      currentState.fromPinId,
+      componentId,
+      pinId,
+      currentCircuit
+    );
 
-      addConnection({
-        id: generateConnectionId(),
-        from: { componentId: currentState.fromComponentId, pinId: currentState.fromPinId },
-        to: { componentId, pinId },
-        net: generateNetId(),
-      });
-
+    if (!validation.valid) {
       setWiringState({ status: 'idle' });
+      return;
     }
+
+    addConnection({
+      id: generateConnectionId(),
+      from: { componentId: currentState.fromComponentId, pinId: currentState.fromPinId },
+      to: { componentId, pinId },
+      net: generateNetId(),
+    });
+
+    setWiringState({ status: 'idle' });
   }, [addConnection]);
 
   const wiringStatusRef = useRef(wiringState.status);
@@ -222,6 +222,7 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
   const handleCanvasClick = useCallback(() => {
     clearSelection();
     setEditingComponentId(null);
+    setWiringState({ status: 'idle' });
   }, [clearSelection]);
 
   const handleEditParameter = useCallback((componentId: ComponentId) => {
@@ -360,7 +361,8 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
                 key={component.id}
                 component={component}
                 isSelected={selectedComponents.includes(component.id)}
-                onPinClick={handlePinClick}
+                onPinDown={handlePinDown}
+                onPinUp={handlePinUp}
                 onClick={() => handleComponentClick(component.id)}
                 onEditParameter={handleEditParameter}
               />
