@@ -5,7 +5,7 @@ import { useCircuit } from './context/CircuitContext';
 import { ComponentRegistry } from './components/registry/ComponentRegistry';
 import { createComponentFromDefinition } from './utils/componentFactory';
 import { snapToGrid } from './utils/grid';
-import { DROPPABLE_CANVAS_ID } from './constants/dnd';
+import { DROPPABLE_CANVAS_ID, DROPPABLE_BREADBOARD_ID } from './constants/dnd';
 import { ComponentSymbol } from './components/ComponentSymbol';
 import SchematicView from './views/SchematicView';
 import { ComponentDrawer } from './views/ComponentDrawer';
@@ -117,7 +117,7 @@ export function AppContent() {
 
     const { active, over } = event;
 
-    if (!over || over.id !== DROPPABLE_CANVAS_ID) {
+    if (!over || (over.id !== DROPPABLE_CANVAS_ID && over.id !== DROPPABLE_BREADBOARD_ID)) {
       return;
     }
 
@@ -175,13 +175,11 @@ export function AppContent() {
           <h1>Circuit Bender</h1>
           <div className="audio-controls" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
             {!audioStarted ? (
-              <button onClick={handleStartAudio}>Start Audio</button>
+              <button className="play-btn" onClick={handleStartAudio}>▶</button>
             ) : (
-              <button onClick={handleStopAudio}>Stop Audio</button>
+              <button className="play-btn" onClick={handleStopAudio}>■</button>
             )}
-            <button onClick={() => setMuted((m) => !m)}>
-              {muted ? 'Unmute' : 'Mute'}
-            </button>
+            <span style={{ color: '#666', fontSize: '9px' }}>VOL</span>
             <input
               type="range"
               min="0"
@@ -190,8 +188,11 @@ export function AppContent() {
               value={volume}
               onChange={(e) => setVolume(Number(e.target.value))}
               title={`Volume: ${Math.round(volume * 100)}%`}
-              style={{ width: '80px' }}
+              style={{ width: '50px' }}
             />
+            <button onClick={() => setMuted((m) => !m)}>
+              {muted ? '🔇' : '🔊'}
+            </button>
           </div>
         </header>
         <main className="app-main">
@@ -202,7 +203,10 @@ export function AppContent() {
               onToggleView={() => setActiveView((v) => (v === 'schematic' ? 'breadboard' : 'schematic'))}
             />
           ) : (
-            <BreadboardView />
+            <BreadboardView
+              activeView={activeView}
+              onToggleView={() => setActiveView((v) => (v === 'schematic' ? 'breadboard' : 'schematic'))}
+            />
           )}
         </main>
         <OscilloscopePanel />
