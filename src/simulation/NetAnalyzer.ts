@@ -1,8 +1,8 @@
 import type { Connection, ComponentId, PinId } from '@/types/circuit';
 
 export interface NetPin {
-  componentId: string;
-  pinId: string;
+  componentId: ComponentId;
+  pinId: PinId;
 }
 
 export interface Net {
@@ -14,6 +14,7 @@ export class NetAnalyzer {
   private parent: Map<string, string>;
   private rank: Map<string, number>;
   private nets: Net[] | null = null;
+  private netByRootKey: Map<string, Net> | null = null;
 
   constructor(private connections: Connection[]) {
     this.parent = new Map();
@@ -74,14 +75,19 @@ export class NetAnalyzer {
       if (!groups.has(root)) {
         groups.set(root, []);
       }
-      const [componentId, pinId] = key.split('::');
+      const [componentId, pinId] = key.split('::') as [ComponentId, PinId];
       groups.get(root)!.push({ componentId, pinId });
     }
 
-    this.nets = Array.from(groups.values()).map((pins, index) => ({
-      id: index,
-      pins,
-    }));
+    this.netByRootKey = new Map();
+    this.nets = [];
+
+    let index = 0;
+    for (const [root, pins] of groups) {
+      const net: Net = { id: index++, pins };
+      this.nets.push(net);
+      this.netByRootKey.set(root, net);
+    }
 
     return this.nets;
   }
@@ -90,10 +96,10 @@ export class NetAnalyzer {
     const key = this.pinKey(componentId, pinId);
     if (!this.parent.has(key)) return undefined;
 
+    // Ensure nets and lookup table are built
+    this.getNets();
+
     const root = this.find(key);
-    const nets = this.getNets();
-    return nets.find(net =>
-      net.pins.some(p => this.find(this.pinKey(p.componentId, p.pinId)) === root)
-    );
+    return this.netByRootKey!.get(root);
   }
 }
