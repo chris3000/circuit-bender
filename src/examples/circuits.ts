@@ -30,12 +30,12 @@ function connect(
 export const exampleCircuits: ExampleCircuit[] = [
   {
     name: 'Simple Oscillator',
-    description: 'CD40106 + R + C → ~833Hz square wave',
+    description: 'CD40106 + R + C → A4 (440Hz)',
     build: () => {
       const power = createComponentFromDefinition(getDefinition('power'), { x: 200, y: 80 });
       const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 500 });
       const resistor = createComponentFromDefinition(getDefinition('resistor'), { x: 350, y: 200 });
-      resistor.parameters = { ...resistor.parameters, resistance: 10000, value: '10k' };
+      resistor.parameters = { ...resistor.parameters, resistance: 19000, value: '19k' };
       const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 350 });
       const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 500, y: 280 });
       const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 650, y: 280 });
