@@ -229,27 +229,42 @@ export function AppContent() {
         </header>
         <main className="app-main">
           <ComponentDrawer />
-          {activeView === 'schematic' ? (
-            <SchematicView
-              activeView={activeView}
-              onToggleView={() => setActiveView((v) => (v === 'schematic' ? 'board' : 'schematic'))}
-              ledStates={ledStates}
-              onPotChange={useCallback((componentId: string, position: number) => {
-                audioEngineRef.current?.setParam(componentId, 'position', position);
-              }, [])}
-              onAddProbe={handleAddProbe}
-            />
-          ) : (
-            <BoardView
-              activeView={activeView}
-              onToggleView={() => setActiveView((v) => (v === 'schematic' ? 'board' : 'schematic'))}
-              ledStates={ledStates}
-              onPotChange={useCallback((componentId: string, position: number) => {
-                audioEngineRef.current?.setParam(componentId, 'position', position);
-              }, [])}
-              onAddProbe={handleAddProbe}
-            />
-          )}
+          <div style={{ flex: 1, position: 'relative' }}>
+            <div style={{
+              position: 'absolute', inset: 0,
+              opacity: activeView === 'schematic' ? 1 : 0,
+              transition: 'opacity 250ms ease-in-out',
+              pointerEvents: activeView === 'schematic' ? 'auto' : 'none',
+              zIndex: activeView === 'schematic' ? 1 : 0,
+            }}>
+              <SchematicView
+                activeView={activeView}
+                onToggleView={() => setActiveView((v) => (v === 'schematic' ? 'board' : 'schematic'))}
+                ledStates={ledStates}
+                onPotChange={useCallback((componentId: string, position: number) => {
+                  audioEngineRef.current?.setParam(componentId, 'position', position);
+                }, [])}
+                onAddProbe={handleAddProbe}
+              />
+            </div>
+            <div style={{
+              position: 'absolute', inset: 0,
+              opacity: activeView === 'board' ? 1 : 0,
+              transition: 'opacity 250ms ease-in-out',
+              pointerEvents: activeView === 'board' ? 'auto' : 'none',
+              zIndex: activeView === 'board' ? 1 : 0,
+            }}>
+              <BoardView
+                activeView={activeView}
+                onToggleView={() => setActiveView((v) => (v === 'schematic' ? 'board' : 'schematic'))}
+                ledStates={ledStates}
+                onPotChange={useCallback((componentId: string, position: number) => {
+                  audioEngineRef.current?.setParam(componentId, 'position', position);
+                }, [])}
+                onAddProbe={handleAddProbe}
+              />
+            </div>
+          </div>
         </main>
         <OscilloscopePanel
           onRegisterSampleCallback={useCallback((cb: (samples: Float32Array, probeData?: Float32Array[]) => void) => {
