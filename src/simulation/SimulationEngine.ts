@@ -189,7 +189,7 @@ export class SimulationEngine {
 
     for (const comp of components) {
       // Skip non-power/ground components
-      if (comp.type !== 'power-supply' && comp.type !== 'ground') continue;
+      if (comp.type !== 'power' && comp.type !== 'ground') continue;
 
       const def = registry.get(comp.type);
       if (!def) continue;
@@ -232,7 +232,7 @@ export class SimulationEngine {
 
     for (const comp of components) {
       // Skip supply/ground — already resolved
-      if (comp.type === 'power-supply' || comp.type === 'ground') continue;
+      if (comp.type === 'power' || comp.type === 'ground') continue;
 
       const def = registry.get(comp.type);
       if (!def) continue;
