@@ -26,19 +26,14 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
     this.sampleBuffer = new Float32Array(128);
     this.sampleIndex = 0;
 
-    this.debugCount = 0;
-
     this.port.onmessage = (event) => {
       const msg = event.data;
-      this.port.postMessage({ type: 'debug', msg: 'received: ' + msg.type });
       if (msg.type === 'loadCircuit') {
         this.loadCircuit(msg.components, msg.connections);
-        this.port.postMessage({ type: 'debug', msg: 'loaded ' + msg.components.length + ' comps, ' + msg.connections.length + ' conns, ' + this.nets.length + ' nets' });
       } else if (msg.type === 'setParam') {
         this.setParam(msg.componentId, msg.key, msg.value);
       } else if (msg.type === 'start') {
         this.running = true;
-        console.log('[WORKLET] started');
       } else if (msg.type === 'stop') {
         this.running = false;
         this.resetState();
@@ -330,13 +325,6 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
       } else {
         channel[i] = 0;
       }
-    }
-
-    if (this.running && this.debugCount < 3) {
-      this.debugCount++;
-      const min = Math.min(...channel);
-      const max = Math.max(...channel);
-      this.port.postMessage({ type: 'debug', msg: 'process: comps=' + this.components.length + ' min=' + min.toFixed(4) + ' max=' + max.toFixed(4) + ' nodeV=' + JSON.stringify(this.nodeVoltages) });
     }
 
     // Copy to all output channels

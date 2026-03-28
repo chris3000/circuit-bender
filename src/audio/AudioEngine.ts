@@ -43,8 +43,6 @@ export class AudioEngine {
     this.workletNode.port.onmessage = (event) => {
       if (event.data.type === 'samples' && this.onSamplesCallback) {
         this.onSamplesCallback(event.data.samples);
-      } else if (event.data.type === 'debug') {
-        console.log('[WORKLET]', event.data.msg);
       }
     };
   }
@@ -59,7 +57,6 @@ export class AudioEngine {
 
   /** Post circuit topology to the worklet for simulation */
   loadCircuit(components: SerializedComponent[], connections: SerializedConnection[]): void {
-    console.log('[AudioEngine] loadCircuit:', components.length, 'components,', connections.length, 'connections, workletNode:', !!this.workletNode);
     if (!this.workletNode) return;
     this.workletNode.port.postMessage({
       type: 'loadCircuit',
@@ -81,7 +78,6 @@ export class AudioEngine {
 
   /** Tell the worklet to start/stop simulation */
   startSimulation(): void {
-    console.log('[AudioEngine] startSimulation, workletNode:', !!this.workletNode);
     if (!this.workletNode) return;
     this.workletNode.port.postMessage({ type: 'start' });
   }

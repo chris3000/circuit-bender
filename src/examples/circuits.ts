@@ -30,11 +30,12 @@ function connect(
 export const exampleCircuits: ExampleCircuit[] = [
   {
     name: 'Simple Oscillator',
-    description: 'CD40106 + R + C → square wave',
+    description: 'CD40106 + R + C → ~833Hz square wave',
     build: () => {
       const power = createComponentFromDefinition(getDefinition('power'), { x: 200, y: 80 });
       const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 500 });
       const resistor = createComponentFromDefinition(getDefinition('resistor'), { x: 350, y: 200 });
+      resistor.parameters = { ...resistor.parameters, resistance: 10000, value: '10k' };
       const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 350 });
       const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 500, y: 280 });
       const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 650, y: 280 });
@@ -102,10 +103,12 @@ export const exampleCircuits: ExampleCircuit[] = [
       const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 550 });
       // Oscillator 1
       const r1 = createComponentFromDefinition(getDefinition('resistor'), { x: 350, y: 180 });
+      r1.parameters = { ...r1.parameters, resistance: 10000, value: '10k' };
       const c1 = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 320 });
       const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 500, y: 280 });
-      // Oscillator 2 (using gates 2A/2Y on same IC)
+      // Oscillator 2 (using gates 2A/2Y on same IC) — different R for a different pitch
       const r2 = createComponentFromDefinition(getDefinition('resistor'), { x: 350, y: 420 });
+      r2.parameters = { ...r2.parameters, resistance: 15000, value: '15k' };
       const c2 = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 500 });
       // Mix resistors
       const rMix1 = createComponentFromDefinition(getDefinition('resistor'), { x: 650, y: 220 });
@@ -144,13 +147,12 @@ export const exampleCircuits: ExampleCircuit[] = [
       const power = createComponentFromDefinition(getDefinition('power'), { x: 200, y: 80 });
       const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 500 });
       const resistor = createComponentFromDefinition(getDefinition('resistor'), { x: 350, y: 200 });
+      resistor.parameters = { ...resistor.parameters, resistance: 100000, value: '100k' };
       const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 350 });
+      capacitor.parameters = { ...capacitor.parameters, capacitance: 10e-6, value: '10µF' };
       const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 500, y: 280 });
       const rLed = createComponentFromDefinition(getDefinition('resistor'), { x: 650, y: 200 });
       const led = createComponentFromDefinition(getDefinition('led'), { x: 650, y: 350 });
-
-      // Make the timing capacitor larger for visible blink rate
-      capacitor.parameters = { ...capacitor.parameters, capacitance: 10e-6, value: '10µF' };
 
       const components = [power, ground, resistor, capacitor, ic, rLed, led];
       const connections = [
