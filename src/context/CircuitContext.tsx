@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useRef } from 'react';
 import { Circuit } from '@/models/Circuit';
+import { resetBreadboardGrid } from '@/utils/componentFactory';
 import type {
   Component,
   Connection,
@@ -105,6 +106,7 @@ export function CircuitProvider({ children }: { children: React.ReactNode }) {
   const canRedo = redoStack.length > 0;
 
   const loadCircuit = useCallback((newCircuit: Circuit) => {
+    resetBreadboardGrid();
     setCircuit(newCircuit);
     setUndoStack([]);
     setRedoStack([]);

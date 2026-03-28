@@ -54,6 +54,7 @@ export class BreadboardGrid {
     }
 
     // Fallback
+    this.markOccupied(startRow, this.nextColumn, rows, columns);
     return { row: startRow, column: this.nextColumn };
   }
 
@@ -80,7 +81,9 @@ export class BreadboardGrid {
     }
 
     // Fallback: use bottom side of board
-    return { row: ROWS_PER_SIDE + 1, column: 2 };
+    const fallbackRow = ROWS_PER_SIDE + 1;
+    this.markOccupied(fallbackRow, 2, rows, columns);
+    return { row: fallbackRow, column: 2 };
   }
 
   clear(): void {
