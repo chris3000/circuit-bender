@@ -20,7 +20,7 @@ interface SerializedConnection {
 export class AudioEngine {
   private context: AudioContext;
   private workletNode: AudioWorkletNode | null = null;
-  private onSamplesCallback: ((samples: Float32Array) => void) | null = null;
+  private onSamplesCallback: ((samples: Float32Array, probeData?: Float32Array[]) => void) | null = null;
   private onLedStatesCallback: ((states: Record<string, boolean>) => void) | null = null;
 
   constructor() {
@@ -43,7 +43,7 @@ export class AudioEngine {
     // Listen for messages from worklet
     this.workletNode.port.onmessage = (event) => {
       if (event.data.type === 'samples' && this.onSamplesCallback) {
-        this.onSamplesCallback(event.data.samples);
+        this.onSamplesCallback(event.data.samples, event.data.probeData);
       } else if (event.data.type === 'ledStates' && this.onLedStatesCallback) {
         this.onLedStatesCallback(event.data.states);
       }
@@ -91,8 +91,14 @@ export class AudioEngine {
   }
 
   /** Register callback for samples posted back from worklet */
-  onSamples(callback: (samples: Float32Array) => void): void {
+  onSamples(callback: (samples: Float32Array, probeData?: Float32Array[]) => void): void {
     this.onSamplesCallback = callback;
+  }
+
+  /** Set probe targets in the worklet */
+  setProbes(probes: Array<{ componentId: string; pinId: string }>): void {
+    if (!this.workletNode) return;
+    this.workletNode.port.postMessage({ type: 'setProbes', probes });
   }
 
   /** Register callback for LED state updates from worklet */

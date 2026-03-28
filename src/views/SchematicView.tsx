@@ -32,9 +32,10 @@ interface SchematicViewProps {
   onToggleView?: () => void;
   ledStates?: Record<string, boolean>;
   onPotChange?: (componentId: string, position: number) => void;
+  onAddProbe?: (componentId: string, pinId: string, label: string) => void;
 }
 
-function SchematicView({ activeView, onToggleView, ledStates = {}, onPotChange }: SchematicViewProps = {}) {
+function SchematicView({ activeView, onToggleView, ledStates = {}, onPotChange, onAddProbe }: SchematicViewProps = {}) {
   const {
     circuit,
     updateComponent,
@@ -236,6 +237,17 @@ function SchematicView({ activeView, onToggleView, ledStates = {}, onPotChange }
     setSelection([], [connectionId]);
   }, [setSelection]);
 
+  const handleWireContextMenu = useCallback((connectionId: ConnectionId) => {
+    if (!onAddProbe) return;
+    const conn = connections.find(c => c.id === connectionId);
+    if (!conn) return;
+    // Probe the "from" pin of the connection
+    const comp = circuit.getComponent(conn.from.componentId);
+    const pin = comp?.pins.find(p => p.id === conn.from.pinId);
+    const label = comp ? `${comp.type}:${pin?.label || '?'}` : connectionId;
+    onAddProbe(conn.from.componentId, conn.from.pinId, label);
+  }, [connections, circuit, onAddProbe]);
+
   const handleCanvasClick = useCallback(() => {
     clearSelection();
     setEditingComponentId(null);
@@ -417,6 +429,7 @@ function SchematicView({ activeView, onToggleView, ledStates = {}, onPotChange }
               toY={wire.toY}
               isSelected={selectedConnections.includes(wire.connectionId)}
               onClick={handleWireClick}
+              onContextMenu={handleWireContextMenu}
             />
           ))}
 

@@ -7,30 +7,64 @@ const CANVAS_WIDTH = 600;
 const CANVAS_HEIGHT = 200;
 const H_DIVS = 10;
 const V_DIVS = 8;
-const MAX_SAMPLES = 48000; // ~1 second at 48kHz
+const MAX_SAMPLES = 48000;
+const PROBE_COLORS = ['#FF2D55', '#00FF88', '#00AAFF', '#FFAA00'];
 
-interface OscilloscopePanelProps {
-  onRegisterSampleCallback?: (cb: (samples: Float32Array) => void) => void;
+export interface ProbeTarget {
+  componentId: string;
+  pinId: string;
+  label: string;
 }
 
-export default function OscilloscopePanel({ onRegisterSampleCallback }: OscilloscopePanelProps) {
+interface OscilloscopePanelProps {
+  onRegisterSampleCallback?: (cb: (samples: Float32Array, probeData?: Float32Array[]) => void) => void;
+  probes?: ProbeTarget[];
+  onRemoveProbe?: (index: number) => void;
+}
+
+export default function OscilloscopePanel({ onRegisterSampleCallback, probes = [], onRemoveProbe }: OscilloscopePanelProps) {
   const [expanded, setExpanded] = useState(false);
   const [timeScale, setTimeScale] = useState(5);
   const [voltScale, setVoltScale] = useState(5);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const sampleBuffer = useRef<Float32Array>(new Float32Array(MAX_SAMPLES));
-  const writePos = useRef(0);
-  const totalWritten = useRef(0);
-  const animFrameRef = useRef<number | null>(null);
 
-  // Register sample callback with parent
-  const handleSamples = useCallback((samples: Float32Array) => {
-    const buf = sampleBuffer.current;
-    for (let i = 0; i < samples.length; i++) {
-      buf[writePos.current % MAX_SAMPLES] = samples[i];
-      writePos.current++;
+  // Audio output buffer (normalized [-1,1])
+  const audioBuffer = useRef<Float32Array>(new Float32Array(MAX_SAMPLES));
+  const audioWritePos = useRef(0);
+
+  // Probe buffers (raw voltage)
+  const probeBuffers = useRef<Float32Array[]>([]);
+  const probeWritePositions = useRef<number[]>([]);
+
+  // Ensure probe buffers match probe count
+  useEffect(() => {
+    while (probeBuffers.current.length < probes.length) {
+      probeBuffers.current.push(new Float32Array(MAX_SAMPLES));
+      probeWritePositions.current.push(0);
     }
-    totalWritten.current += samples.length;
+    // Trim if probes removed
+    probeBuffers.current.length = probes.length;
+    probeWritePositions.current.length = probes.length;
+  }, [probes.length]);
+
+  const handleSamples = useCallback((samples: Float32Array, probeData?: Float32Array[]) => {
+    // Store audio output samples
+    const buf = audioBuffer.current;
+    for (let i = 0; i < samples.length; i++) {
+      buf[audioWritePos.current % MAX_SAMPLES] = samples[i];
+      audioWritePos.current++;
+    }
+
+    // Store probe samples
+    if (probeData) {
+      for (let p = 0; p < probeData.length && p < probeBuffers.current.length; p++) {
+        const pbuf = probeBuffers.current[p];
+        for (let i = 0; i < probeData[p].length; i++) {
+          pbuf[probeWritePositions.current[p] % MAX_SAMPLES] = probeData[p][i];
+          probeWritePositions.current[p]++;
+        }
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -42,17 +76,17 @@ export default function OscilloscopePanel({ onRegisterSampleCallback }: Oscillos
   // Render loop
   useEffect(() => {
     if (!expanded) {
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       return;
     }
 
+    let animFrame: number;
+
     const draw = () => {
       const canvas = canvasRef.current;
-      if (!canvas) { animFrameRef.current = requestAnimationFrame(draw); return; }
+      if (!canvas) { animFrame = requestAnimationFrame(draw); return; }
       const ctx = canvas.getContext('2d');
-      if (!ctx) { animFrameRef.current = requestAnimationFrame(draw); return; }
+      if (!ctx) { animFrame = requestAnimationFrame(draw); return; }
 
-      // Background
       ctx.fillStyle = '#1a1a1a';
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
@@ -64,81 +98,72 @@ export default function OscilloscopePanel({ onRegisterSampleCallback }: Oscillos
       ctx.setLineDash([2, 4]);
       ctx.lineWidth = 0.5;
       for (let i = 1; i < H_DIVS; i++) {
-        ctx.beginPath();
-        ctx.moveTo(i * divW, 0);
-        ctx.lineTo(i * divW, CANVAS_HEIGHT);
-        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(i * divW, 0); ctx.lineTo(i * divW, CANVAS_HEIGHT); ctx.stroke();
       }
       for (let i = 1; i < V_DIVS; i++) {
-        ctx.beginPath();
-        ctx.moveTo(0, i * divH);
-        ctx.lineTo(CANVAS_WIDTH, i * divH);
-        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i * divH); ctx.lineTo(CANVAS_WIDTH, i * divH); ctx.stroke();
       }
 
-      // Center line (0V)
+      // Center line
       ctx.setLineDash([]);
       ctx.strokeStyle = '#444';
       ctx.lineWidth = 0.5;
-      ctx.beginPath();
       const centerY = CANVAS_HEIGHT / 2;
-      ctx.moveTo(0, centerY);
-      ctx.lineTo(CANVAS_WIDTH, centerY);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, centerY); ctx.lineTo(CANVAS_WIDTH, centerY); ctx.stroke();
 
-      // Waveform
-      const buf = sampleBuffer.current;
-      const totalVoltRange = voltScale * V_DIVS; // total voltage range displayed
-      const sampleRate = 48000;
-      const totalTimeMs = timeScale * H_DIVS; // total time displayed in ms
-      const totalSamples = Math.floor((totalTimeMs / 1000) * sampleRate);
+      const sampleRateHz = 48000;
+      const totalTimeMs = timeScale * H_DIVS;
+      const totalSamples = Math.floor((totalTimeMs / 1000) * sampleRateHz);
       const samplesPerPixel = Math.max(1, Math.floor(totalSamples / CANVAS_WIDTH));
+      const totalVoltRange = voltScale * V_DIVS;
+      const vdd = 9;
+      const vCenter = vdd / 2;
 
-      const currentWrite = writePos.current;
-      if (currentWrite < 2) {
-        animFrameRef.current = requestAnimationFrame(draw);
-        return;
-      }
+      // Draw function for a waveform
+      const drawWaveform = (buf: Float32Array, writePos: number, color: string, isNormalized: boolean) => {
+        if (writePos < 2) return;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        let started = false;
 
-      // Map samples from [-1,1] (normalized audio) to voltage
-      // The worklet normalizes output as (V/Vdd)*2-1, so voltage = (sample+1)/2 * Vdd
-      const vdd = 9; // supply voltage
+        for (let px = 0; px < CANVAS_WIDTH; px++) {
+          const sampleOffset = totalSamples - (CANVAS_WIDTH - px) * samplesPerPixel;
+          const idx = ((writePos + sampleOffset) % MAX_SAMPLES + MAX_SAMPLES) % MAX_SAMPLES;
+          const raw = buf[idx];
 
-      ctx.strokeStyle = '#FF2D55';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
+          let voltage;
+          if (isNormalized) {
+            voltage = (raw + 1) / 2 * vdd;
+          } else {
+            voltage = raw;
+          }
 
-      let started = false;
-      for (let px = 0; px < CANVAS_WIDTH; px++) {
-        // Which sample index corresponds to this pixel
-        const sampleOffset = totalSamples - (CANVAS_WIDTH - px) * samplesPerPixel;
-        const idx = (currentWrite + sampleOffset) % MAX_SAMPLES;
-        if (idx < 0) continue;
+          const y = centerY - ((voltage - vCenter) / totalVoltRange) * CANVAS_HEIGHT;
 
-        const sample = buf[((idx % MAX_SAMPLES) + MAX_SAMPLES) % MAX_SAMPLES];
-        // Convert from [-1,1] back to voltage
-        const voltage = (sample + 1) / 2 * vdd;
-        // Map voltage to Y position. Center = Vdd/2, range = voltScale * V_DIVS
-        const vCenter = vdd / 2;
-        const y = centerY - ((voltage - vCenter) / totalVoltRange) * CANVAS_HEIGHT;
-
-        if (!started) {
-          ctx.moveTo(px, y);
-          started = true;
-        } else {
-          ctx.lineTo(px, y);
+          if (!started) { ctx.moveTo(px, y); started = true; }
+          else { ctx.lineTo(px, y); }
         }
+        ctx.stroke();
+      };
+
+      // Draw probe waveforms (if any)
+      if (probes.length > 0) {
+        for (let p = 0; p < probes.length && p < probeBuffers.current.length; p++) {
+          const color = PROBE_COLORS[p % PROBE_COLORS.length];
+          drawWaveform(probeBuffers.current[p], probeWritePositions.current[p], color, false);
+        }
+      } else {
+        // No probes — show audio output waveform
+        drawWaveform(audioBuffer.current, audioWritePos.current, '#FF2D55', true);
       }
-      ctx.stroke();
 
-      animFrameRef.current = requestAnimationFrame(draw);
+      animFrame = requestAnimationFrame(draw);
     };
 
-    animFrameRef.current = requestAnimationFrame(draw);
-    return () => {
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    };
-  }, [expanded, timeScale, voltScale]);
+    animFrame = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(animFrame);
+  }, [expanded, timeScale, voltScale, probes]);
 
   return (
     <div
@@ -149,12 +174,8 @@ export default function OscilloscopePanel({ onRegisterSampleCallback }: Oscillos
         <span className={styles.title}>SCOPE</span>
         {!expanded && (
           <svg className={styles.waveformPreview} viewBox="0 0 300 20" preserveAspectRatio="none">
-            <path
-              d="M0,10 Q15,2 30,10 T60,10 T90,10 T120,10 T150,10 T180,10 T210,10 T240,10 T270,10 T300,10"
-              stroke="#FF2D55"
-              fill="none"
-              strokeWidth="1"
-            />
+            <path d="M0,10 Q15,2 30,10 T60,10 T90,10 T120,10 T150,10 T180,10 T210,10 T240,10 T270,10 T300,10"
+              stroke="#FF2D55" fill="none" strokeWidth="1" />
           </svg>
         )}
         {expanded && (
@@ -164,19 +185,37 @@ export default function OscilloscopePanel({ onRegisterSampleCallback }: Oscillos
             <span style={{ fontSize: '9px', color: '#666' }}>{voltScale}V/div</span>
           </div>
         )}
-        <button
-          className={styles.toggleBtn}
-          onClick={(e) => {
-            e.stopPropagation();
-            setExpanded(!expanded);
-          }}
-        >
+        <button className={styles.toggleBtn} onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}>
           {expanded ? '▼' : '▲'}
         </button>
       </div>
 
       {expanded && (
         <div className={styles.body}>
+          <div className={styles.probeControls}>
+            {probes.length === 0 && (
+              <div style={{ color: '#666', fontSize: '10px', padding: '4px' }}>
+                Right-click a wire to probe
+              </div>
+            )}
+            {probes.map((probe, i) => (
+              <div key={i} className={styles.probeItem}>
+                <span
+                  className={styles.colorDot}
+                  style={{ backgroundColor: PROBE_COLORS[i % PROBE_COLORS.length] }}
+                />
+                <span className={styles.probeLabel}>{probe.label}</span>
+                <button
+                  className={styles.removeBtn}
+                  onClick={() => onRemoveProbe?.(i)}
+                  title="Remove probe"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+
           <div className={styles.canvasArea}>
             <canvas
               ref={canvasRef}
@@ -190,30 +229,19 @@ export default function OscilloscopePanel({ onRegisterSampleCallback }: Oscillos
           <div className={styles.controls}>
             <div className={styles.controlGroup}>
               <label className={styles.controlLabel}>Time/div</label>
-              <select
-                className={styles.controlSelect}
-                value={timeScale}
-                onChange={(e) => setTimeScale(Number(e.target.value))}
-              >
+              <select className={styles.controlSelect} value={timeScale}
+                onChange={(e) => setTimeScale(Number(e.target.value))}>
                 {TIME_SCALE_OPTIONS.map((v) => (
-                  <option key={v} value={v}>
-                    {v}ms
-                  </option>
+                  <option key={v} value={v}>{v}ms</option>
                 ))}
               </select>
             </div>
-
             <div className={styles.controlGroup}>
               <label className={styles.controlLabel}>Volts/div</label>
-              <select
-                className={styles.controlSelect}
-                value={voltScale}
-                onChange={(e) => setVoltScale(Number(e.target.value))}
-              >
+              <select className={styles.controlSelect} value={voltScale}
+                onChange={(e) => setVoltScale(Number(e.target.value))}>
                 {VOLT_SCALE_OPTIONS.map((v) => (
-                  <option key={v} value={v}>
-                    {v}V
-                  </option>
+                  <option key={v} value={v}>{v}V</option>
                 ))}
               </select>
             </div>

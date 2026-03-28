@@ -26,8 +26,9 @@ export function AppContent() {
   const [volume, setVolume] = useState(1);
 
   const audioEngineRef = useRef<AudioEngine | null>(null);
-  const scopeCallbackRef = useRef<((samples: Float32Array) => void) | null>(null);
+  const scopeCallbackRef = useRef<((samples: Float32Array, probeData?: Float32Array[]) => void) | null>(null);
   const [ledStates, setLedStates] = useState<Record<string, boolean>>({});
+  const [probes, setProbes] = useState<Array<{ componentId: string; pinId: string; label: string }>>([]);
 
   // Serialize circuit for the worklet
   const serializeCircuit = useCallback((c: Circuit) => {
@@ -50,10 +51,10 @@ export function AppContent() {
     const audioEngine = new AudioEngine();
     audioEngineRef.current = audioEngine;
 
-    // Forward worklet samples to oscilloscope
-    audioEngine.onSamples((samples) => {
+    // Forward worklet samples + probe data to oscilloscope
+    audioEngine.onSamples((samples, probeData) => {
       if (scopeCallbackRef.current) {
-        scopeCallbackRef.current(samples);
+        scopeCallbackRef.current(samples, probeData);
       }
     });
 
@@ -74,6 +75,27 @@ export function AppContent() {
       audioEngineRef.current.loadCircuit(components, connections);
     }
   }, [circuit, audioStarted, serializeCircuit]);
+
+  // Sync probes to worklet
+  useEffect(() => {
+    if (audioEngineRef.current && audioStarted) {
+      audioEngineRef.current.setProbes(
+        probes.map(p => ({ componentId: p.componentId, pinId: p.pinId }))
+      );
+    }
+  }, [probes, audioStarted]);
+
+  const handleAddProbe = useCallback((componentId: string, pinId: string, label: string) => {
+    setProbes(prev => {
+      if (prev.length >= 4) return prev;
+      if (prev.some(p => p.componentId === componentId && p.pinId === pinId)) return prev;
+      return [...prev, { componentId, pinId, label }];
+    });
+  }, []);
+
+  const handleRemoveProbe = useCallback((index: number) => {
+    setProbes(prev => prev.filter((_, i) => i !== index));
+  }, []);
 
   // Tab key handler for view toggle
   useEffect(() => {
@@ -215,6 +237,7 @@ export function AppContent() {
               onPotChange={useCallback((componentId: string, position: number) => {
                 audioEngineRef.current?.setParam(componentId, 'position', position);
               }, [])}
+              onAddProbe={handleAddProbe}
             />
           ) : (
             <BreadboardView
@@ -224,9 +247,11 @@ export function AppContent() {
           )}
         </main>
         <OscilloscopePanel
-          onRegisterSampleCallback={useCallback((cb: (samples: Float32Array) => void) => {
+          onRegisterSampleCallback={useCallback((cb: (samples: Float32Array, probeData?: Float32Array[]) => void) => {
             scopeCallbackRef.current = cb;
           }, [])}
+          probes={probes}
+          onRemoveProbe={handleRemoveProbe}
         />
       </div>
       <DragOverlay>

@@ -10,6 +10,7 @@ interface WireProps {
   toY: number;
   isSelected: boolean;
   onClick: (connectionId: ConnectionId) => void;
+  onContextMenu?: (connectionId: ConnectionId, e: React.MouseEvent) => void;
 }
 
 export const Wire = React.memo(function Wire({
@@ -20,12 +21,19 @@ export const Wire = React.memo(function Wire({
   toY,
   isSelected,
   onClick,
+  onContextMenu,
 }: WireProps) {
   const pathData = generateOrthogonalPath(fromX, fromY, toX, toY);
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onClick(connectionId);
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onContextMenu) onContextMenu(connectionId, e);
   };
 
   return (
@@ -37,6 +45,7 @@ export const Wire = React.memo(function Wire({
       strokeWidth={isSelected ? 3 : 2}
       style={{ cursor: 'pointer' }}
       onClick={handleClick}
+      onContextMenu={handleContextMenu}
     />
   );
 });

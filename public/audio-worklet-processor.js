@@ -29,6 +29,10 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
     this.capStates = {};     // componentId -> { vPrev, iPrev }
     this.schmittStates = {}; // componentId -> [outputHigh x 6]
 
+    // Probes: [{componentId, pinId}]
+    this.probes = [];
+    this.probeSampleBuffers = []; // array of Float32Array(128) per probe
+
     this.port.onmessage = (event) => {
       const msg = event.data;
       if (msg.type === 'loadCircuit') {
@@ -36,6 +40,9 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
       } else if (msg.type === 'setParam') {
         const comp = this.components.find(c => c.id === msg.componentId);
         if (comp) comp.parameters[msg.key] = msg.value;
+      } else if (msg.type === 'setProbes') {
+        this.probes = msg.probes || [];
+        this.probeSampleBuffers = this.probes.map(() => new Float32Array(128));
       } else if (msg.type === 'start') {
         this.running = true;
       } else if (msg.type === 'stop') {
@@ -446,8 +453,18 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
     for (let i = 0; i < channel.length; i++) {
       if (this.running && this.components.length > 0) {
         channel[i] = this.step(dt);
+
+        // Sample probe voltages
+        for (let p = 0; p < this.probes.length; p++) {
+          const probe = this.probes[p];
+          const net = this.getNetForPin(probe.componentId, probe.pinId);
+          this.probeSampleBuffers[p][i] = net !== -1 ? (this.nodeVoltages[net] || 0) : 0;
+        }
       } else {
         channel[i] = 0;
+        for (let p = 0; p < this.probes.length; p++) {
+          this.probeSampleBuffers[p][i] = 0;
+        }
       }
     }
 
@@ -455,9 +472,14 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
       output[ch].set(channel);
     }
 
-    // Post samples back for oscilloscope
+    // Post data back for oscilloscope
     if (this.running && this.components.length > 0) {
-      this.port.postMessage({ type: 'samples', samples: channel.slice() });
+      const msg = { type: 'samples', samples: channel.slice() };
+      // Include probe data if probes exist
+      if (this.probes.length > 0) {
+        msg.probeData = this.probeSampleBuffers.map(buf => buf.slice());
+      }
+      this.port.postMessage(msg);
 
       // Post LED states at ~60Hz
       if (!this.ledFrameCount) this.ledFrameCount = 0;
