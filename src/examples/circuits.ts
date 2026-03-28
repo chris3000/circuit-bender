@@ -64,31 +64,26 @@ export const exampleCircuits: ExampleCircuit[] = [
     },
   },
   {
-    name: 'Pitch Bender',
-    description: 'Pot-controlled oscillator frequency',
+    name: 'Low Drone',
+    description: 'CD40106 + 47kΩ + 100nF → ~177Hz bass tone',
     build: () => {
       const power = createComponentFromDefinition(getDefinition('power'), { x: 200, y: 80 });
       const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 500 });
-      const pot = createComponentFromDefinition(getDefinition('potentiometer'), { x: 300, y: 200 });
+      const resistor = createComponentFromDefinition(getDefinition('resistor'), { x: 350, y: 200 });
+      resistor.parameters = { ...resistor.parameters, resistance: 47000, value: '47k' };
       const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 350 });
       const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 500, y: 280 });
       const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 650, y: 280 });
 
-      const components = [power, ground, pot, capacitor, ic, output];
+      const components = [power, ground, resistor, capacitor, ic, output];
       const connections = [
         connect(power, 0, ic, 12),
         connect(ground, 0, ic, 13),
         connect(power, 1, ground, 0),
-        // Pot pin 1 to IC input
-        connect(pot, 0, ic, 0),
-        // Pot pin 2 to IC output (feedback)
-        connect(pot, 1, ic, 6),
-        // Pot wiper to power (provides variable resistance)
-        connect(pot, 2, power, 0),
-        // Capacitor to IC input and ground
+        connect(resistor, 0, ic, 0),
+        connect(resistor, 1, ic, 6),
         connect(capacitor, 0, ic, 0),
         connect(capacitor, 1, ground, 0),
-        // IC output to audio
         connect(ic, 6, output, 0),
       ];
 
@@ -96,45 +91,27 @@ export const exampleCircuits: ExampleCircuit[] = [
     },
   },
   {
-    name: 'Dual Tone',
-    description: 'Two oscillators mixed together',
+    name: 'High Chirp',
+    description: 'CD40106 + 4.7kΩ + 100nF → ~1.77kHz treble',
     build: () => {
       const power = createComponentFromDefinition(getDefinition('power'), { x: 200, y: 80 });
-      const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 550 });
-      // Oscillator 1
-      const r1 = createComponentFromDefinition(getDefinition('resistor'), { x: 350, y: 180 });
-      r1.parameters = { ...r1.parameters, resistance: 10000, value: '10k' };
-      const c1 = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 320 });
+      const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 500 });
+      const resistor = createComponentFromDefinition(getDefinition('resistor'), { x: 350, y: 200 });
+      resistor.parameters = { ...resistor.parameters, resistance: 4700, value: '4.7k' };
+      const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 350 });
       const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 500, y: 280 });
-      // Oscillator 2 (using gates 2A/2Y on same IC) — different R for a different pitch
-      const r2 = createComponentFromDefinition(getDefinition('resistor'), { x: 350, y: 420 });
-      r2.parameters = { ...r2.parameters, resistance: 15000, value: '15k' };
-      const c2 = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 500 });
-      // Mix resistors
-      const rMix1 = createComponentFromDefinition(getDefinition('resistor'), { x: 650, y: 220 });
-      const rMix2 = createComponentFromDefinition(getDefinition('resistor'), { x: 650, y: 340 });
-      const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 800, y: 280 });
+      const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 650, y: 280 });
 
-      const components = [power, ground, r1, c1, ic, r2, c2, rMix1, rMix2, output];
+      const components = [power, ground, resistor, capacitor, ic, output];
       const connections = [
         connect(power, 0, ic, 12),
         connect(ground, 0, ic, 13),
         connect(power, 1, ground, 0),
-        // Osc 1: R1 + C1 on gates 1A/1Y
-        connect(r1, 0, ic, 0),
-        connect(r1, 1, ic, 6),
-        connect(c1, 0, ic, 0),
-        connect(c1, 1, ground, 0),
-        // Osc 2: R2 + C2 on gates 2A/2Y
-        connect(r2, 0, ic, 1),
-        connect(r2, 1, ic, 7),
-        connect(c2, 0, ic, 1),
-        connect(c2, 1, ground, 0),
-        // Mix: each output through a resistor to audio out
-        connect(ic, 6, rMix1, 0),
-        connect(ic, 7, rMix2, 0),
-        connect(rMix1, 1, output, 0),
-        connect(rMix2, 1, output, 0),
+        connect(resistor, 0, ic, 0),
+        connect(resistor, 1, ic, 6),
+        connect(capacitor, 0, ic, 0),
+        connect(capacitor, 1, ground, 0),
+        connect(ic, 6, output, 0),
       ];
 
       return { components, connections };

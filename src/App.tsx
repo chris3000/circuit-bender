@@ -26,6 +26,7 @@ export function AppContent() {
   const [volume, setVolume] = useState(1);
 
   const audioEngineRef = useRef<AudioEngine | null>(null);
+  const scopeCallbackRef = useRef<((samples: Float32Array) => void) | null>(null);
 
   // Serialize circuit for the worklet
   const serializeCircuit = useCallback((c: Circuit) => {
@@ -47,6 +48,14 @@ export function AppContent() {
   useEffect(() => {
     const audioEngine = new AudioEngine();
     audioEngineRef.current = audioEngine;
+
+    // Forward worklet samples to oscilloscope
+    audioEngine.onSamples((samples) => {
+      if (scopeCallbackRef.current) {
+        scopeCallbackRef.current(samples);
+      }
+    });
+
     return () => {
       audioEngine.close();
     };
@@ -204,7 +213,11 @@ export function AppContent() {
             />
           )}
         </main>
-        <OscilloscopePanel />
+        <OscilloscopePanel
+          onRegisterSampleCallback={useCallback((cb: (samples: Float32Array) => void) => {
+            scopeCallbackRef.current = cb;
+          }, [])}
+        />
       </div>
       <DragOverlay>
         {activeDefinition ? (
