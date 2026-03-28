@@ -145,7 +145,10 @@ export const BoardComponent = React.memo(function BoardComponent({
           />
         )}
         {component.type === 'led' && ledOn && (
-          <ellipse cx="0" cy="0" rx="35" ry="35" fill="url(#ledGlow)" />
+          <>
+            <ellipse cx="0" cy="0" rx="50" ry="50" fill="url(#ledGlow)" />
+            <ellipse cx="0" cy="0" rx="25" ry="25" fill="url(#ledGlow)" />
+          </>
         )}
         {definition.board.symbol.render(component.parameters)}
         {component.pins.map((pin) => (

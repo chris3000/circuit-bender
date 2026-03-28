@@ -56,27 +56,27 @@ export const ledDefinition: ComponentDefinition = {
   },
   board: {
     symbol: {
-      width: 40,
-      height: 30,
+      width: 50,
+      height: 40,
       render: (params) => {
         const color = (params.color as string) || 'red';
         const cssColor = color === 'red' ? '#ff2d55' : color === 'green' ? '#00ff88' : color === 'blue' ? '#4488ff' : '#ff2d55';
         return (
           <g>
-            <rect x="-20" y="-1.5" width="8" height="3" rx="1" fill="#ccc" />
-            <rect x="12" y="-1.5" width="8" height="3" rx="1" fill="#ccc" />
-            <ellipse cx="0" cy="0" rx="10" ry="12" fill={cssColor} opacity="0.3" stroke={cssColor} strokeWidth="0.8" />
-            <ellipse cx="0" cy="0" rx="7" ry="9" fill={cssColor} opacity="0.5" />
-            <ellipse cx="-2" cy="-3" rx="3" ry="4" fill={cssColor} opacity="0.3" />
-            <line x1="8" y1="-10" x2="8" y2="10" stroke={cssColor} strokeWidth="1" opacity="0.5" />
-            <text x="0" y="22" textAnchor="middle" fontSize="8" fill="#d4ecd4" opacity="0.85" fontFamily="Courier New">
+            <rect x="-20" y="-1.5" width="6" height="3" rx="1" fill="#ccc" />
+            <rect x="14" y="-1.5" width="6" height="3" rx="1" fill="#ccc" />
+            <ellipse cx="0" cy="0" rx="13" ry="15" fill={cssColor} opacity="0.25" stroke={cssColor} strokeWidth="1" />
+            <ellipse cx="0" cy="0" rx="9" ry="11" fill={cssColor} opacity="0.45" />
+            <ellipse cx="-3" cy="-4" rx="4" ry="5" fill="#fff" opacity="0.15" />
+            <line x1="10" y1="-13" x2="10" y2="13" stroke={cssColor} strokeWidth="1.2" opacity="0.5" />
+            <text x="0" y="26" textAnchor="middle" fontSize="9" fill="#d4ecd4" opacity="0.85" fontFamily="Courier New">
               LED
             </text>
           </g>
         );
       },
     },
-    dimensions: { width: 40, height: 30 },
+    dimensions: { width: 50, height: 40 },
   },
   simulate: (inputs, params) => {
     const anode = inputs.pin_0 || { voltage: 0, current: 0 };
