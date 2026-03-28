@@ -61,7 +61,7 @@ function CircuitCanvasInner({
   }, [undo, redo]);
 
   return (
-    <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }} onKeyDown={onKeyDown} tabIndex={0}>
+    <div style={{ flex: 1, width: '100%', height: '100%', position: 'relative' }} onKeyDown={onKeyDown} tabIndex={0}>
       <Toolbar onUndo={undo} onRedo={redo} canUndo={canUndo} canRedo={canRedo} activeView={viewMode} onToggleView={onToggleView} />
       <ReactFlow
         nodes={nodes} edges={edges}

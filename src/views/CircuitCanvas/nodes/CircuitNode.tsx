@@ -39,17 +39,19 @@ export const CircuitNode = memo(function CircuitNode({ data, selected }: NodePro
         )}
         {symbol.render(component.parameters)}
       </svg>
-      {component.pins.map((pin) => (
-        <Handle key={pin.id} id={pin.id} type="source"
-          position={getHandlePosition(pin.position.x)} isConnectable={true}
-          style={{
-            ...pinPositionToHandleStyle(pin.position.x, pin.position.y, dims.width, dims.height),
-            width: 10, height: 10, borderRadius: '50%',
-            background: viewMode === 'schematic' ? '#999' : '#c4a24e',
-            border: viewMode === 'schematic' ? '2px solid #666' : '1px solid #8a7030',
-          }}
-        />
-      ))}
+      {component.pins.flatMap((pin) => {
+        const handleStyle = {
+          ...pinPositionToHandleStyle(pin.position.x, pin.position.y, dims.width, dims.height),
+          width: 10, height: 10, borderRadius: '50%',
+          background: viewMode === 'schematic' ? '#999' : '#c4a24e',
+          border: viewMode === 'schematic' ? '2px solid #666' : '1px solid #8a7030',
+        };
+        const pos = getHandlePosition(pin.position.x);
+        return [
+          <Handle key={`${pin.id}-src`} id={pin.id} type="source" position={pos} isConnectable={true} style={handleStyle} />,
+          <Handle key={`${pin.id}-tgt`} id={pin.id} type="target" position={pos} isConnectable={true} style={{ ...handleStyle, opacity: 0, pointerEvents: 'none' }} />,
+        ];
+      })}
     </div>
   );
 });
