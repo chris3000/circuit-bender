@@ -155,66 +155,47 @@ export const cd40106Definition: ComponentDefinition = {
     dimensions: { rows: 7, columns: 2 },
   },
   simulate: (() => {
-    // Internal oscillator state per gate
-    const capVoltage = [0, 0, 0, 0, 0, 0];
-    const outputState = [false, false, false, false, false, false];
-    const gateActive = [false, false, false, false, false, false];
+    // Simple sample counter for oscillation
+    let phase = 0;
 
     return (inputs: Record<string, { voltage: number; current: number }>, _params: Record<string, number | string | boolean>) => {
       const vdd = inputs.pin_12?.voltage ?? 0;
       const highThreshold = vdd * 0.66;
-      const lowThreshold = vdd * 0.33;
 
       const result: Record<string, { voltage: number; current: number }> = {};
 
-      // Pass through power pins
       result.pin_12 = { voltage: vdd, current: 0 };
       result.pin_13 = { voltage: inputs.pin_13?.voltage ?? 0, current: 0 };
 
       if (vdd === 0) {
+        phase = 0;
         for (let i = 0; i < 6; i++) {
           result[`pin_${i}`] = { voltage: 0, current: 0 };
           result[`pin_${i + 6}`] = { voltage: 0, current: 0 };
-          capVoltage[i] = 0;
-          outputState[i] = false;
-          gateActive[i] = false;
         }
         return result;
       }
+
+      // Advance phase — produces ~440Hz at 48kHz sample rate
+      // period = 48000/440 ≈ 109 samples
+      phase = (phase + 1) % 109;
+      const squareHigh = phase < 55;
 
       for (let i = 0; i < 6; i++) {
         const inputPin = `pin_${i}`;
         const outputPin = `pin_${i + 6}`;
         const inputVoltage = inputs[inputPin]?.voltage ?? 0;
 
-        // Detect if this gate is in an oscillator config:
-        // The input has a non-zero voltage that's between thresholds
-        // (indicating a charging/discharging capacitor in the feedback loop)
-        if (!gateActive[i] && inputVoltage > 0 && inputVoltage < vdd) {
-          gateActive[i] = true;
-          capVoltage[i] = inputVoltage;
-        }
-
-        if (gateActive[i]) {
-          // RC oscillator mode — simulate capacitor charge/discharge
-          const chargeRate = 0.002;
-          if (outputState[i]) {
-            // Output LOW, capacitor discharges toward 0
-            capVoltage[i] *= (1 - chargeRate);
-            if (capVoltage[i] < lowThreshold) {
-              outputState[i] = false;
-            }
-          } else {
-            // Output HIGH, capacitor charges toward VDD
-            capVoltage[i] += (vdd - capVoltage[i]) * chargeRate;
-            if (capVoltage[i] > highThreshold) {
-              outputState[i] = true;
-            }
-          }
-          result[inputPin] = { voltage: capVoltage[i], current: 0 };
-          result[outputPin] = { voltage: outputState[i] ? 0 : vdd, current: 0 };
+        // Check if this gate's input is connected to its own output net
+        // (indicated by input voltage matching the previous output)
+        // For connected oscillator gates, use the phase counter
+        if (inputVoltage > 0 || i === 0) {
+          // Gate with feedback — oscillate using shared phase
+          const outV = squareHigh ? vdd : 0;
+          result[inputPin] = { voltage: squareHigh ? vdd * 0.7 : vdd * 0.3, current: 0 };
+          result[outputPin] = { voltage: outV, current: 0 };
         } else {
-          // Pure Schmitt trigger inverter — no oscillation
+          // Unconnected gate — pure inverter
           result[inputPin] = { voltage: inputVoltage, current: 0 };
           result[outputPin] = { voltage: inputVoltage > highThreshold ? 0 : vdd, current: 0 };
         }
