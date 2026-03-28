@@ -271,17 +271,22 @@ export class SimulationEngine {
       const outputs = def.simulate(inputs, comp.parameters);
       const mapped = this.mapOutputsToActualPins(outputs, comp);
 
-      // Write output voltages back to pin voltages and net voltages
+      // Only active components (ICs, transistors) write to net voltages.
+      // Passive components (resistors, capacitors) only update their own pin state.
+      const isActive = def.metadata.category === 'ic' || def.metadata.category === 'active';
+
       for (const [pinId, state] of mapped) {
         const key = `${comp.id}::${pinId}`;
         this.pinVoltages.set(key, state.voltage);
 
-        const net = this.analyzer?.getNetForPin(
-          comp.id as ComponentId,
-          pinId
-        );
-        if (net) {
-          this.netVoltages.set(net.id, state.voltage);
+        if (isActive) {
+          const net = this.analyzer?.getNetForPin(
+            comp.id as ComponentId,
+            pinId
+          );
+          if (net) {
+            this.netVoltages.set(net.id, state.voltage);
+          }
         }
       }
     }
