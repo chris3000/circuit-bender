@@ -148,6 +148,15 @@ export const DraggableComponent = React.memo(function DraggableComponent({
       {...attributes}
     >
       <g transform={`translate(${component.position.schematic.x}, ${component.position.schematic.y})`}>
+        {/* Invisible hit area for dragging from anywhere on the component */}
+        <rect
+          x={-width / 2 - 5}
+          y={-height / 2 - 5}
+          width={width + 10}
+          height={height + 10}
+          fill="transparent"
+          rx="4"
+        />
         {isSelected && (
           <rect
             x={-width / 2 - 5}
