@@ -1,0 +1,163 @@
+.panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: #1a1a1a;
+  border-top: 1px solid #333;
+  color: #aaa;
+  font-family: monospace;
+  font-size: 12px;
+  transition: height 0.2s ease;
+  z-index: 100;
+  overflow: hidden;
+}
+
+.collapsed {
+  height: 32px;
+}
+
+.expanded {
+  height: 240px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  padding: 0 12px;
+  border-bottom: 1px solid #333;
+  cursor: pointer;
+  user-select: none;
+}
+
+.title {
+  font-weight: bold;
+  letter-spacing: 2px;
+  color: #aaa;
+}
+
+.toggleBtn {
+  background: none;
+  border: 1px solid #555;
+  color: #aaa;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.toggleBtn:hover {
+  background-color: #333;
+  color: #ddd;
+}
+
+.body {
+  display: flex;
+  height: calc(240px - 32px);
+  gap: 0;
+}
+
+.probeControls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  min-width: 140px;
+  border-right: 1px solid #333;
+  overflow-y: auto;
+}
+
+.addProbeBtn {
+  background: #2a2a2a;
+  border: 1px solid #555;
+  color: #aaa;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.addProbeBtn:hover {
+  background-color: #3a3a3a;
+  color: #ddd;
+}
+
+.probeItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.colorDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.probeLabel {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.removeBtn {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.removeBtn:hover {
+  color: #f66;
+}
+
+.canvasArea {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 12px;
+  min-width: 120px;
+  border-left: 1px solid #333;
+}
+
+.controlGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.controlLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #777;
+}
+
+.controlSelect {
+  background: #2a2a2a;
+  border: 1px solid #555;
+  color: #aaa;
+  padding: 3px 4px;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 11px;
+}
