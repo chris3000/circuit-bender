@@ -11,6 +11,8 @@ import { Toolbar } from './SchematicView/Toolbar';
 import { PreviewWire } from './SchematicView/PreviewWire';
 import { Wire } from './SchematicView/Wire';
 import type { ToolMode } from './SchematicView/Toolbar';
+import { ParameterEditor } from './SchematicView/ParameterEditor';
+import { formatValue } from '@/utils/parameterParser';
 import type { ComponentId, PinId, ConnectionId } from '@/types/circuit';
 import styles from './SchematicView.module.css';
 
@@ -43,6 +45,7 @@ function SchematicView() {
   const [toolMode, setToolMode] = useState<ToolMode>('select');
   const [wiringState, setWiringState] = useState<WiringState>({ status: 'idle' });
   const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
+  const [editingComponentId, setEditingComponentId] = useState<ComponentId | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
   const { setNodeRef, isOver } = useDroppable({
@@ -213,7 +216,35 @@ function SchematicView() {
 
   const handleCanvasClick = useCallback(() => {
     clearSelection();
+    setEditingComponentId(null);
   }, [clearSelection]);
+
+  const handleEditParameter = useCallback((componentId: ComponentId) => {
+    setEditingComponentId(componentId);
+  }, []);
+
+  const handleParameterConfirm = useCallback(
+    (rawValue: number, displayValue: string) => {
+      if (!editingComponentId) return;
+      const comp = circuit.getComponent(editingComponentId);
+      if (!comp) return;
+
+      const paramKey = comp.type === 'resistor' ? 'resistance' : 'capacitance';
+      updateComponent(editingComponentId, {
+        parameters: {
+          ...comp.parameters,
+          [paramKey]: rawValue,
+          value: displayValue,
+        },
+      });
+      setEditingComponentId(null);
+    },
+    [editingComponentId, circuit, updateComponent]
+  );
+
+  const handleParameterCancel = useCallback(() => {
+    setEditingComponentId(null);
+  }, []);
 
   return (
     <div className={styles.container}>
@@ -277,9 +308,28 @@ function SchematicView() {
                 isSelected={selectedComponents.includes(component.id)}
                 onPinClick={handlePinClick}
                 onClick={() => handleComponentClick(component.id)}
+                onEditParameter={handleEditParameter}
               />
             ))}
           </DndContext>
+
+          {/* Render inline parameter editor */}
+          {editingComponentId && (() => {
+            const comp = circuit.getComponent(editingComponentId);
+            if (!comp) return null;
+            const paramKey = comp.type === 'resistor' ? 'resistance' : 'capacitance';
+            const numValue = comp.parameters[paramKey] as number;
+            const displayValue = comp.parameters.value as string ?? formatValue(numValue, paramKey);
+            return (
+              <ParameterEditor
+                value={displayValue}
+                parameterKey={paramKey}
+                position={comp.position.schematic}
+                onConfirm={handleParameterConfirm}
+                onCancel={handleParameterCancel}
+              />
+            );
+          })()}
 
           {/* Render committed connections */}
           {wiresWithPositions.map((wire) => (

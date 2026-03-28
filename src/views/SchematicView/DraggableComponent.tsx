@@ -1,6 +1,7 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useRef, useEffect } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
+import { useCircuit } from '@/context/CircuitContext';
 import { PinComponent } from './Pin';
 import type { Component, ComponentId, PinId } from '@/types/circuit';
 import type { ToolMode } from './Toolbar';
@@ -11,6 +12,7 @@ interface DraggableComponentProps {
   isSelected: boolean;
   onPinClick: (componentId: ComponentId, pinId: PinId) => void;
   onClick: () => void;
+  onEditParameter?: (componentId: ComponentId) => void;
 }
 
 export const DraggableComponent = React.memo(function DraggableComponent({
@@ -19,8 +21,10 @@ export const DraggableComponent = React.memo(function DraggableComponent({
   isSelected,
   onPinClick,
   onClick,
+  onEditParameter,
 }: DraggableComponentProps) {
   const isWireMode = toolMode === 'wire';
+  const { updateComponent } = useCircuit();
 
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: component.id,
@@ -52,6 +56,81 @@ export const DraggableComponent = React.memo(function DraggableComponent({
     [toolMode, onClick]
   );
 
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (toolMode !== 'select') return;
+      e.stopPropagation();
+      if (
+        (component.type === 'resistor' || component.type === 'capacitor') &&
+        onEditParameter
+      ) {
+        onEditParameter(component.id);
+      }
+    },
+    [toolMode, component.id, component.type, onEditParameter]
+  );
+
+  // Potentiometer drag interaction
+  const potDragRef = useRef<{
+    startY: number;
+    startPosition: number;
+  } | null>(null);
+
+  const componentRef = useRef(component);
+  componentRef.current = component;
+
+  useEffect(() => {
+    if (component.type !== 'potentiometer' || toolMode !== 'select') return;
+
+    // Clean up function handles removing listeners
+    return () => {
+      potDragRef.current = null;
+    };
+  }, [component.type, toolMode]);
+
+  const handlePotMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (toolMode !== 'select' || component.type !== 'potentiometer') return;
+
+      e.stopPropagation();
+      e.preventDefault();
+
+      const currentPosition = (componentRef.current.parameters.position as number) ?? 0.5;
+      potDragRef.current = {
+        startY: e.clientY,
+        startPosition: currentPosition,
+      };
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        if (!potDragRef.current) return;
+
+        const deltaY = potDragRef.current.startY - moveEvent.clientY;
+        const sensitivity = 100;
+        const newPosition = Math.max(
+          0,
+          Math.min(1, potDragRef.current.startPosition + deltaY / sensitivity)
+        );
+
+        updateComponent(componentRef.current.id, {
+          parameters: {
+            ...componentRef.current.parameters,
+            position: newPosition,
+          },
+        });
+      };
+
+      const handleMouseUp = () => {
+        potDragRef.current = null;
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    },
+    [toolMode, component.type, updateComponent]
+  );
+
   if (!definition) return null;
 
   const { width, height } = definition.schematic.dimensions;
@@ -76,6 +155,8 @@ export const DraggableComponent = React.memo(function DraggableComponent({
       data-selected={isSelected ? 'true' : 'false'}
       style={style}
       onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
+      onMouseDown={component.type === 'potentiometer' ? handlePotMouseDown : undefined}
       {...dragProps}
     >
       <g transform={`translate(${component.position.schematic.x}, ${component.position.schematic.y})`}>
