@@ -3,10 +3,10 @@
   bottom: 0;
   left: 0;
   right: 0;
-  background-color: #1a1a1a;
-  border-top: 1px solid #333;
+  background-color: #222;
+  border-top: 2px solid #FF2D55;
   color: #aaa;
-  font-family: monospace;
+  font-family: 'Courier New', Courier, monospace;
   font-size: 12px;
   transition: height 0.2s ease;
   z-index: 100;
@@ -24,10 +24,8 @@
 .header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   height: 32px;
   padding: 0 12px;
-  border-bottom: 1px solid #333;
   cursor: pointer;
   user-select: none;
 }
@@ -35,28 +33,35 @@
 .title {
   font-weight: bold;
   letter-spacing: 2px;
-  color: #aaa;
+  color: #FF2D55;
+  font-size: 11px;
+}
+
+.waveformPreview {
+  flex: 1;
+  margin: 0 12px;
+  height: 20px;
+  opacity: 0.5;
 }
 
 .toggleBtn {
   background: none;
-  border: 1px solid #555;
-  color: #aaa;
+  border: none;
+  color: #666;
   cursor: pointer;
   padding: 2px 8px;
-  border-radius: 3px;
-  font-family: monospace;
-  font-size: 11px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
 }
 
 .toggleBtn:hover {
-  background-color: #333;
-  color: #ddd;
+  color: #FF2D55;
 }
 
 .body {
   display: flex;
   height: calc(240px - 32px);
+  background: #1a1a1a;
   gap: 0;
 }
 
@@ -72,19 +77,20 @@
 
 .addProbeBtn {
   background: #2a2a2a;
-  border: 1px solid #555;
-  color: #aaa;
+  border: 1px solid #444;
+  color: #999;
   cursor: pointer;
   padding: 4px 8px;
-  border-radius: 3px;
-  font-family: monospace;
+  border-radius: 6px;
+  font-family: 'Courier New', Courier, monospace;
   font-size: 11px;
   margin-bottom: 4px;
 }
 
 .addProbeBtn:hover {
-  background-color: #3a3a3a;
-  color: #ddd;
+  background-color: #333;
+  color: #FF2D55;
+  border-color: #FF2D55;
 }
 
 .probeItem {
@@ -119,7 +125,7 @@
 }
 
 .removeBtn:hover {
-  color: #f66;
+  color: #FF2D55;
 }
 
 .canvasArea {
@@ -149,15 +155,20 @@
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 1px;
-  color: #777;
+  color: #666;
 }
 
 .controlSelect {
   background: #2a2a2a;
-  border: 1px solid #555;
+  border: 1px solid #444;
   color: #aaa;
   padding: 3px 4px;
-  border-radius: 3px;
-  font-family: monospace;
+  border-radius: 6px;
+  font-family: 'Courier New', Courier, monospace;
   font-size: 11px;
+}
+
+.controlSelect:focus {
+  border-color: #FF2D55;
+  outline: none;
 }

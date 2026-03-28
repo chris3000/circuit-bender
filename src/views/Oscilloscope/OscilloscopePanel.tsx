@@ -35,7 +35,24 @@ export default function OscilloscopePanel() {
       data-testid="oscilloscope-panel"
     >
       <div className={styles.header} onClick={() => setExpanded(!expanded)}>
-        <span className={styles.title}>OSCILLOSCOPE</span>
+        <span className={styles.title}>SCOPE</span>
+        {!expanded && (
+          <svg className={styles.waveformPreview} viewBox="0 0 300 20" preserveAspectRatio="none">
+            <path
+              d="M0,10 Q15,2 30,10 T60,10 T90,10 T120,10 T150,10 T180,10 T210,10 T240,10 T270,10 T300,10"
+              stroke="#FF2D55"
+              fill="none"
+              strokeWidth="1"
+            />
+          </svg>
+        )}
+        {expanded && (
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: '8px', marginRight: '12px' }}>
+            <span style={{ fontSize: '9px', color: '#666' }}>{timeScale}ms/div</span>
+            <span style={{ fontSize: '9px', color: '#666' }}>|</span>
+            <span style={{ fontSize: '9px', color: '#666' }}>{voltScale}V/div</span>
+          </div>
+        )}
         <button
           className={styles.toggleBtn}
           onClick={(e) => {
