@@ -15,12 +15,18 @@ interface CircuitContextType {
   addConnection: (connection: Connection) => void;
   removeConnection: (connectionId: ConnectionId) => void;
   loadCircuit: (circuit: Circuit) => void;
+  selectedComponents: ComponentId[];
+  selectedConnections: ConnectionId[];
+  setSelection: (components: ComponentId[], connections: ConnectionId[]) => void;
+  clearSelection: () => void;
 }
 
 const CircuitContext = createContext<CircuitContextType | undefined>(undefined);
 
 export function CircuitProvider({ children }: { children: React.ReactNode }) {
   const [circuit, setCircuit] = useState<Circuit>(() => new Circuit('Untitled Circuit'));
+  const [selectedComponents, setSelectedComponents] = useState<ComponentId[]>([]);
+  const [selectedConnections, setSelectedConnections] = useState<ConnectionId[]>([]);
 
   const addComponent = useCallback((component: Component) => {
     setCircuit((prev) => prev.addComponent(component));
@@ -49,6 +55,16 @@ export function CircuitProvider({ children }: { children: React.ReactNode }) {
     setCircuit(newCircuit);
   }, []);
 
+  const setSelection = useCallback((components: ComponentId[], connections: ConnectionId[]) => {
+    setSelectedComponents(components);
+    setSelectedConnections(connections);
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedComponents([]);
+    setSelectedConnections([]);
+  }, []);
+
   const value = useMemo<CircuitContextType>(() => ({
     circuit,
     addComponent,
@@ -57,7 +73,11 @@ export function CircuitProvider({ children }: { children: React.ReactNode }) {
     addConnection,
     removeConnection,
     loadCircuit,
-  }), [circuit, addComponent, removeComponent, updateComponent, addConnection, removeConnection, loadCircuit]);
+    selectedComponents,
+    selectedConnections,
+    setSelection,
+    clearSelection,
+  }), [circuit, addComponent, removeComponent, updateComponent, addConnection, removeConnection, loadCircuit, selectedComponents, selectedConnections, setSelection, clearSelection]);
 
   return (
     <CircuitContext.Provider value={value}>{children}</CircuitContext.Provider>

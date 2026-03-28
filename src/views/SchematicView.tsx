@@ -27,7 +27,17 @@ type WiringState =
     };
 
 function SchematicView() {
-  const { circuit, updateComponent, addConnection } = useCircuit();
+  const {
+    circuit,
+    updateComponent,
+    addConnection,
+    removeComponent,
+    removeConnection,
+    selectedComponents,
+    selectedConnections,
+    setSelection,
+    clearSelection,
+  } = useCircuit();
   const [zoom, setZoom] = useState(1);
   const [pan] = useState({ x: 0, y: 0 });
   const [toolMode, setToolMode] = useState<ToolMode>('select');
@@ -58,12 +68,18 @@ function SchematicView() {
       } else if (key === 'escape') {
         setToolMode('select');
         setWiringState({ status: 'idle' });
+        clearSelection();
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Remove all selected items
+        selectedComponents.forEach((id) => removeComponent(id));
+        selectedConnections.forEach((id) => removeConnection(id));
+        clearSelection();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [selectedComponents, selectedConnections, removeComponent, removeConnection, clearSelection]);
 
   const handleToolModeChange = useCallback((mode: ToolMode) => {
     setToolMode(mode);
@@ -187,9 +203,17 @@ function SchematicView() {
     });
   }, [connections, circuit]);
 
-  const handleWireClick = useCallback((_connectionId: ConnectionId) => {
-    // Selection stubbed for Task 10
-  }, []);
+  const handleComponentClick = useCallback((componentId: ComponentId) => {
+    setSelection([componentId], []);
+  }, [setSelection]);
+
+  const handleWireClick = useCallback((connectionId: ConnectionId) => {
+    setSelection([], [connectionId]);
+  }, [setSelection]);
+
+  const handleCanvasClick = useCallback(() => {
+    clearSelection();
+  }, [clearSelection]);
 
   return (
     <div className={styles.container}>
@@ -215,6 +239,7 @@ function SchematicView() {
           data-testid="schematic-svg"
           viewBox={`${-pan.x} ${-pan.y} ${1000 / zoom} ${800 / zoom}`}
           onMouseMove={handleMouseMove}
+          onClick={handleCanvasClick}
         >
           <defs>
             <pattern
@@ -249,7 +274,9 @@ function SchematicView() {
                 key={component.id}
                 component={component}
                 toolMode={toolMode}
+                isSelected={selectedComponents.includes(component.id)}
                 onPinClick={handlePinClick}
+                onClick={() => handleComponentClick(component.id)}
               />
             ))}
           </DndContext>
@@ -263,8 +290,8 @@ function SchematicView() {
               fromY={wire.fromY}
               toX={wire.toX}
               toY={wire.toY}
-              isSelected={false} // Selection stubbed for Task 10
-              onClick={handleWireClick} // Selection stubbed for Task 10
+              isSelected={selectedConnections.includes(wire.connectionId)}
+              onClick={handleWireClick}
             />
           ))}
 

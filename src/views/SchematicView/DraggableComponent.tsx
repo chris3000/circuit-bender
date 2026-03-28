@@ -8,13 +8,17 @@ import type { ToolMode } from './Toolbar';
 interface DraggableComponentProps {
   component: Component;
   toolMode: ToolMode;
+  isSelected: boolean;
   onPinClick: (componentId: ComponentId, pinId: PinId) => void;
+  onClick: () => void;
 }
 
 export const DraggableComponent = React.memo(function DraggableComponent({
   component,
   toolMode,
+  isSelected,
   onPinClick,
+  onClick,
 }: DraggableComponentProps) {
   const isWireMode = toolMode === 'wire';
 
@@ -39,7 +43,18 @@ export const DraggableComponent = React.memo(function DraggableComponent({
     [component.type]
   );
 
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (toolMode !== 'select') return;
+      e.stopPropagation();
+      onClick();
+    },
+    [toolMode, onClick]
+  );
+
   if (!definition) return null;
+
+  const { width, height } = definition.schematic.dimensions;
 
   const style: React.CSSProperties = {
     cursor: isWireMode ? 'default' : 'move',
@@ -58,10 +73,26 @@ export const DraggableComponent = React.memo(function DraggableComponent({
       ref={svgRef}
       data-testid={`component-${component.id}`}
       data-draggable={isWireMode ? 'false' : 'true'}
+      data-selected={isSelected ? 'true' : 'false'}
       style={style}
+      onClick={handleClick}
       {...dragProps}
     >
       <g transform={`translate(${component.position.schematic.x}, ${component.position.schematic.y})`}>
+        {/* Selection highlight rendered before symbol */}
+        {isSelected && (
+          <rect
+            x={-width / 2 - 5}
+            y={-height / 2 - 5}
+            width={width + 10}
+            height={height + 10}
+            fill="none"
+            stroke="#4CAF50"
+            strokeWidth="2"
+            rx="4"
+            data-testid={`selection-highlight-${component.id}`}
+          />
+        )}
         {definition.schematic.symbol.render(component.parameters)}
         {/* Render pins after the symbol */}
         {component.pins.map((pin) => (
