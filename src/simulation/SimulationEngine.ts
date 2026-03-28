@@ -136,7 +136,8 @@ export class SimulationEngine {
   private tick(): void {
     if (!this.running) return;
 
-    const BATCH_SIZE = 128;
+    // ~48000 samples/sec ÷ 60fps ≈ 800 samples per frame
+    const BATCH_SIZE = 800;
     for (let i = 0; i < BATCH_SIZE; i++) {
       this.evaluate();
       if (this.sampleCallback && this.active) {
@@ -150,12 +151,16 @@ export class SimulationEngine {
   }
 
   private getOutputSample(): number {
+    const supplyVoltage = this.getSupplyVoltage() || 9;
     const components = this.circuit.getComponents();
     for (const comp of components) {
       if (OUTPUT_COMPONENT_TYPES.has(comp.type)) {
         if (comp.pins.length > 0) {
           const key = `${comp.id}::${comp.pins[0].id}`;
-          return this.pinVoltages.get(key) ?? 0;
+          const voltage = this.pinVoltages.get(key) ?? 0;
+          // Normalize voltage to [-1, 1] audio range
+          const sample = (voltage / supplyVoltage) * 2 - 1;
+          return Math.max(-1, Math.min(1, sample));
         }
       }
     }
