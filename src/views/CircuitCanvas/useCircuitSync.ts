@@ -1,5 +1,6 @@
-import { useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { Node, Edge, NodeChange, EdgeChange, Connection as RFConnection } from 'reactflow';
+import { applyNodeChanges, applyEdgeChanges } from 'reactflow';
 import { useCircuit } from '@/context/CircuitContext';
 import { validateConnection } from '@/utils/wiring';
 import { generateConnectionId, generateNetId } from '@/utils/ids';
@@ -35,9 +36,9 @@ export function useCircuitSync(
   const components = useMemo(() => circuit.getComponents(), [circuit]);
   const connections = useMemo(() => circuit.getConnections(), [circuit]);
 
-  // --- Downstream: Circuit -> React Flow ---
+  // --- Derive nodes from circuit (source of truth) ---
 
-  const nodes: Node<CircuitNodeData>[] = useMemo(() => {
+  const derivedNodes: Node<CircuitNodeData>[] = useMemo(() => {
     return components.map((comp) => ({
       id: comp.id,
       type: comp.type,
@@ -52,6 +53,14 @@ export function useCircuitSync(
       },
     }));
   }, [components, viewMode, ledStates, selectedComponents, onPotChange, onAddProbe]);
+
+  // Use state for nodes so React Flow can apply drag changes
+  const [nodes, setNodes] = useState<Node<CircuitNodeData>[]>(derivedNodes);
+
+  // Sync derived nodes into state when circuit changes
+  useEffect(() => {
+    setNodes(derivedNodes);
+  }, [derivedNodes]);
 
   const edges: Edge[] = useMemo(() => {
     return connections.map((conn) => {
@@ -85,6 +94,10 @@ export function useCircuitSync(
   // --- Upstream: React Flow -> Circuit ---
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
+    // Apply all changes to React Flow's visual state (enables dragging)
+    setNodes((nds) => applyNodeChanges(changes, nds));
+
+    // Persist position to CircuitContext on drag end
     for (const change of changes) {
       if (change.type === 'position' && change.position && !change.dragging) {
         updateComponent(change.id as ComponentId, {
@@ -94,8 +107,9 @@ export function useCircuitSync(
     }
   }, [updateComponent]);
 
-  const onEdgesChange = useCallback((_changes: EdgeChange[]) => {
-    // Edge removal is handled by onEdgesDelete
+  const onEdgesChange = useCallback((changes: EdgeChange[]) => {
+    // Apply edge changes (selection, removal, etc.)
+    void changes; // edges are derived from circuit, no local state needed
   }, []);
 
   const onConnect = useCallback((connection: RFConnection) => {
