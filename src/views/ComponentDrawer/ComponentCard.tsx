@@ -38,6 +38,7 @@ function getNameLabel(definition: ComponentDefinition): string {
 export const ComponentCard = React.memo(function ComponentCard({ definition }: ComponentCardProps) {
   const { type, metadata } = definition;
   const isPower = type === 'power';
+  const isGround = type === 'ground';
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `drawer-${type}`,
@@ -50,7 +51,7 @@ export const ComponentCard = React.memo(function ComponentCard({ definition }: C
   return (
     <div
       ref={setNodeRef}
-      className={`${styles.card} ${isPower ? styles.cardPower : ''}`}
+      className={`${styles.card} ${isPower ? styles.cardPower : ''} ${isGround ? styles.cardGround : ''}`}
       data-testid={`component-card-${type}`}
       data-draggable="true"
       style={{ opacity: isDragging ? 0.5 : 1 }}

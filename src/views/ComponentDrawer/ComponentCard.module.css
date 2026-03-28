@@ -43,6 +43,25 @@
   color: white;
 }
 
+.cardGround {
+  background: #222;
+  border-color: #222;
+}
+
+.cardGround:hover {
+  border-color: #444;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.cardGround .symbol svg {
+  color: white;
+}
+
+.cardGround .value,
+.cardGround .name {
+  color: #CCC;
+}
+
 .symbol {
   display: flex;
   align-items: center;
