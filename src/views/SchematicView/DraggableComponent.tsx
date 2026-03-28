@@ -90,7 +90,8 @@ export const DraggableComponent = React.memo(function DraggableComponent({
 
   const handlePotMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      if (toolMode !== 'select' || component.type !== 'potentiometer') return;
+      // Only activate wiper drag with Alt key held
+      if (component.type !== 'potentiometer' || toolMode !== 'select' || !e.altKey) return;
 
       e.stopPropagation();
       e.preventDefault();
@@ -185,6 +186,19 @@ export const DraggableComponent = React.memo(function DraggableComponent({
             onPinClick={onPinClick}
           />
         ))}
+        {/* Visual hint for potentiometer wiper adjustment */}
+        {isSelected && component.type === 'potentiometer' && (
+          <text
+            x={0}
+            y={height / 2 + 16}
+            textAnchor="middle"
+            fontSize="9"
+            fill="#888"
+            pointerEvents="none"
+          >
+            Alt+drag to adjust
+          </text>
+        )}
       </g>
     </g>
   );
