@@ -272,6 +272,33 @@ export default function BoardView({
       >
         <BoardBackground />
 
+        {components.length === 0 && (
+          <g>
+            <text
+              x={500}
+              y={300}
+              textAnchor="middle"
+              fontSize="16"
+              fill="#d4ecd4"
+              opacity="0.3"
+              fontFamily="Courier New"
+            >
+              Drag a component to start
+            </text>
+            <text
+              x={500}
+              y={322}
+              textAnchor="middle"
+              fontSize="10"
+              fill="#d4ecd4"
+              opacity="0.2"
+              fontFamily="Courier New"
+            >
+              from the sidebar on the left
+            </text>
+          </g>
+        )}
+
         {connections.map((conn) => {
           const fromComp = circuit.getComponent(conn.from.componentId);
           const toComp = circuit.getComponent(conn.to.componentId);
