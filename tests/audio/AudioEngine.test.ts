@@ -93,10 +93,10 @@ describe('AudioEngine', () => {
       const samples = new Float32Array([0.1, 0.2, 0.3]);
       engine.sendSamples(samples);
 
-      expect(mockPostMessage).toHaveBeenCalledWith({
-        type: 'samples',
-        samples,
-      });
+      expect(mockPostMessage).toHaveBeenCalledWith(
+        { type: 'samples', samples },
+        [samples.buffer]
+      );
     });
 
     it('does nothing if not initialized', () => {

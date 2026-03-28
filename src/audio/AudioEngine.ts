@@ -41,7 +41,10 @@ export class AudioEngine {
    */
   sendSamples(samples: Float32Array): void {
     if (!this.workletNode) return;
-    this.workletNode.port.postMessage({ type: 'samples', samples });
+    this.workletNode.port.postMessage(
+      { type: 'samples', samples },
+      [samples.buffer]
+    );
   }
 
   /**
