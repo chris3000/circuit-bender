@@ -156,19 +156,21 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
     const vdd = this.supplyVoltage;
     if (vdd === 0) return 0;
 
+    // Track which nets are driven by sources (power, ground, IC outputs, capacitors)
+    // Resistors can only propagate TO nets that are NOT source-driven
+    const drivenNets = new Set();
+
     // Phase 1: Set fixed voltage sources
     for (const comp of this.components) {
       if (comp.type === 'power') {
-        // Pin 0 = positive terminal
         const posNet = this.getNetForPin(comp.id, comp.pins[0].id);
-        if (posNet !== -1) this.setNodeVoltage(posNet, vdd);
-        // Pin 1 = ground terminal
+        if (posNet !== -1) { this.setNodeVoltage(posNet, vdd); drivenNets.add(posNet); }
         const gndNet = this.getNetForPin(comp.id, comp.pins[1].id);
-        if (gndNet !== -1) this.setNodeVoltage(gndNet, 0);
+        if (gndNet !== -1) { this.setNodeVoltage(gndNet, 0); drivenNets.add(gndNet); }
       }
       if (comp.type === 'ground') {
         const net = this.getNetForPin(comp.id, comp.pins[0].id);
-        if (net !== -1) this.setNodeVoltage(net, 0);
+        if (net !== -1) { this.setNodeVoltage(net, 0); drivenNets.add(net); }
       }
     }
 
@@ -184,78 +186,88 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
       const lowThresh = vddPin * 0.33;
 
       for (let g = 0; g < 6; g++) {
-        const inputPinId = comp.pins[g].id;      // pins 0-5 = inputs
-        const outputPinId = comp.pins[g + 6].id; // pins 6-11 = outputs
+        const inputPinId = comp.pins[g].id;
+        const outputPinId = comp.pins[g + 6].id;
 
         const vIn = this.getNodeVoltage(comp.id, inputPinId);
 
-        // Schmitt trigger with hysteresis
         if (gates[g] && vIn > highThresh) {
-          gates[g] = false; // output goes LOW
+          gates[g] = false;
         } else if (!gates[g] && vIn < lowThresh) {
-          gates[g] = true;  // output goes HIGH
+          gates[g] = true;
         }
 
         const vOut = gates[g] ? vddPin : 0;
         const outNet = this.getNetForPin(comp.id, outputPinId);
-        if (outNet !== -1) this.setNodeVoltage(outNet, vOut);
+        if (outNet !== -1) { this.setNodeVoltage(outNet, vOut); drivenNets.add(outNet); }
       }
     }
 
-    // Phase 3: Compute currents through resistors and update capacitors
+    // Phase 3: Update capacitors
     for (const comp of this.components) {
-      if (comp.type === 'resistor') {
-        continue;
-      }
+      if (comp.type !== 'capacitor') continue;
 
-      if (comp.type === 'capacitor') {
-        const net0 = this.getNetForPin(comp.id, comp.pins[0].id);
-        const net1 = this.getNetForPin(comp.id, comp.pins[1].id);
-        if (net0 === -1 || net1 === -1) continue;
+      const net0 = this.getNetForPin(comp.id, comp.pins[0].id);
+      const net1 = this.getNetForPin(comp.id, comp.pins[1].id);
+      if (net0 === -1 || net1 === -1) continue;
 
-        const capacitance = (comp.parameters.capacitance || 100e-9);
-        const vCap = this.capStates[comp.id] || 0;
-        const vGnd = this.nodeVoltages[net1] || 0; // typically ground
+      const capacitance = (comp.parameters.capacitance || 100e-9);
+      const vCap = this.capStates[comp.id] || 0;
 
-        // Find the driving voltage: look for a resistor on the same
-        // net as cap pin 0, and find the voltage on the resistor's OTHER pin
-        const drivingV = this.findDrivingVoltage(net0, comp.id);
-        const seriesR = this.findSeriesResistance(net0, comp.id);
+      const drivingV = this.findDrivingVoltage(net0, comp.id);
+      const seriesR = this.findSeriesResistance(net0, comp.id);
 
-        if (seriesR > 0) {
-          // RC charging: capacitor voltage approaches driving voltage
-          const tau = seriesR * capacitance;
-          const alpha = 1 - Math.exp(-dt / tau);
-          const newVCap = vCap + (drivingV - vCap) * alpha;
-          this.capStates[comp.id] = newVCap;
+      if (seriesR > 0) {
+        const tau = seriesR * capacitance;
+        const alpha = 1 - Math.exp(-dt / tau);
+        const newVCap = vCap + (drivingV - vCap) * alpha;
+        this.capStates[comp.id] = newVCap;
 
-          // Update the node voltage to the capacitor voltage
-          // This is what the Schmitt trigger input sees
-          this.setNodeVoltage(net0, newVCap);
-        }
-      }
-
-      if (comp.type === 'potentiometer') {
-        // Variable voltage divider
-        const pin0Net = this.getNetForPin(comp.id, comp.pins[0].id);
-        const pin1Net = this.getNetForPin(comp.id, comp.pins[1].id);
-        const wiperNet = this.getNetForPin(comp.id, comp.pins[2].id);
-        if (pin0Net === -1 || pin1Net === -1 || wiperNet === -1) continue;
-
-        const v0 = this.nodeVoltages[pin0Net] || 0;
-        const v1 = this.nodeVoltages[pin1Net] || 0;
-        const position = (comp.parameters.position || 0.5);
-
-        const wiperV = v0 + (v1 - v0) * position;
-        this.setNodeVoltage(wiperNet, wiperV);
+        this.setNodeVoltage(net0, newVCap);
+        drivenNets.add(net0);
       }
     }
 
-    // Phase 4: Read audio output
+    // Phase 4: Propagate voltage through resistors to undriven nets
+    // Only propagate FROM a driven net TO an undriven net. Never overwrite driven nets.
+    for (const comp of this.components) {
+      if (comp.type !== 'resistor') continue;
+
+      const net0 = this.getNetForPin(comp.id, comp.pins[0].id);
+      const net1 = this.getNetForPin(comp.id, comp.pins[1].id);
+      if (net0 === -1 || net1 === -1) continue;
+
+      const driven0 = drivenNets.has(net0);
+      const driven1 = drivenNets.has(net1);
+
+      if (driven0 && !driven1) {
+        this.setNodeVoltage(net1, this.nodeVoltages[net0] || 0);
+      } else if (driven1 && !driven0) {
+        this.setNodeVoltage(net0, this.nodeVoltages[net1] || 0);
+      }
+    }
+
+    // Phase 5: Potentiometers
+    for (const comp of this.components) {
+      if (comp.type !== 'potentiometer') continue;
+
+      const pin0Net = this.getNetForPin(comp.id, comp.pins[0].id);
+      const pin1Net = this.getNetForPin(comp.id, comp.pins[1].id);
+      const wiperNet = this.getNetForPin(comp.id, comp.pins[2].id);
+      if (pin0Net === -1 || pin1Net === -1 || wiperNet === -1) continue;
+
+      const v0 = this.nodeVoltages[pin0Net] || 0;
+      const v1 = this.nodeVoltages[pin1Net] || 0;
+      const position = (comp.parameters.position || 0.5);
+
+      const wiperV = v0 + (v1 - v0) * position;
+      this.setNodeVoltage(wiperNet, wiperV);
+    }
+
+    // Phase 6: Read audio output
     for (const comp of this.components) {
       if (comp.type === 'audio-output') {
         const v = this.getNodeVoltage(comp.id, comp.pins[0].id);
-        // Normalize to [-1, 1]
         const sample = (v / vdd) * 2 - 1;
         return Math.max(-1, Math.min(1, sample));
       }
@@ -345,16 +357,10 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
           if (comp.type === 'led') {
             const anodeNet = this.getNetForPin(comp.id, comp.pins[0].id);
             const cathodeNet = this.getNetForPin(comp.id, comp.pins[1].id);
-            // The LED anode may not have a direct voltage on its net
-            // (it's driven through a resistor). Trace through the resistor.
-            let vAnode = anodeNet !== -1 ? (this.nodeVoltages[anodeNet] || 0) : 0;
-            if (vAnode === 0 && anodeNet !== -1) {
-              vAnode = this.findDrivingVoltage(anodeNet, comp.id);
-            }
+            const vAnode = anodeNet !== -1 ? (this.nodeVoltages[anodeNet] || 0) : 0;
             const vCathode = cathodeNet !== -1 ? (this.nodeVoltages[cathodeNet] || 0) : 0;
             const forwardVoltage = comp.parameters.forwardVoltage || 2.0;
-            const vDiff = vAnode - vCathode;
-            ledStates[comp.id] = vDiff > forwardVoltage;
+            ledStates[comp.id] = (vAnode - vCathode) > forwardVoltage;
           }
         }
         if (Object.keys(ledStates).length > 0) {
