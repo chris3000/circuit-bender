@@ -28,7 +28,7 @@ type WiringState =
     };
 
 interface SchematicViewProps {
-  activeView?: 'schematic' | 'breadboard';
+  activeView?: 'schematic' | 'board';
   onToggleView?: () => void;
   ledStates?: Record<string, boolean>;
   onPotChange?: (componentId: string, position: number) => void;
