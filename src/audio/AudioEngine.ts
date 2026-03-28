@@ -21,6 +21,7 @@ export class AudioEngine {
   private context: AudioContext;
   private workletNode: AudioWorkletNode | null = null;
   private onSamplesCallback: ((samples: Float32Array) => void) | null = null;
+  private onLedStatesCallback: ((states: Record<string, boolean>) => void) | null = null;
 
   constructor() {
     this.context = new AudioContext();
@@ -43,6 +44,8 @@ export class AudioEngine {
     this.workletNode.port.onmessage = (event) => {
       if (event.data.type === 'samples' && this.onSamplesCallback) {
         this.onSamplesCallback(event.data.samples);
+      } else if (event.data.type === 'ledStates' && this.onLedStatesCallback) {
+        this.onLedStatesCallback(event.data.states);
       }
     };
   }
@@ -90,6 +93,11 @@ export class AudioEngine {
   /** Register callback for samples posted back from worklet */
   onSamples(callback: (samples: Float32Array) => void): void {
     this.onSamplesCallback = callback;
+  }
+
+  /** Register callback for LED state updates from worklet */
+  onLedStates(callback: (states: Record<string, boolean>) => void): void {
+    this.onLedStatesCallback = callback;
   }
 
   async close(): Promise<void> {

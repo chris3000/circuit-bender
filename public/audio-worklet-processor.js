@@ -205,9 +205,21 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
     // Phase 3: Compute currents through resistors and update capacitors
     for (const comp of this.components) {
       if (comp.type === 'resistor') {
-        // Resistor between two nodes — current flows, but we don't
-        // update node voltages directly (they're set by sources/caps).
-        // The resistor's effect is felt through the capacitor it's in series with.
+        // Propagate voltage through resistor: if one side has voltage
+        // and the other doesn't, pass it through (simple propagation)
+        const net0 = this.getNetForPin(comp.id, comp.pins[0].id);
+        const net1 = this.getNetForPin(comp.id, comp.pins[1].id);
+        if (net0 !== -1 && net1 !== -1) {
+          const v0 = this.nodeVoltages[net0] || 0;
+          const v1 = this.nodeVoltages[net1] || 0;
+          // Propagate from the side with voltage to the side without
+          // (Skip if both sides already have voltage — source-driven nets)
+          if (v0 !== 0 && v1 === 0) {
+            this.setNodeVoltage(net1, v0);
+          } else if (v1 !== 0 && v0 === 0) {
+            this.setNodeVoltage(net0, v1);
+          }
+        }
         continue;
       }
 
@@ -337,6 +349,28 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
       this.port.postMessage(
         { type: 'samples', samples: channel.slice() },
       );
+
+      // Post LED states at ~60Hz (every ~800 samples at 48kHz)
+      if (!this.ledFrameCount) this.ledFrameCount = 0;
+      this.ledFrameCount += channel.length;
+      if (this.ledFrameCount >= 800) {
+        this.ledFrameCount = 0;
+        const ledStates = {};
+        for (const comp of this.components) {
+          if (comp.type === 'led') {
+            const anodeNet = this.getNetForPin(comp.id, comp.pins[0].id);
+            const cathodeNet = this.getNetForPin(comp.id, comp.pins[1].id);
+            const vAnode = anodeNet !== -1 ? (this.nodeVoltages[anodeNet] || 0) : 0;
+            const vCathode = cathodeNet !== -1 ? (this.nodeVoltages[cathodeNet] || 0) : 0;
+            const forwardVoltage = comp.parameters.forwardVoltage || 2.0;
+            const vDiff = vAnode - vCathode;
+            ledStates[comp.id] = vDiff > forwardVoltage;
+          }
+        }
+        if (Object.keys(ledStates).length > 0) {
+          this.port.postMessage({ type: 'ledStates', states: ledStates });
+        }
+      }
     }
 
     return true;

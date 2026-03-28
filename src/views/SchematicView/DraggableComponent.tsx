@@ -8,6 +8,7 @@ import type { Component, ComponentId, PinId } from '@/types/circuit';
 interface DraggableComponentProps {
   component: Component;
   isSelected: boolean;
+  ledOn?: boolean;
   onPinDown: (componentId: ComponentId, pinId: PinId) => void;
   onPinUp: (componentId: ComponentId, pinId: PinId) => void;
   onClick: () => void;
@@ -17,6 +18,7 @@ interface DraggableComponentProps {
 export const DraggableComponent = React.memo(function DraggableComponent({
   component,
   isSelected,
+  ledOn = false,
   onPinDown,
   onPinUp,
   onClick,
@@ -170,6 +172,13 @@ export const DraggableComponent = React.memo(function DraggableComponent({
             rx="4"
             data-testid={`selection-highlight-${component.id}`}
           />
+        )}
+        {/* LED glow effect when on */}
+        {component.type === 'led' && ledOn && (
+          <>
+            <circle cx="0" cy="0" r="20" fill="red" opacity="0.15" filter="url(#glow)" />
+            <circle cx="0" cy="0" r="12" fill="red" opacity="0.3" />
+          </>
         )}
         {definition.schematic.symbol.render(component.parameters)}
         {component.pins.map((pin) => (

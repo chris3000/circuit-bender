@@ -130,9 +130,8 @@ export const exampleCircuits: ExampleCircuit[] = [
       const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 500, y: 280 });
       const rLed = createComponentFromDefinition(getDefinition('resistor'), { x: 650, y: 200 });
       const led = createComponentFromDefinition(getDefinition('led'), { x: 650, y: 350 });
-      const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 650, y: 500 });
 
-      const components = [power, ground, resistor, capacitor, ic, rLed, led, output];
+      const components = [power, ground, resistor, capacitor, ic, rLed, led];
       const connections = [
         connect(power, 0, ic, 12),
         connect(ground, 0, ic, 13),
@@ -146,8 +145,6 @@ export const exampleCircuits: ExampleCircuit[] = [
         connect(ic, 6, rLed, 0),
         connect(rLed, 1, led, 0),
         connect(led, 1, ground, 0),
-        // Audio output for scope visualization
-        connect(ic, 6, output, 0),
       ];
 
       return { components, connections };

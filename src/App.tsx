@@ -27,6 +27,7 @@ export function AppContent() {
 
   const audioEngineRef = useRef<AudioEngine | null>(null);
   const scopeCallbackRef = useRef<((samples: Float32Array) => void) | null>(null);
+  const [ledStates, setLedStates] = useState<Record<string, boolean>>({});
 
   // Serialize circuit for the worklet
   const serializeCircuit = useCallback((c: Circuit) => {
@@ -54,6 +55,11 @@ export function AppContent() {
       if (scopeCallbackRef.current) {
         scopeCallbackRef.current(samples);
       }
+    });
+
+    // Forward LED states
+    audioEngine.onLedStates((states) => {
+      setLedStates(states);
     });
 
     return () => {
@@ -205,6 +211,7 @@ export function AppContent() {
             <SchematicView
               activeView={activeView}
               onToggleView={() => setActiveView((v) => (v === 'schematic' ? 'breadboard' : 'schematic'))}
+              ledStates={ledStates}
             />
           ) : (
             <BreadboardView

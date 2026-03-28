@@ -30,9 +30,10 @@ type WiringState =
 interface SchematicViewProps {
   activeView?: 'schematic' | 'breadboard';
   onToggleView?: () => void;
+  ledStates?: Record<string, boolean>;
 }
 
-function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
+function SchematicView({ activeView, onToggleView, ledStates = {} }: SchematicViewProps = {}) {
   const {
     circuit,
     updateComponent,
@@ -376,6 +377,7 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
                 key={component.id}
                 component={component}
                 isSelected={selectedComponents.includes(component.id)}
+                ledOn={ledStates[component.id] || false}
                 onPinDown={handlePinDown}
                 onPinUp={handlePinUp}
                 onClick={() => handleComponentClick(component.id)}
