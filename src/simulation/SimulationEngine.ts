@@ -136,13 +136,59 @@ export class SimulationEngine {
   private tick(): void {
     if (!this.running) return;
 
-    // ~48000 samples/sec ÷ 60fps ≈ 800 samples per frame
-    const BATCH_SIZE = 800;
-    for (let i = 0; i < BATCH_SIZE; i++) {
-      this.evaluate();
-      if (this.sampleCallback && this.active) {
-        const sample = this.getOutputSample();
-        this.sampleCallback(sample);
+    // Evaluate circuit state once per frame
+    this.evaluate();
+
+    if (this.sampleCallback && this.active) {
+      // Generate ~800 audio samples per frame (~48kHz at 60fps)
+      // The CD40106 simulate advances its phase counter each call
+      const BATCH_SIZE = 800;
+      const components = this.circuit.getComponents();
+      const registry = ComponentRegistry.getInstance();
+
+      for (let i = 0; i < BATCH_SIZE; i++) {
+        // Re-run only IC components to advance oscillator state
+        for (const comp of components) {
+          const def = registry.get(comp.type);
+          if (!def || def.metadata.category !== 'ic') continue;
+
+          const inputs: PinStates = {};
+          for (let j = 0; j < comp.pins.length; j++) {
+            const key = `${comp.id}::${comp.pins[j].id}`;
+            inputs[`pin_${j}`] = {
+              voltage: this.pinVoltages.get(key) ?? 0,
+              current: 0,
+            };
+          }
+
+          const outputs = def.simulate(inputs, comp.parameters);
+          const mapped = this.mapOutputsToActualPins(outputs, comp);
+
+          for (const [pinId, state] of mapped) {
+            const key = `${comp.id}::${pinId}`;
+            this.pinVoltages.set(key, state.voltage);
+
+            const net = this.analyzer?.getNetForPin(
+              comp.id as ComponentId,
+              pinId
+            );
+            if (net) {
+              this.netVoltages.set(net.id, state.voltage);
+            }
+          }
+        }
+
+        // Propagate IC outputs to connected pins (like audio output)
+        if (this.analyzer) {
+          for (const net of this.analyzer.getNets()) {
+            const voltage = this.netVoltages.get(net.id) ?? 0;
+            for (const pin of net.pins) {
+              this.pinVoltages.set(`${pin.componentId}::${pin.pinId}`, voltage);
+            }
+          }
+        }
+
+        this.sampleCallback(this.getOutputSample());
       }
     }
 
