@@ -1,25 +1,17 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { DndContext, DragEndEvent, DragStartEvent, DragOverlay } from '@dnd-kit/core';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { CircuitProvider } from './context/CircuitContext';
 import { useCircuit } from './context/CircuitContext';
-import { ComponentRegistry } from './components/registry/ComponentRegistry';
-import { createComponentFromDefinition } from './utils/componentFactory';
-import { snapToGrid } from './utils/grid';
-import { DROPPABLE_CANVAS_ID, DROPPABLE_BOARD_ID } from './constants/dnd';
-import { ComponentSymbol } from './components/ComponentSymbol';
-import SchematicView from './views/SchematicView';
-import BoardView from './views/BoardView/BoardView';
 import { ComponentDrawer } from './views/ComponentDrawer';
 import { AudioEngine } from './audio/AudioEngine';
 import OscilloscopePanel from './views/Oscilloscope/OscilloscopePanel';
 import { ExamplesMenu } from './views/ExamplesMenu';
+import CircuitCanvas from './views/CircuitCanvas/CircuitCanvas';
 import type { Circuit } from './models/Circuit';
 
 type ActiveView = 'schematic' | 'board';
 
 export function AppContent() {
-  const { circuit, addComponent } = useCircuit();
-  const [activeType, setActiveType] = useState<string | null>(null);
+  const { circuit } = useCircuit();
   const [activeView, setActiveView] = useState<ActiveView>('schematic');
   const [audioStarted, setAudioStarted] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -30,7 +22,6 @@ export function AppContent() {
   const [ledStates, setLedStates] = useState<Record<string, boolean>>({});
   const [probes, setProbes] = useState<Array<{ componentId: string; pinId: string; label: string }>>([]);
 
-  // Serialize circuit for the worklet
   const serializeCircuit = useCallback((c: Circuit) => {
     const components = c.getComponents().map(comp => ({
       id: comp.id,
@@ -46,29 +37,16 @@ export function AppContent() {
     return { components, connections };
   }, []);
 
-  // Initialize audio engine on mount
   useEffect(() => {
     const audioEngine = new AudioEngine();
     audioEngineRef.current = audioEngine;
-
-    // Forward worklet samples + probe data to oscilloscope
     audioEngine.onSamples((samples, probeData) => {
-      if (scopeCallbackRef.current) {
-        scopeCallbackRef.current(samples, probeData);
-      }
+      if (scopeCallbackRef.current) scopeCallbackRef.current(samples, probeData);
     });
-
-    // Forward LED states
-    audioEngine.onLedStates((states) => {
-      setLedStates(states);
-    });
-
-    return () => {
-      audioEngine.close();
-    };
+    audioEngine.onLedStates((states) => setLedStates(states));
+    return () => { audioEngine.close(); };
   }, []);
 
-  // Post circuit to worklet whenever circuit changes
   useEffect(() => {
     if (audioEngineRef.current && audioStarted) {
       const { components, connections } = serializeCircuit(circuit);
@@ -76,12 +54,9 @@ export function AppContent() {
     }
   }, [circuit, audioStarted, serializeCircuit]);
 
-  // Sync probes to worklet
   useEffect(() => {
     if (audioEngineRef.current && audioStarted) {
-      audioEngineRef.current.setProbes(
-        probes.map(p => ({ componentId: p.componentId, pinId: p.pinId }))
-      );
+      audioEngineRef.current.setProbes(probes.map(p => ({ componentId: p.componentId, pinId: p.pinId })));
     }
   }, [probes, audioStarted]);
 
@@ -97,14 +72,11 @@ export function AppContent() {
     setProbes(prev => prev.filter((_, i) => i !== index));
   }, []);
 
-  // Tab key handler for view toggle
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Tab') {
         const target = e.target as HTMLElement;
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
-          return;
-        }
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return;
         e.preventDefault();
         setActiveView((v) => (v === 'schematic' ? 'board' : 'schematic'));
       }
@@ -118,8 +90,6 @@ export function AppContent() {
     try {
       await audioEngineRef.current.initialize();
       await audioEngineRef.current.resume();
-
-      // Send current circuit to worklet and start simulation
       const { components, connections } = serializeCircuit(circuit);
       audioEngineRef.current.loadCircuit(components, connections);
       audioEngineRef.current.startSimulation();
@@ -135,157 +105,49 @@ export function AppContent() {
     setAudioStarted(false);
   }, []);
 
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    const componentType = event.active.data.current?.componentType;
-    if (componentType) {
-      setActiveType(componentType);
-    }
+  const handlePotChange = useCallback((componentId: string, position: number) => {
+    audioEngineRef.current?.setParam(componentId, 'position', position);
   }, []);
-
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    setActiveType(null);
-
-    const { active, over } = event;
-
-    if (!over || (over.id !== DROPPABLE_CANVAS_ID && over.id !== DROPPABLE_BOARD_ID)) {
-      return;
-    }
-
-    const componentType = active.data.current?.componentType;
-    if (!componentType) {
-      return;
-    }
-
-    const registry = ComponentRegistry.getInstance();
-    const definition = registry.get(componentType);
-    if (!definition) {
-      return;
-    }
-
-    // Calculate drop position from dnd-kit event coordinates
-    const overRect = over.rect;
-    const activeRect = active.rect.current.translated;
-
-    if (!activeRect) {
-      return;
-    }
-
-    // The center of the dragged item relative to the droppable area
-    const x = activeRect.left - overRect.left + activeRect.width / 2;
-    const y = activeRect.top - overRect.top + activeRect.height / 2;
-
-    const snappedX = snapToGrid(x);
-    const snappedY = snapToGrid(y);
-
-    const component = createComponentFromDefinition(definition, {
-      x: snappedX,
-      y: snappedY,
-    });
-
-    addComponent(component);
-  }, [addComponent]);
-
-  const handleDragCancel = useCallback(() => {
-    setActiveType(null);
-  }, []);
-
-  const activeDefinition = useMemo(
-    () => activeType ? ComponentRegistry.getInstance().get(activeType) : null,
-    [activeType]
-  );
 
   return (
-    <DndContext
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onDragCancel={handleDragCancel}
-    >
-      <div className="app">
-        <header className="app-header">
-          <h1>Circuit Bender</h1>
-          <div style={{ width: '1px', height: '18px', background: '#444' }} />
-          <ExamplesMenu />
-          <div className="audio-controls" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
-            {!audioStarted ? (
-              <button className="play-btn" onClick={handleStartAudio}>▶</button>
-            ) : (
-              <button className="play-btn" onClick={handleStopAudio}>■</button>
-            )}
-            <span style={{ color: '#666', fontSize: '9px' }}>VOL</span>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={volume}
-              onChange={(e) => setVolume(Number(e.target.value))}
-              title={`Volume: ${Math.round(volume * 100)}%`}
-              style={{ width: '50px' }}
-            />
-            <button onClick={() => setMuted((m) => !m)}>
-              {muted ? '🔇' : '🔊'}
-            </button>
-          </div>
-        </header>
-        <main className="app-main">
-          <ComponentDrawer />
-          <div style={{ flex: 1, position: 'relative' }}>
-            <div style={{
-              position: 'absolute', inset: 0,
-              opacity: activeView === 'schematic' ? 1 : 0,
-              transition: 'opacity 250ms ease-in-out',
-              pointerEvents: activeView === 'schematic' ? 'auto' : 'none',
-              zIndex: activeView === 'schematic' ? 1 : 0,
-            }}>
-              <SchematicView
-                activeView={activeView}
-                onToggleView={() => setActiveView((v) => (v === 'schematic' ? 'board' : 'schematic'))}
-                ledStates={ledStates}
-                onPotChange={useCallback((componentId: string, position: number) => {
-                  audioEngineRef.current?.setParam(componentId, 'position', position);
-                }, [])}
-                onAddProbe={handleAddProbe}
-              />
-            </div>
-            <div style={{
-              position: 'absolute', inset: 0,
-              opacity: activeView === 'board' ? 1 : 0,
-              transition: 'opacity 250ms ease-in-out',
-              pointerEvents: activeView === 'board' ? 'auto' : 'none',
-              zIndex: activeView === 'board' ? 1 : 0,
-            }}>
-              <BoardView
-                activeView={activeView}
-                onToggleView={() => setActiveView((v) => (v === 'schematic' ? 'board' : 'schematic'))}
-                ledStates={ledStates}
-                onPotChange={useCallback((componentId: string, position: number) => {
-                  audioEngineRef.current?.setParam(componentId, 'position', position);
-                }, [])}
-                onAddProbe={handleAddProbe}
-              />
-            </div>
-          </div>
-        </main>
-        <OscilloscopePanel
-          onRegisterSampleCallback={useCallback((cb: (samples: Float32Array, probeData?: Float32Array[]) => void) => {
-            scopeCallbackRef.current = cb;
-          }, [])}
-          probes={probes}
-          onRemoveProbe={handleRemoveProbe}
+    <div className="app">
+      <header className="app-header">
+        <h1>Circuit Bender</h1>
+        <div style={{ width: '1px', height: '18px', background: '#444' }} />
+        <ExamplesMenu />
+        <div className="audio-controls" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+          {!audioStarted ? (
+            <button className="play-btn" onClick={handleStartAudio}>&#9654;</button>
+          ) : (
+            <button className="play-btn" onClick={handleStopAudio}>&#9632;</button>
+          )}
+          <span style={{ color: '#666', fontSize: '9px' }}>VOL</span>
+          <input type="range" min="0" max="1" step="0.01" value={volume}
+            onChange={(e) => setVolume(Number(e.target.value))}
+            title={`Volume: ${Math.round(volume * 100)}%`} style={{ width: '50px' }} />
+          <button onClick={() => setMuted((m) => !m)}>
+            {muted ? '\uD83D\uDD07' : '\uD83D\uDD0A'}
+          </button>
+        </div>
+      </header>
+      <main className="app-main">
+        <ComponentDrawer />
+        <CircuitCanvas
+          viewMode={activeView}
+          onToggleView={() => setActiveView((v) => (v === 'schematic' ? 'board' : 'schematic'))}
+          ledStates={ledStates}
+          onPotChange={handlePotChange}
+          onAddProbe={handleAddProbe}
         />
-      </div>
-      <DragOverlay>
-        {activeDefinition ? (
-          <div style={{ opacity: 0.8, cursor: 'grabbing' }}>
-            <ComponentSymbol
-              definition={activeDefinition}
-              width={60}
-              height={60}
-            />
-          </div>
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+      </main>
+      <OscilloscopePanel
+        onRegisterSampleCallback={useCallback((cb: (samples: Float32Array, probeData?: Float32Array[]) => void) => {
+          scopeCallbackRef.current = cb;
+        }, [])}
+        probes={probes}
+        onRemoveProbe={handleRemoveProbe}
+      />
+    </div>
   );
 }
 
