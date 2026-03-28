@@ -155,9 +155,10 @@ export const cd40106Definition: ComponentDefinition = {
     dimensions: { rows: 7, columns: 2 },
   },
   simulate: (() => {
-    // Internal oscillator state per gate (capacitor voltage simulation)
+    // Internal oscillator state per gate
     const capVoltage = [0, 0, 0, 0, 0, 0];
     const outputState = [false, false, false, false, false, false];
+    const gateActive = [false, false, false, false, false, false];
 
     return (inputs: Record<string, { voltage: number; current: number }>, _params: Record<string, number | string | boolean>) => {
       const vdd = inputs.pin_12?.voltage ?? 0;
@@ -171,12 +172,12 @@ export const cd40106Definition: ComponentDefinition = {
       result.pin_13 = { voltage: inputs.pin_13?.voltage ?? 0, current: 0 };
 
       if (vdd === 0) {
-        // No power — all outputs low
         for (let i = 0; i < 6; i++) {
           result[`pin_${i}`] = { voltage: 0, current: 0 };
           result[`pin_${i + 6}`] = { voltage: 0, current: 0 };
           capVoltage[i] = 0;
           outputState[i] = false;
+          gateActive[i] = false;
         }
         return result;
       }
@@ -184,25 +185,39 @@ export const cd40106Definition: ComponentDefinition = {
       for (let i = 0; i < 6; i++) {
         const inputPin = `pin_${i}`;
         const outputPin = `pin_${i + 6}`;
-        // Simulate capacitor charging/discharging
-        // The rate depends on how close input is to thresholds
-        const chargeRate = 0.002; // Simulated time step
-        if (outputState[i]) {
-          // Output is LOW (inverted), capacitor discharges toward 0
-          capVoltage[i] -= (capVoltage[i]) * chargeRate;
-          if (capVoltage[i] < lowThreshold) {
-            outputState[i] = false; // Output goes HIGH
-          }
-        } else {
-          // Output is HIGH, capacitor charges toward VDD
-          capVoltage[i] += (vdd - capVoltage[i]) * chargeRate;
-          if (capVoltage[i] > highThreshold) {
-            outputState[i] = true; // Output goes LOW
-          }
+        const inputVoltage = inputs[inputPin]?.voltage ?? 0;
+
+        // Detect if this gate is in an oscillator config:
+        // The input has a non-zero voltage that's between thresholds
+        // (indicating a charging/discharging capacitor in the feedback loop)
+        if (!gateActive[i] && inputVoltage > 0 && inputVoltage < vdd) {
+          gateActive[i] = true;
+          capVoltage[i] = inputVoltage;
         }
 
-        result[inputPin] = { voltage: capVoltage[i], current: 0 };
-        result[outputPin] = { voltage: outputState[i] ? 0 : vdd, current: 0 };
+        if (gateActive[i]) {
+          // RC oscillator mode — simulate capacitor charge/discharge
+          const chargeRate = 0.002;
+          if (outputState[i]) {
+            // Output LOW, capacitor discharges toward 0
+            capVoltage[i] *= (1 - chargeRate);
+            if (capVoltage[i] < lowThreshold) {
+              outputState[i] = false;
+            }
+          } else {
+            // Output HIGH, capacitor charges toward VDD
+            capVoltage[i] += (vdd - capVoltage[i]) * chargeRate;
+            if (capVoltage[i] > highThreshold) {
+              outputState[i] = true;
+            }
+          }
+          result[inputPin] = { voltage: capVoltage[i], current: 0 };
+          result[outputPin] = { voltage: outputState[i] ? 0 : vdd, current: 0 };
+        } else {
+          // Pure Schmitt trigger inverter — no oscillation
+          result[inputPin] = { voltage: inputVoltage, current: 0 };
+          result[outputPin] = { voltage: inputVoltage > highThreshold ? 0 : vdd, current: 0 };
+        }
       }
 
       return result;
