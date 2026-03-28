@@ -31,9 +31,10 @@ interface SchematicViewProps {
   activeView?: 'schematic' | 'breadboard';
   onToggleView?: () => void;
   ledStates?: Record<string, boolean>;
+  onPotChange?: (componentId: string, position: number) => void;
 }
 
-function SchematicView({ activeView, onToggleView, ledStates = {} }: SchematicViewProps = {}) {
+function SchematicView({ activeView, onToggleView, ledStates = {}, onPotChange }: SchematicViewProps = {}) {
   const {
     circuit,
     updateComponent,
@@ -382,6 +383,7 @@ function SchematicView({ activeView, onToggleView, ledStates = {} }: SchematicVi
                 onPinUp={handlePinUp}
                 onClick={() => handleComponentClick(component.id)}
                 onEditParameter={handleEditParameter}
+                onPotChange={onPotChange}
               />
             ))}
           </DndContext>

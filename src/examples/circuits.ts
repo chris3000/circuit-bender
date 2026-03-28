@@ -150,4 +150,35 @@ export const exampleCircuits: ExampleCircuit[] = [
       return { components, connections };
     },
   },
+  {
+    name: 'Pitch Control',
+    description: 'Potentiometer controls oscillator pitch',
+    build: () => {
+      const power = createComponentFromDefinition(getDefinition('power'), { x: 200, y: 80 });
+      const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 500 });
+      const pot = createComponentFromDefinition(getDefinition('potentiometer'), { x: 350, y: 280 });
+      const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 400 });
+      const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 500, y: 280 });
+      const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 650, y: 280 });
+
+      const components = [power, ground, pot, capacitor, ic, output];
+      const connections = [
+        // Power and ground to IC
+        connect(power, 0, ic, 12),
+        connect(ground, 0, ic, 13),
+        connect(power, 1, ground, 0),
+        // Pot pin 0 to IC input 1A
+        connect(pot, 0, ic, 0),
+        // Pot pin 2 to IC output 1Y (feedback through pot)
+        connect(pot, 2, ic, 6),
+        // Capacitor from IC input to ground
+        connect(capacitor, 0, ic, 0),
+        connect(capacitor, 1, ground, 0),
+        // IC output to audio
+        connect(ic, 6, output, 0),
+      ];
+
+      return { components, connections };
+    },
+  },
 ];

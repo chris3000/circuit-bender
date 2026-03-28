@@ -289,12 +289,15 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
         }
       }
       if (comp.type === 'potentiometer') {
-        const net0 = this.getNetForPin(comp.id, comp.pins[0].id);
-        const net1 = this.getNetForPin(comp.id, comp.pins[1].id);
-        if (net0 === netId || net1 === netId) {
+        // Check all 3 pins (pin 0, pin 1/wiper, pin 2)
+        const pinNets = comp.pins.map(p => this.getNetForPin(comp.id, p.id));
+        const onNet = pinNets.some(n => n === netId);
+        if (onNet) {
           const maxR = comp.parameters.maxResistance || 1000000;
           const position = comp.parameters.position || 0.5;
-          totalR += maxR * position;
+          // When used as variable resistor between pins 0 and 2,
+          // effective resistance depends on wiper position
+          totalR += maxR * Math.max(0.01, position);
         }
       }
     }
@@ -306,13 +309,16 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
     for (const comp of this.components) {
       if (comp.id === excludeCompId) continue;
       if (comp.type === 'resistor' || comp.type === 'potentiometer') {
-        const net0 = this.getNetForPin(comp.id, comp.pins[0].id);
-        const net1 = this.getNetForPin(comp.id, comp.pins[1].id);
-        if (net0 === netId) {
-          return this.nodeVoltages[net1] || 0; // voltage on the OTHER side
-        }
-        if (net1 === netId) {
-          return this.nodeVoltages[net0] || 0;
+        const pinNets = comp.pins.map(p => this.getNetForPin(comp.id, p.id));
+        const matchIdx = pinNets.findIndex(n => n === netId);
+        if (matchIdx !== -1) {
+          // Return voltage from the first OTHER pin that has a voltage
+          for (let i = 0; i < pinNets.length; i++) {
+            if (i !== matchIdx && pinNets[i] !== -1) {
+              const v = this.nodeVoltages[pinNets[i]] || 0;
+              if (v !== 0) return v;
+            }
+          }
         }
       }
     }

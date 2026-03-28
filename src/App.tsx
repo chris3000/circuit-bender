@@ -212,6 +212,9 @@ export function AppContent() {
               activeView={activeView}
               onToggleView={() => setActiveView((v) => (v === 'schematic' ? 'breadboard' : 'schematic'))}
               ledStates={ledStates}
+              onPotChange={useCallback((componentId: string, position: number) => {
+                audioEngineRef.current?.setParam(componentId, 'position', position);
+              }, [])}
             />
           ) : (
             <BreadboardView
