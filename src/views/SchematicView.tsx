@@ -112,6 +112,7 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
     const startX = component.position.schematic.x + pin.position.x;
     const startY = component.position.schematic.y + pin.position.y;
 
+    setCursorPos({ x: startX, y: startY });
     setWiringState({
       status: 'in-progress',
       fromComponentId: componentId,
@@ -160,15 +161,13 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
       const svg = svgRef.current;
       if (!svg) return;
 
-      // Convert screen coordinates to SVG coordinates
-      const rect = svg.getBoundingClientRect();
-      const viewBox = svg.viewBox.baseVal;
+      // Use SVG's own coordinate transform for accurate mapping
+      const ctm = svg.getScreenCTM();
+      if (!ctm) return;
 
-      const scaleX = viewBox.width / rect.width;
-      const scaleY = viewBox.height / rect.height;
-
-      const cursorX = (e.clientX - rect.left) * scaleX + viewBox.x;
-      const cursorY = (e.clientY - rect.top) * scaleY + viewBox.y;
+      const inverseCTM = ctm.inverse();
+      const cursorX = inverseCTM.a * e.clientX + inverseCTM.c * e.clientY + inverseCTM.e;
+      const cursorY = inverseCTM.b * e.clientX + inverseCTM.d * e.clientY + inverseCTM.f;
 
       setCursorPos({ x: cursorX, y: cursorY });
     },
