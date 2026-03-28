@@ -241,8 +241,6 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
       if (comp.type === 'potentiometer') {
         const maxR = comp.parameters.maxResistance || 1000000;
         const pos = Math.max(0.001, Math.min(0.999, comp.parameters.position || 0.5));
-        const R_top = maxR * pos;
-        const R_bot = maxR * (1 - pos);
 
         const net0 = this.getNetForPin(comp.id, comp.pins[0].id);
         const net1 = this.getNetForPin(comp.id, comp.pins[1].id); // wiper
@@ -252,9 +250,17 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
         const n1 = net1 !== -1 ? (this.netToNode[net1] ?? -1) : -1;
         const n2 = net2 !== -1 ? (this.netToNode[net2] ?? -1) : -1;
 
-        // Two resistors: pin0-wiper (R_top) and wiper-pin2 (R_bot)
-        this.stampConductance(G, n0, n1, 1 / R_top);
-        this.stampConductance(G, n1, n2, 1 / R_bot);
+        if (n1 !== -1) {
+          // Wiper is connected: two resistors (pin0-wiper, wiper-pin2)
+          const R_top = maxR * pos;
+          const R_bot = maxR * (1 - pos);
+          this.stampConductance(G, n0, n1, 1 / R_top);
+          this.stampConductance(G, n1, n2, 1 / R_bot);
+        } else {
+          // Wiper not connected: single variable resistor between pin0 and pin2
+          const R = maxR * Math.max(0.01, pos);
+          this.stampConductance(G, n0, n2, 1 / R);
+        }
       }
 
       // Capacitor: trapezoidal companion model
