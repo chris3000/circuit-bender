@@ -9,11 +9,6 @@ export interface Position2D {
   y: number;
 }
 
-export interface BreadboardPosition {
-  row: number;
-  column: number;
-}
-
 export interface Pin {
   id: PinId;
   label: string;
@@ -34,10 +29,7 @@ export interface ComponentState {
 export interface Component {
   id: ComponentId;
   type: string;
-  position: {
-    schematic: Position2D;
-    breadboard: BreadboardPosition;
-  };
+  position: Position2D;
   rotation: number; // 0, 90, 180, 270
   parameters: ComponentParameters;
   pins: Pin[];
@@ -109,12 +101,9 @@ export interface ComponentDefinition {
     symbol: SVGSymbol;
     dimensions: { width: number; height: number };
   };
-  breadboard: {
-    renderer: (
-      ctx: CanvasRenderingContext2D,
-      params: ComponentParameters
-    ) => void;
-    dimensions: { rows: number; columns: number };
+  board: {
+    symbol: SVGSymbol;
+    dimensions: { width: number; height: number };
   };
   simulate: (inputs: PinStates, params: ComponentParameters) => PinStates;
   controlPanel?: (component: Component) => React.ReactNode;
