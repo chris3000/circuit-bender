@@ -9,23 +9,35 @@ interface ComponentCardProps {
 }
 
 function getValueLabel(definition: ComponentDefinition): string | null {
-  const { type, defaultParameters } = definition;
-  if (defaultParameters.value) return String(defaultParameters.value);
-  if (type === 'resistor') return '1kΩ';
-  if (type === 'capacitor') return '100nF';
-  if (type === 'potentiometer') return '0–1MΩ';
-  if (type === 'power-supply') return '+9V';
-  if (type === 'cd40106') return 'CD40106';
-  if (type === 'lm741') return 'LM741';
-  if (type === '2n3904') return '2N3904';
-  if (type === '1n914') return '1N914';
-  if (type === 'led') return 'LED';
+  const { type, defaultParameters, metadata } = definition;
+
+  // For ICs, show the part number as the value (name label will show description)
+  if (metadata.category === 'ic') return type.toUpperCase();
+
+  // For components with a value param, format it nicely
+  if (defaultParameters.value) {
+    const val = String(defaultParameters.value);
+    // Add Ω suffix for resistors/pots if not already present
+    if (type === 'resistor' || type === 'potentiometer') {
+      return val.includes('Ω') ? val : `${val}Ω`;
+    }
+    return val;
+  }
+
   return null;
+}
+
+function getNameLabel(definition: ComponentDefinition): string {
+  const { type, metadata } = definition;
+  // For ICs, show a short description instead of duplicating the part number
+  if (type === 'cd40106') return 'Schmitt Inv';
+  if (type === 'lm741') return 'Op-Amp';
+  return metadata.name;
 }
 
 export const ComponentCard = React.memo(function ComponentCard({ definition }: ComponentCardProps) {
   const { type, metadata } = definition;
-  const isPower = type === 'power-supply';
+  const isPower = type === 'power';
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `drawer-${type}`,
@@ -33,6 +45,7 @@ export const ComponentCard = React.memo(function ComponentCard({ definition }: C
   });
 
   const valueLabel = getValueLabel(definition);
+  const nameLabel = getNameLabel(definition);
 
   return (
     <div
@@ -54,7 +67,7 @@ export const ComponentCard = React.memo(function ComponentCard({ definition }: C
         />
       </div>
       {valueLabel && <span className={styles.value}>{valueLabel}</span>}
-      <span className={styles.name}>{metadata.name}</span>
+      <span className={styles.name}>{nameLabel}</span>
     </div>
   );
 });
