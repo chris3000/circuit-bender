@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { useCircuit } from '@/context/CircuitContext';
 import { BreadboardRenderer } from './BreadboardRenderer';
 import styles from './BreadboardView.module.css';
@@ -7,15 +7,9 @@ const BreadboardView: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { circuit } = useCircuit();
 
-  useEffect(() => {
+  const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
-    const container = canvas.parentElement;
-    if (container) {
-      canvas.width = container.clientWidth;
-      canvas.height = container.clientHeight;
-    }
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -66,6 +60,35 @@ const BreadboardView: React.FC = () => {
       renderer.renderWire(fromPos, toPos, color);
     }
   }, [circuit]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const container = canvas.parentElement;
+    if (container) {
+      canvas.width = container.clientWidth;
+      canvas.height = container.clientHeight;
+    }
+
+    draw();
+  }, [draw]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !canvas.parentElement) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        canvas.width = entry.contentRect.width;
+        canvas.height = entry.contentRect.height;
+      }
+      draw();
+    });
+
+    observer.observe(canvas.parentElement);
+    return () => observer.disconnect();
+  }, [draw]);
 
   return (
     <div className={styles.container} data-testid="breadboard-container">

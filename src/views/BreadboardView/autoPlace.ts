@@ -1,8 +1,6 @@
 import type { BreadboardPosition } from '@/types/circuit';
-
-const BOARD_COLUMNS = 63;
-const ROWS_PER_SIDE = 5; // a-e on top, f-j on bottom
-const IC_TYPES = new Set(['cd40106', 'lm741']);
+import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
+import { BOARD_COLUMNS, ROWS_TOP } from './BreadboardRenderer';
 
 export class BreadboardGrid {
   private occupied: Set<string> = new Set();
@@ -35,7 +33,11 @@ export class BreadboardGrid {
     const { rows, columns } = dimensions;
 
     // ICs straddle the center channel
-    if (IC_TYPES.has(type)) {
+    const registry = ComponentRegistry.getInstance();
+    const def = registry.get(type);
+    const isIC = def?.metadata.category === 'ic';
+
+    if (isIC) {
       return this.placeIC(rows, columns);
     }
 
@@ -44,7 +46,7 @@ export class BreadboardGrid {
 
   private placeIC(rows: number, columns: number): BreadboardPosition {
     // ICs straddle center: place so they span rows across the channel
-    const startRow = ROWS_PER_SIDE - Math.floor(rows / 2);
+    const startRow = ROWS_TOP - Math.floor(rows / 2);
 
     for (let col = 2; col <= BOARD_COLUMNS - columns; col++) {
       if (this.isAvailable(startRow, col, rows, columns)) {
@@ -60,7 +62,7 @@ export class BreadboardGrid {
 
   private placeGeneral(rows: number, columns: number): BreadboardPosition {
     // Try current row first
-    for (let row = this.nextRow; row <= ROWS_PER_SIDE; row++) {
+    for (let row = this.nextRow; row <= ROWS_TOP; row++) {
       for (let col = (row === this.nextRow ? this.nextColumn : 2); col <= BOARD_COLUMNS - columns; col++) {
         if (this.isAvailable(row, col, rows, columns)) {
           this.markOccupied(row, col, rows, columns);
@@ -81,7 +83,7 @@ export class BreadboardGrid {
     }
 
     // Fallback: use bottom side of board
-    const fallbackRow = ROWS_PER_SIDE + 1;
+    const fallbackRow = ROWS_TOP + 1;
     this.markOccupied(fallbackRow, 2, rows, columns);
     return { row: fallbackRow, column: 2 };
   }
