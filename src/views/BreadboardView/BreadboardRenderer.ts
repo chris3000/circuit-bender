@@ -27,11 +27,34 @@ export class BreadboardRenderer {
     return { x, y };
   }
 
+  /** Horizontal board dimensions (before rotation) */
+  get horizontalWidth(): number {
+    return BOARD_PADDING * 2 + (BOARD_COLUMNS - 1) * HOLE_SPACING;
+  }
+
+  get horizontalHeight(): number {
+    const totalRows = ROWS_TOP + ROWS_BOTTOM;
+    return BOARD_PADDING * 2 + (totalRows - 2) * HOLE_SPACING + CHANNEL_GAP;
+  }
+
+  get boardDisplayWidth(): number {
+    return this.horizontalHeight; // After 90° rotation, height becomes width
+  }
+
+  get boardDisplayHeight(): number {
+    return this.horizontalWidth; // After 90° rotation, width becomes height
+  }
+
   renderBoard(): void {
     const ctx = this.ctx;
-    const boardWidth = BOARD_PADDING * 2 + (BOARD_COLUMNS - 1) * HOLE_SPACING;
-    const totalRows = ROWS_TOP + ROWS_BOTTOM;
-    const boardHeight = BOARD_PADDING * 2 + (totalRows - 2) * HOLE_SPACING + CHANNEL_GAP;
+
+    // Rotate 90° clockwise: the long axis runs vertically
+    ctx.save();
+    ctx.translate(this.horizontalHeight, 0);
+    ctx.rotate(Math.PI / 2);
+
+    const boardWidth = this.horizontalWidth;
+    const boardHeight = this.horizontalHeight;
 
     // Outer background
     ctx.fillStyle = '#F5E6C8';
@@ -69,6 +92,8 @@ export class BreadboardRenderer {
         this.renderHole(pos.x, pos.y);
       }
     }
+
+    ctx.restore();
   }
 
   private renderPowerRail(startX: number, y: number, color: string): void {
@@ -97,6 +122,12 @@ export class BreadboardRenderer {
     ctx.fill();
   }
 
+  /** Apply the vertical rotation transform */
+  private applyRotation(): void {
+    this.ctx.translate(this.horizontalHeight, 0);
+    this.ctx.rotate(Math.PI / 2);
+  }
+
   renderComponent(component: Component): void {
     const ctx = this.ctx;
     const registry = ComponentRegistry.getInstance();
@@ -110,6 +141,7 @@ export class BreadboardRenderer {
     );
 
     ctx.save();
+    this.applyRotation();
     ctx.translate(pos.x, pos.y);
     definition.breadboard.renderer(ctx, component.parameters);
     ctx.restore();
@@ -121,6 +153,9 @@ export class BreadboardRenderer {
     color: string
   ): void {
     const ctx = this.ctx;
+    ctx.save();
+    this.applyRotation();
+
     const midX = (fromPos.x + toPos.x) / 2;
     const midY = Math.max(fromPos.y, toPos.y) + 8;
 
@@ -130,6 +165,8 @@ export class BreadboardRenderer {
     ctx.moveTo(fromPos.x, fromPos.y);
     ctx.quadraticCurveTo(midX, midY, toPos.x, toPos.y);
     ctx.stroke();
+
+    ctx.restore();
   }
 
   getWireColor(componentId: string, components: Map<string, Component>): string {
