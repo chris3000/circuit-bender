@@ -125,7 +125,7 @@ export const DraggableComponent = React.memo(function DraggableComponent({
       {...listeners}
       {...attributes}
     >
-      <g transform={`translate(${component.position.schematic.x}, ${component.position.schematic.y})`}>
+      <g transform={`translate(${component.position.x}, ${component.position.y})`}>
         {/* Invisible hit area for dragging from anywhere on the component */}
         <rect
           x={-width / 2 - 5}

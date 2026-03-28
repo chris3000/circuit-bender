@@ -113,8 +113,8 @@ function SchematicView({ activeView, onToggleView, ledStates = {}, onPotChange, 
     const pin = component?.pins.find(p => p.id === pinId);
     if (!component || !pin) return;
 
-    const startX = component.position.schematic.x + pin.position.x;
-    const startY = component.position.schematic.y + pin.position.y;
+    const startX = component.position.x + pin.position.x;
+    const startY = component.position.y + pin.position.y;
 
     setCursorPos({ x: startX, y: startY });
     setWiringState({
@@ -191,16 +191,13 @@ function SchematicView({ activeView, onToggleView, ledStates = {}, onPotChange, 
     const component = circuit.getComponent(componentId);
     if (!component) return;
 
-    const newX = snapToGrid(component.position.schematic.x + delta.x);
-    const newY = snapToGrid(component.position.schematic.y + delta.y);
+    const newX = snapToGrid(component.position.x + delta.x);
+    const newY = snapToGrid(component.position.y + delta.y);
 
-    if (newX === component.position.schematic.x && newY === component.position.schematic.y) return;
+    if (newX === component.position.x && newY === component.position.y) return;
 
     updateComponent(componentId, {
-      position: {
-        ...component.position,
-        schematic: { x: newX, y: newY },
-      },
+      position: { x: newX, y: newY },
     });
   }, [circuit, updateComponent]);
 
@@ -221,10 +218,10 @@ function SchematicView({ activeView, onToggleView, ledStates = {}, onPotChange, 
 
       return {
         connectionId: conn.id,
-        fromX: fromComp && fromPin ? fromComp.position.schematic.x + fromPin.position.x + (fromDrag?.dx ?? 0) : 0,
-        fromY: fromComp && fromPin ? fromComp.position.schematic.y + fromPin.position.y + (fromDrag?.dy ?? 0) : 0,
-        toX: toComp && toPin ? toComp.position.schematic.x + toPin.position.x + (toDrag?.dx ?? 0) : 0,
-        toY: toComp && toPin ? toComp.position.schematic.y + toPin.position.y + (toDrag?.dy ?? 0) : 0,
+        fromX: fromComp && fromPin ? fromComp.position.x + fromPin.position.x + (fromDrag?.dx ?? 0) : 0,
+        fromY: fromComp && fromPin ? fromComp.position.y + fromPin.position.y + (fromDrag?.dy ?? 0) : 0,
+        toX: toComp && toPin ? toComp.position.x + toPin.position.x + (toDrag?.dx ?? 0) : 0,
+        toY: toComp && toPin ? toComp.position.y + toPin.position.y + (toDrag?.dy ?? 0) : 0,
       };
     });
   }, [connections, circuit, dragState]);
@@ -411,7 +408,7 @@ function SchematicView({ activeView, onToggleView, ledStates = {}, onPotChange, 
               <ParameterEditor
                 value={displayValue}
                 parameterKey={paramKey}
-                position={comp.position.schematic}
+                position={comp.position}
                 onConfirm={handleParameterConfirm}
                 onCancel={handleParameterCancel}
               />
