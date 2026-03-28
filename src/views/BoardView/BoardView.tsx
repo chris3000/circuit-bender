@@ -1,9 +1,11 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { DndContext, DragEndEvent, DragMoveEvent } from '@dnd-kit/core';
 import { useDroppable } from '@dnd-kit/core';
 import { useCircuit } from '@/context/CircuitContext';
 import { validateConnection } from '@/utils/wiring';
 import { generateOrthogonalPath } from '@/utils/wiring';
 import { DROPPABLE_BOARD_ID } from '@/constants/dnd';
+import { snapToGrid } from '@/utils/grid';
 import { BoardBackground } from './BoardBackground';
 import { BoardComponent } from './BoardComponent';
 import { BoardWire, getWireColor } from './BoardWire';
@@ -57,6 +59,8 @@ export default function BoardView({
   const svgRef = useRef<SVGSVGElement>(null);
 
   const { setNodeRef } = useDroppable({ id: DROPPABLE_BOARD_ID });
+
+  const [dragState, setDragState] = useState<{ id: string; dx: number; dy: number } | null>(null);
 
   const components = useMemo(() => circuit.getComponents(), [circuit]);
   const connections = useMemo(() => circuit.getConnections(), [circuit]);
@@ -165,6 +169,28 @@ export default function BoardView({
     [connections, circuit, onAddProbe]
   );
 
+  // Component drag handlers
+  const handleComponentDragMove = useCallback((event: DragMoveEvent) => {
+    const { active, delta } = event;
+    setDragState({ id: active.id as string, dx: delta.x, dy: delta.y });
+  }, []);
+
+  const handleComponentMove = useCallback((event: DragEndEvent) => {
+    setDragState(null);
+    const { active, delta } = event;
+    const componentId = active.id as ComponentId;
+    const component = circuit.getComponent(componentId);
+    if (!component) return;
+    const newX = snapToGrid(component.position.x + delta.x);
+    const newY = snapToGrid(component.position.y + delta.y);
+    if (newX === component.position.x && newY === component.position.y) return;
+    updateComponent(componentId, { position: { x: newX, y: newY } });
+  }, [circuit, updateComponent]);
+
+  const handleComponentDragCancel = useCallback(() => {
+    setDragState(null);
+  }, []);
+
   const handleCanvasClick = useCallback(() => {
     clearSelection();
     setWiringState({ active: false });
@@ -225,21 +251,21 @@ export default function BoardView({
         <BoardBackground />
 
         {connections.map((conn) => {
-          const fromPos = getPinPosition(conn.from.componentId, conn.from.pinId);
-          const toPos = getPinPosition(conn.to.componentId, conn.to.pinId);
           const fromComp = circuit.getComponent(conn.from.componentId);
           const toComp = circuit.getComponent(conn.to.componentId);
           const fromPin = fromComp?.pins.find(p => p.id === conn.from.pinId);
           const toPin = toComp?.pins.find(p => p.id === conn.to.pinId);
+          const fromDrag = dragState && fromComp && dragState.id === fromComp.id ? dragState : null;
+          const toDrag = dragState && toComp && dragState.id === toComp.id ? dragState : null;
 
           return (
             <BoardWire
               key={conn.id}
               connectionId={conn.id}
-              fromX={fromPos.x}
-              fromY={fromPos.y}
-              toX={toPos.x}
-              toY={toPos.y}
+              fromX={fromComp && fromPin ? fromComp.position.x + fromPin.position.x + (fromDrag?.dx ?? 0) : 0}
+              fromY={fromComp && fromPin ? fromComp.position.y + fromPin.position.y + (fromDrag?.dy ?? 0) : 0}
+              toX={toComp && toPin ? toComp.position.x + toPin.position.x + (toDrag?.dx ?? 0) : 0}
+              toY={toComp && toPin ? toComp.position.y + toPin.position.y + (toDrag?.dy ?? 0) : 0}
               color={getWireColor(
                 fromComp?.type || '',
                 fromPin?.type || '',
@@ -253,19 +279,21 @@ export default function BoardView({
           );
         })}
 
-        {components.map((comp) => (
-          <BoardComponent
-            key={comp.id}
-            component={comp}
-            isSelected={selectedComponents.includes(comp.id)}
-            ledOn={ledStates[comp.id]}
-            onPinDown={handlePinDown}
-            onPinUp={handlePinUp}
-            onClick={() => handleComponentClick(comp.id)}
-            onEditParameter={handleEditParameter}
-            onPotChange={onPotChange}
-          />
-        ))}
+        <DndContext onDragMove={handleComponentDragMove} onDragEnd={handleComponentMove} onDragCancel={handleComponentDragCancel}>
+          {components.map((comp) => (
+            <BoardComponent
+              key={comp.id}
+              component={comp}
+              isSelected={selectedComponents.includes(comp.id)}
+              ledOn={ledStates[comp.id]}
+              onPinDown={handlePinDown}
+              onPinUp={handlePinUp}
+              onClick={() => handleComponentClick(comp.id)}
+              onEditParameter={handleEditParameter}
+              onPotChange={onPotChange}
+            />
+          ))}
+        </DndContext>
 
         {wiringState.active && wiringState.fromComponentId && wiringState.fromPinId && (
           <path
