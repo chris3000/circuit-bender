@@ -56,31 +56,28 @@ export const resistorDefinition: ComponentDefinition = {
     },
     dimensions: { width: 60, height: 20 },
   },
-  breadboard: {
-    renderer: (ctx, _params) => {
-      // Body
-      ctx.fillStyle = '#d4a574';
-      ctx.fillRect(-20, -4, 40, 8);
-
-      // Color bands (simplified - just show a few bands)
-      ctx.fillStyle = '#8b4513';
-      ctx.fillRect(-15, -4, 3, 8);
-      ctx.fillRect(-5, -4, 3, 8);
-      ctx.fillRect(5, -4, 3, 8);
-
-      // Leads
-      ctx.strokeStyle = '#c9c9c9';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(-30, 0);
-      ctx.lineTo(-20, 0);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(20, 0);
-      ctx.lineTo(30, 0);
-      ctx.stroke();
+  board: {
+    symbol: {
+      width: 60,
+      height: 20,
+      render: (params) => {
+        return (
+          <g>
+            <rect x="-30" y="-1.5" width="12" height="3" rx="1" fill="#ccc" />
+            <rect x="18" y="-1.5" width="12" height="3" rx="1" fill="#ccc" />
+            <rect x="-18" y="-8" width="36" height="16" rx="5" fill="#c49456" stroke="#7a5820" strokeWidth="0.8" />
+            <rect x="-12" y="-8" width="3" height="16" rx="0.5" fill="#8B4513" opacity="0.85" />
+            <rect x="-5" y="-8" width="3" height="16" rx="0.5" fill="#1a1a1a" opacity="0.85" />
+            <rect x="2" y="-8" width="3" height="16" rx="0.5" fill="#FF8C00" opacity="0.85" />
+            <rect x="11" y="-8" width="3" height="16" rx="0.5" fill="#CFB53B" opacity="0.85" />
+            <text x="0" y="20" textAnchor="middle" fontSize="8" fill="#a8d8a8" opacity="0.7" fontFamily="Courier New">
+              {params.value}
+            </text>
+          </g>
+        );
+      },
     },
-    dimensions: { rows: 1, columns: 4 },
+    dimensions: { width: 60, height: 20 },
   },
   simulate: (inputs, params) => {
     const pin0 = inputs.pin_0 || { voltage: 0, current: 0 };

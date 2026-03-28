@@ -48,33 +48,25 @@ export const diode1N914Definition: ComponentDefinition = {
     },
     dimensions: { width: 40, height: 20 },
   },
-  breadboard: {
-    renderer: (ctx, _params) => {
-      // Orange glass cylinder body
-      ctx.fillStyle = '#e87030';
-      ctx.fillRect(-12, -3, 24, 6);
-
-      // Glass transparency effect
-      ctx.fillStyle = 'rgba(255, 200, 150, 0.3)';
-      ctx.fillRect(-12, -3, 24, 3);
-
-      // Black band (cathode marker)
-      ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(8, -3, 3, 6);
-
-      // Leads
-      ctx.strokeStyle = '#c9c9c9';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(-20, 0);
-      ctx.lineTo(-12, 0);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(12, 0);
-      ctx.lineTo(20, 0);
-      ctx.stroke();
+  board: {
+    symbol: {
+      width: 40,
+      height: 20,
+      render: () => {
+        return (
+          <g>
+            <rect x="-20" y="-1.5" width="8" height="3" rx="1" fill="#ccc" />
+            <rect x="12" y="-1.5" width="8" height="3" rx="1" fill="#ccc" />
+            <rect x="-12" y="-5" width="24" height="10" rx="4" fill="#e8a060" stroke="#c07030" strokeWidth="0.6" opacity="0.8" />
+            <rect x="8" y="-5" width="3" height="10" rx="0.5" fill="#1a1a1a" opacity="0.8" />
+            <text x="0" y="16" textAnchor="middle" fontSize="7" fill="#a8d8a8" opacity="0.7" fontFamily="Courier New">
+              1N914
+            </text>
+          </g>
+        );
+      },
     },
-    dimensions: { rows: 1, columns: 3 },
+    dimensions: { width: 40, height: 20 },
   },
   simulate: (inputs, params) => {
     const anode = inputs.pin_0 || { voltage: 0, current: 0 };

@@ -57,45 +57,25 @@ export const transistor2N3904Definition: ComponentDefinition = {
     },
     dimensions: { width: 50, height: 50 },
   },
-  breadboard: {
-    renderer: (ctx, _params) => {
-      // TO-92 black package
-      ctx.beginPath();
-      ctx.arc(0, 0, 8, Math.PI, 0);
-      ctx.lineTo(8, 8);
-      ctx.lineTo(-8, 8);
-      ctx.closePath();
-      ctx.fillStyle = '#1a1a1a';
-      ctx.fill();
-      ctx.strokeStyle = '#333';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // Flat side indicator
-      ctx.beginPath();
-      ctx.moveTo(-8, 8);
-      ctx.lineTo(8, 8);
-      ctx.strokeStyle = '#555';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // Three leads
-      ctx.strokeStyle = '#c9c9c9';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(-5, 8);
-      ctx.lineTo(-5, 16);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(0, 8);
-      ctx.lineTo(0, 16);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(5, 8);
-      ctx.lineTo(5, 16);
-      ctx.stroke();
+  board: {
+    symbol: {
+      width: 50,
+      height: 50,
+      render: () => {
+        return (
+          <g>
+            <rect x="-25" y="-1.5" width="10" height="3" rx="1" fill="#ccc" />
+            <rect x="-1.5" y="-25" width="3" height="10" rx="1" fill="#ccc" />
+            <rect x="-1.5" y="15" width="3" height="10" rx="1" fill="#ccc" />
+            <path d="M -10,-12 A 14,14 0 0,1 10,-12 L 10,12 A 14,14 0 0,1 -10,12 Z" fill="#2a2a2a" stroke="#555" strokeWidth="0.8" />
+            <line x1="-10" y1="-12" x2="-10" y2="12" stroke="#555" strokeWidth="1" />
+            <text x="0" y="2" textAnchor="middle" fontSize="6" fill="#ccc" fontFamily="Courier New">2N</text>
+            <text x="0" y="9" textAnchor="middle" fontSize="6" fill="#ccc" fontFamily="Courier New">3904</text>
+          </g>
+        );
+      },
     },
-    dimensions: { rows: 1, columns: 3 },
+    dimensions: { width: 50, height: 50 },
   },
   simulate: (inputs, params) => {
     // Switch model for MVP — beta parameter reserved for future active-region modeling

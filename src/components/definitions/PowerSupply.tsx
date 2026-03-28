@@ -59,17 +59,23 @@ export const powerSupplyDefinition: ComponentDefinition = {
     },
     dimensions: { width: 40, height: 60 },
   },
-  breadboard: {
-    renderer: (ctx, _params) => {
-      // Red wire
-      ctx.strokeStyle = '#FF0000';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(0, -10);
-      ctx.lineTo(0, 10);
-      ctx.stroke();
+  board: {
+    symbol: {
+      width: 40,
+      height: 60,
+      render: (params) => {
+        return (
+          <g>
+            <rect x="-18" y="-25" width="36" height="50" rx="4" fill="#2a2a2a" stroke="#555" strokeWidth="0.8" />
+            <rect x="-8" y="-25" width="16" height="3" rx="1" fill="#c44" />
+            <text x="0" y="-5" textAnchor="middle" fontSize="12" fill="#e04040" fontFamily="Courier New" fontWeight="bold">+</text>
+            <text x="0" y="12" textAnchor="middle" fontSize="12" fill="#999" fontFamily="Courier New">-</text>
+            <text x="0" y="22" textAnchor="middle" fontSize="6" fill="#777" fontFamily="Courier New">{params.value}</text>
+          </g>
+        );
+      },
     },
-    dimensions: { rows: 1, columns: 1 },
+    dimensions: { width: 40, height: 60 },
   },
   simulate: (_inputs, params) => {
     const voltage = (params.voltage as number) ?? 9;

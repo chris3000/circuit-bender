@@ -54,50 +54,29 @@ export const ledDefinition: ComponentDefinition = {
     },
     dimensions: { width: 40, height: 30 },
   },
-  breadboard: {
-    renderer: (ctx, params) => {
-      const color = (params.color as string) || 'red';
-
-      // LED dome
-      ctx.beginPath();
-      ctx.arc(0, 0, 6, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
-
-      // Highlight for 3D effect
-      ctx.beginPath();
-      ctx.arc(-2, -2, 2, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-      ctx.fill();
-
-      // Rim
-      ctx.beginPath();
-      ctx.arc(0, 0, 6, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // Flat edge (cathode side)
-      ctx.beginPath();
-      ctx.moveTo(5, -4);
-      ctx.lineTo(5, 4);
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-
-      // Leads
-      ctx.strokeStyle = '#c9c9c9';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(-6, 0);
-      ctx.lineTo(-14, 0);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(6, 0);
-      ctx.lineTo(14, 0);
-      ctx.stroke();
+  board: {
+    symbol: {
+      width: 40,
+      height: 30,
+      render: (params) => {
+        const color = (params.color as string) || 'red';
+        const cssColor = color === 'red' ? '#ff2d55' : color === 'green' ? '#00ff88' : color === 'blue' ? '#4488ff' : '#ff2d55';
+        return (
+          <g>
+            <rect x="-20" y="-1.5" width="8" height="3" rx="1" fill="#ccc" />
+            <rect x="12" y="-1.5" width="8" height="3" rx="1" fill="#ccc" />
+            <ellipse cx="0" cy="0" rx="10" ry="12" fill={cssColor} opacity="0.3" stroke={cssColor} strokeWidth="0.8" />
+            <ellipse cx="0" cy="0" rx="7" ry="9" fill={cssColor} opacity="0.5" />
+            <ellipse cx="-2" cy="-3" rx="3" ry="4" fill={cssColor} opacity="0.3" />
+            <line x1="8" y1="-10" x2="8" y2="10" stroke={cssColor} strokeWidth="1" opacity="0.5" />
+            <text x="0" y="22" textAnchor="middle" fontSize="8" fill="#a8d8a8" opacity="0.7" fontFamily="Courier New">
+              LED
+            </text>
+          </g>
+        );
+      },
     },
-    dimensions: { rows: 1, columns: 2 },
+    dimensions: { width: 40, height: 30 },
   },
   simulate: (inputs, params) => {
     const anode = inputs.pin_0 || { voltage: 0, current: 0 };

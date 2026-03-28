@@ -119,19 +119,31 @@ export const lm741Definition: ComponentDefinition = {
     },
     dimensions: { width: 70, height: 90 },
   },
-  breadboard: {
-    renderer: (ctx, _params) => {
-      // Black DIP-8 package body
-      ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(-10, -20, 20, 40);
-
-      // White notch circle at top
-      ctx.beginPath();
-      ctx.arc(0, -15, 2, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffffff';
-      ctx.fill();
+  board: {
+    symbol: {
+      width: 70,
+      height: 90,
+      render: () => {
+        return (
+          <g>
+            <rect x="-20" y="-35" width="40" height="70" rx="3" fill="#2a2a2a" stroke="#555" strokeWidth="0.8" />
+            <path d="M 0,-35 A 5,5 0 0,0 0,-25" fill="none" stroke="#555" strokeWidth="1" />
+            <circle cx="-10" cy="-27" r="2" fill="#555" />
+            <text x="0" y="0" textAnchor="middle" fontSize="7" fill="#ccc" fontFamily="Courier New" fontWeight="bold">LM741</text>
+            <text x="0" y="10" textAnchor="middle" fontSize="6" fill="#888" fontFamily="Courier New">OP-AMP</text>
+            <rect x="-25" y="-32" width="6" height="2" fill="#bbb" />
+            <rect x="-25" y="-12" width="6" height="2" fill="#bbb" />
+            <rect x="-25" y="8" width="6" height="2" fill="#bbb" />
+            <rect x="-25" y="28" width="6" height="2" fill="#bbb" />
+            <rect x="19" y="-32" width="6" height="2" fill="#bbb" />
+            <rect x="19" y="-12" width="6" height="2" fill="#bbb" />
+            <rect x="19" y="8" width="6" height="2" fill="#bbb" />
+            <rect x="19" y="28" width="6" height="2" fill="#bbb" />
+          </g>
+        );
+      },
     },
-    dimensions: { rows: 4, columns: 2 },
+    dimensions: { width: 70, height: 90 },
   },
   simulate: (inputs, _params) => {
     const vPlus = inputs.pin_2?.voltage ?? 0;      // Non-inverting input

@@ -40,26 +40,22 @@ export const audioOutputJackDefinition: ComponentDefinition = {
     },
     dimensions: { width: 40, height: 40 },
   },
-  breadboard: {
-    renderer: (ctx, _params) => {
-      // 3.5mm jack body
-      ctx.fillStyle = '#2a2a2a';
-      ctx.fillRect(-10, -6, 20, 12);
-
-      // Jack opening
-      ctx.beginPath();
-      ctx.arc(10, 0, 4, 0, Math.PI * 2);
-      ctx.fillStyle = '#111';
-      ctx.fill();
-      ctx.strokeStyle = '#666';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // Metal housing highlight
-      ctx.fillStyle = '#444';
-      ctx.fillRect(-10, -6, 4, 12);
+  board: {
+    symbol: {
+      width: 40,
+      height: 40,
+      render: () => {
+        return (
+          <g>
+            <rect x="-12" y="-8" width="24" height="16" rx="3" fill="#444" stroke="#666" strokeWidth="0.8" />
+            <circle cx="8" cy="0" r="4" fill="#222" stroke="#666" strokeWidth="0.5" />
+            <circle cx="8" cy="0" r="2" fill="#888" />
+            <text x="0" y="18" textAnchor="middle" fontSize="7" fill="#a8d8a8" opacity="0.7" fontFamily="Courier New">OUT</text>
+          </g>
+        );
+      },
     },
-    dimensions: { rows: 1, columns: 3 },
+    dimensions: { width: 40, height: 40 },
   },
   simulate: (inputs, _params) => {
     // Pass-through: AudioBridge reads voltage externally

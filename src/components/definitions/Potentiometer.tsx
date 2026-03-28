@@ -77,19 +77,28 @@ export const potentiometerDefinition: ComponentDefinition = {
     },
     dimensions: { width: 60, height: 50 },
   },
-  breadboard: {
-    renderer: (ctx, _params) => {
-      // Blue square body
-      ctx.fillStyle = '#4169E1';
-      ctx.fillRect(-10, -10, 20, 20);
-
-      // Gold adjustment screw
-      ctx.beginPath();
-      ctx.arc(0, 0, 3, 0, Math.PI * 2);
-      ctx.fillStyle = '#FFD700';
-      ctx.fill();
+  board: {
+    symbol: {
+      width: 60,
+      height: 50,
+      render: (params) => {
+        const pos = (params.position as number) ?? 0.5;
+        return (
+          <g>
+            <circle cx="0" cy="0" r="14" fill="#3a5a8a" stroke="#2a4a6a" strokeWidth="0.8" />
+            <circle cx="0" cy="0" r="5" fill="#888" stroke="#666" strokeWidth="0.5" />
+            <line x1="0" y1="0" x2={Math.cos((pos - 0.5) * Math.PI) * 12} y2={Math.sin((pos - 0.5) * Math.PI) * 12} stroke="#ccc" strokeWidth="1.5" strokeLinecap="round" />
+            <rect x="-25" y="-1.5" width="10" height="3" rx="1" fill="#ccc" />
+            <rect x="15" y="-1.5" width="10" height="3" rx="1" fill="#ccc" />
+            <rect x="-1.5" y="-20" width="3" height="6" rx="1" fill="#ccc" />
+            <text x="0" y="26" textAnchor="middle" fontSize="8" fill="#a8d8a8" opacity="0.7" fontFamily="Courier New">
+              {params.value}
+            </text>
+          </g>
+        );
+      },
     },
-    dimensions: { rows: 1, columns: 3 },
+    dimensions: { width: 60, height: 50 },
   },
   simulate: (inputs, params) => {
     const v1 = inputs.pin_0?.voltage ?? 0;

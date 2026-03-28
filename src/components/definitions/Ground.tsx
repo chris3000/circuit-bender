@@ -64,17 +64,23 @@ export const groundDefinition: ComponentDefinition = {
     },
     dimensions: { width: 40, height: 40 },
   },
-  breadboard: {
-    renderer: (ctx, _params) => {
-      // Black wire
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(0, -10);
-      ctx.lineTo(0, 10);
-      ctx.stroke();
+  board: {
+    symbol: {
+      width: 40,
+      height: 40,
+      render: () => {
+        return (
+          <g>
+            <rect x="-10" y="-10" width="20" height="14" rx="2" fill="#2a2a2a" stroke="#555" strokeWidth="0.6" />
+            <line x1="-6" y1="0" x2="6" y2="0" stroke="#888" strokeWidth="1.5" />
+            <line x1="-4" y1="3" x2="4" y2="3" stroke="#888" strokeWidth="1.2" />
+            <line x1="-2" y1="6" x2="2" y2="6" stroke="#888" strokeWidth="0.8" />
+            <text x="0" y="18" textAnchor="middle" fontSize="7" fill="#a8d8a8" opacity="0.7" fontFamily="Courier New">GND</text>
+          </g>
+        );
+      },
     },
-    dimensions: { rows: 1, columns: 1 },
+    dimensions: { width: 40, height: 40 },
   },
   simulate: () => {
     return {

@@ -57,22 +57,27 @@ export const capacitorDefinition: ComponentDefinition = {
     },
     dimensions: { width: 50, height: 30 },
   },
-  breadboard: {
-    renderer: (ctx, _params) => {
-      // Yellow ceramic disc capacitor
-      ctx.beginPath();
-      ctx.arc(0, 0, 8, 0, Math.PI * 2);
-      ctx.fillStyle = '#FFD700';
-      ctx.fill();
-
-      // Outline
-      ctx.beginPath();
-      ctx.arc(0, 0, 8, 0, Math.PI * 2);
-      ctx.strokeStyle = '#B8860B';
-      ctx.lineWidth = 1;
-      ctx.stroke();
+  board: {
+    symbol: {
+      width: 50,
+      height: 30,
+      render: (params) => {
+        return (
+          <g>
+            <rect x="-20" y="-1.5" width="8" height="3" rx="1" fill="#ccc" />
+            <rect x="12" y="-1.5" width="8" height="3" rx="1" fill="#ccc" />
+            <ellipse cx="0" cy="0" rx="12" ry="10" fill="#e8a020" stroke="#c08010" strokeWidth="0.8" />
+            <text x="0" y="2" textAnchor="middle" fontSize="6" fill="#6a4000" fontFamily="Courier New" fontWeight="bold">
+              104
+            </text>
+            <text x="0" y="20" textAnchor="middle" fontSize="8" fill="#a8d8a8" opacity="0.7" fontFamily="Courier New">
+              {params.value}
+            </text>
+          </g>
+        );
+      },
     },
-    dimensions: { rows: 1, columns: 2 },
+    dimensions: { width: 50, height: 30 },
   },
   simulate: (inputs, _params) => {
     // Simplified MVP model: acts as pass-through

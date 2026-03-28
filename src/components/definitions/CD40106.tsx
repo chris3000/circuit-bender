@@ -140,19 +140,38 @@ export const cd40106Definition: ComponentDefinition = {
     },
     dimensions: { width: 80, height: 160 },
   },
-  breadboard: {
-    renderer: (ctx, _params) => {
-      // Black DIP-14 package body
-      ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(-15, -35, 30, 70);
-
-      // White notch circle at top
-      ctx.beginPath();
-      ctx.arc(0, -30, 3, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffffff';
-      ctx.fill();
+  board: {
+    symbol: {
+      width: 80,
+      height: 160,
+      render: () => {
+        return (
+          <g>
+            <rect x="-25" y="-70" width="50" height="140" rx="3" fill="#2a2a2a" stroke="#555" strokeWidth="0.8" />
+            <path d="M 0,-70 A 6,6 0 0,0 0,-58" fill="none" stroke="#555" strokeWidth="1" />
+            <circle cx="-15" cy="-60" r="2" fill="#555" />
+            <text x="0" y="-5" textAnchor="middle" fontSize="7" fill="#ccc" fontFamily="Courier New" fontWeight="bold">CD40106</text>
+            <text x="0" y="6" textAnchor="middle" fontSize="6" fill="#888" fontFamily="Courier New">HEX SCHMITT</text>
+            <text x="0" y="15" textAnchor="middle" fontSize="6" fill="#888" fontFamily="Courier New">INVERTER</text>
+            <rect x="-30" y="-52" width="6" height="2" fill="#bbb" />
+            <rect x="-30" y="-32" width="6" height="2" fill="#bbb" />
+            <rect x="-30" y="-12" width="6" height="2" fill="#bbb" />
+            <rect x="-30" y="8" width="6" height="2" fill="#bbb" />
+            <rect x="-30" y="28" width="6" height="2" fill="#bbb" />
+            <rect x="-30" y="48" width="6" height="2" fill="#bbb" />
+            <rect x="24" y="-52" width="6" height="2" fill="#bbb" />
+            <rect x="24" y="-32" width="6" height="2" fill="#bbb" />
+            <rect x="24" y="-12" width="6" height="2" fill="#bbb" />
+            <rect x="24" y="8" width="6" height="2" fill="#bbb" />
+            <rect x="24" y="28" width="6" height="2" fill="#bbb" />
+            <rect x="24" y="48" width="6" height="2" fill="#bbb" />
+            <rect x="-11" y="-70" width="2" height="6" fill="#bbb" />
+            <rect x="9" y="-70" width="2" height="6" fill="#bbb" />
+          </g>
+        );
+      },
     },
-    dimensions: { rows: 7, columns: 2 },
+    dimensions: { width: 80, height: 160 },
   },
   simulate: (() => {
     // Simple sample counter for oscillation
