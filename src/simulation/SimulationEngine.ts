@@ -53,8 +53,10 @@ export class SimulationEngine {
    * resolve voltages, and run component simulate functions.
    */
   evaluate(): void {
-    const connections = this.circuit.getConnections();
-    this.analyzer = new NetAnalyzer(connections);
+    if (!this.analyzer) {
+      const connections = this.circuit.getConnections();
+      this.analyzer = new NetAnalyzer(connections);
+    }
     const nets = this.analyzer.getNets();
     const components = this.circuit.getComponents();
 
@@ -75,6 +77,9 @@ export class SimulationEngine {
 
     // Phase 3: Run component simulate functions
     this.simulateComponents(components);
+
+    // Phase 4: Propagate component output voltages across nets
+    this.propagateNetVoltages(nets);
   }
 
   /**
@@ -183,6 +188,9 @@ export class SimulationEngine {
     const registry = ComponentRegistry.getInstance();
 
     for (const comp of components) {
+      // Skip non-power/ground components
+      if (comp.type !== 'power-supply' && comp.type !== 'ground') continue;
+
       const def = registry.get(comp.type);
       if (!def) continue;
 
@@ -193,8 +201,8 @@ export class SimulationEngine {
       }
       const outputs = def.simulate(inputs, comp.parameters);
 
-      // For power/ground components, assign their output voltage to the net
-      if (comp.type === 'power-supply' || comp.type === 'ground') {
+      // Assign their output voltage to the net
+      {
         for (const pinId of Object.keys(outputs)) {
           const net = this.analyzer?.getNetForPin(
             comp.id as ComponentId,
@@ -240,10 +248,18 @@ export class SimulationEngine {
 
       const outputs = def.simulate(inputs, comp.parameters);
 
-      // Write output voltages back to pin voltages and propagate to nets
+      // Write output voltages back to pin voltages and net voltages
       for (const pinId of Object.keys(outputs)) {
         const key = `${comp.id}::${pinId}`;
         this.pinVoltages.set(key, outputs[pinId].voltage);
+
+        const net = this.analyzer?.getNetForPin(
+          comp.id as ComponentId,
+          pinId as PinId
+        );
+        if (net) {
+          this.netVoltages.set(net.id, outputs[pinId].voltage);
+        }
       }
     }
   }
