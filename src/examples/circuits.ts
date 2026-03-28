@@ -152,24 +152,31 @@ export const exampleCircuits: ExampleCircuit[] = [
   },
   {
     name: 'Pitch Control',
-    description: 'Potentiometer controls oscillator pitch',
+    description: 'Pot sweeps ~80Hz–1.8kHz',
     build: () => {
       const power = createComponentFromDefinition(getDefinition('power'), { x: 200, y: 80 });
       const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 500 });
-      const pot = createComponentFromDefinition(getDefinition('potentiometer'), { x: 350, y: 280 });
-      const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 400 });
-      const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 500, y: 280 });
-      const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 650, y: 280 });
+      // Fixed resistor sets the minimum R (highest pitch)
+      // R_min = 4.7kΩ → f_max ≈ 1/(1.2 × 4700 × 100e-9) ≈ 1.77kHz
+      const rFixed = createComponentFromDefinition(getDefinition('resistor'), { x: 300, y: 280 });
+      rFixed.parameters = { ...rFixed.parameters, resistance: 4700, value: '4.7k' };
+      // Pot adds 0–100kΩ in series
+      // R_max = 4.7k + 100k = 104.7kΩ → f_min ≈ 1/(1.2 × 104700 × 100e-9) ≈ 80Hz
+      const pot = createComponentFromDefinition(getDefinition('potentiometer'), { x: 420, y: 280 });
+      pot.parameters = { ...pot.parameters, maxResistance: 100000, value: '100k', position: 0.5 };
+      const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 420 });
+      const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 560, y: 300 });
+      const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 700, y: 300 });
 
-      const components = [power, ground, pot, capacitor, ic, output];
+      const components = [power, ground, rFixed, pot, capacitor, ic, output];
       const connections = [
-        // Power and ground to IC
         connect(power, 0, ic, 12),
         connect(ground, 0, ic, 13),
         connect(power, 1, ground, 0),
-        // Pot pin 0 to IC input 1A
-        connect(pot, 0, ic, 0),
-        // Pot pin 2 to IC output 1Y (feedback through pot)
+        // Fixed resistor from IC input to pot
+        connect(rFixed, 0, ic, 0),
+        connect(rFixed, 1, pot, 0),
+        // Pot pin 2 to IC output (feedback: R_fixed + R_pot in series)
         connect(pot, 2, ic, 6),
         // Capacitor from IC input to ground
         connect(capacitor, 0, ic, 0),
