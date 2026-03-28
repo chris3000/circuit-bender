@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { DndContext, DragEndEvent } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragMoveEvent } from '@dnd-kit/core';
 import { useDroppable } from '@dnd-kit/core';
 import { useCircuit } from '@/context/CircuitContext';
 import { GRID_SIZE, snapToGrid } from '@/utils/grid';
@@ -53,6 +53,7 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
   const [wiringState, setWiringState] = useState<WiringState>({ status: 'idle' });
   const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
   const [editingComponentId, setEditingComponentId] = useState<ComponentId | null>(null);
+  const [dragState, setDragState] = useState<{ id: string; dx: number; dy: number } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
   const { setNodeRef, isOver } = useDroppable({
@@ -174,7 +175,14 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
     []
   );
 
+  const handleComponentDragMove = useCallback((event: DragMoveEvent) => {
+    const { active, delta } = event;
+    setDragState({ id: active.id as string, dx: delta.x, dy: delta.y });
+  }, []);
+
   const handleComponentMove = useCallback((event: DragEndEvent) => {
+    setDragState(null);
+
     const { active, delta } = event;
     const componentId = active.id as ComponentId;
     const component = circuit.getComponent(componentId);
@@ -193,6 +201,10 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
     });
   }, [circuit, updateComponent]);
 
+  const handleComponentDragCancel = useCallback(() => {
+    setDragState(null);
+  }, []);
+
   const wiresWithPositions = useMemo(() => {
     return connections.map(conn => {
       const fromComp = circuit.getComponent(conn.from.componentId);
@@ -200,15 +212,19 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
       const fromPin = fromComp?.pins.find(p => p.id === conn.from.pinId);
       const toPin = toComp?.pins.find(p => p.id === conn.to.pinId);
 
+      // Apply drag offset if this component is being dragged
+      const fromDrag = dragState && fromComp && dragState.id === fromComp.id ? dragState : null;
+      const toDrag = dragState && toComp && dragState.id === toComp.id ? dragState : null;
+
       return {
         connectionId: conn.id,
-        fromX: fromComp && fromPin ? fromComp.position.schematic.x + fromPin.position.x : 0,
-        fromY: fromComp && fromPin ? fromComp.position.schematic.y + fromPin.position.y : 0,
-        toX: toComp && toPin ? toComp.position.schematic.x + toPin.position.x : 0,
-        toY: toComp && toPin ? toComp.position.schematic.y + toPin.position.y : 0,
+        fromX: fromComp && fromPin ? fromComp.position.schematic.x + fromPin.position.x + (fromDrag?.dx ?? 0) : 0,
+        fromY: fromComp && fromPin ? fromComp.position.schematic.y + fromPin.position.y + (fromDrag?.dy ?? 0) : 0,
+        toX: toComp && toPin ? toComp.position.schematic.x + toPin.position.x + (toDrag?.dx ?? 0) : 0,
+        toY: toComp && toPin ? toComp.position.schematic.y + toPin.position.y + (toDrag?.dy ?? 0) : 0,
       };
     });
-  }, [connections, circuit]);
+  }, [connections, circuit, dragState]);
 
   const handleComponentClick = useCallback((componentId: ComponentId) => {
     setSelection([componentId], []);
@@ -354,7 +370,7 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
           />
 
           {/* Render placed components with drag-to-move support */}
-          <DndContext onDragEnd={handleComponentMove}>
+          <DndContext onDragMove={handleComponentDragMove} onDragEnd={handleComponentMove} onDragCancel={handleComponentDragCancel}>
             {components.map((component) => (
               <DraggableComponent
                 key={component.id}
