@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
 import { useCircuit } from '@/context/CircuitContext';
@@ -14,6 +14,7 @@ interface BoardComponentProps {
   onClick: () => void;
   onEditParameter?: (componentId: ComponentId) => void;
   onPotChange?: (componentId: ComponentId, position: number) => void;
+  refDes?: string;
 }
 
 export const BoardComponent = React.memo(function BoardComponent({
@@ -25,8 +26,10 @@ export const BoardComponent = React.memo(function BoardComponent({
   onClick,
   onEditParameter,
   onPotChange,
+  refDes,
 }: BoardComponentProps) {
   const { updateComponent } = useCircuit();
+  const [hovered, setHovered] = useState(false);
 
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: component.id,
@@ -122,7 +125,11 @@ export const BoardComponent = React.memo(function BoardComponent({
       {...listeners}
       {...attributes}
     >
-      <g transform={`translate(${component.position.x}, ${component.position.y})`}>
+      <g
+        transform={`translate(${component.position.x}, ${component.position.y})`}
+        onPointerEnter={() => setHovered(true)}
+        onPointerLeave={() => setHovered(false)}
+      >
         <rect
           x={-width / 2 - 5}
           y={-height / 2 - 5}
@@ -150,7 +157,9 @@ export const BoardComponent = React.memo(function BoardComponent({
             <ellipse cx="0" cy="0" rx="25" ry="25" fill="url(#ledGlow)" />
           </>
         )}
-        {definition.board.symbol.render(component.parameters)}
+        <g filter={hovered && !isDragging ? 'url(#hoverGlow)' : 'url(#componentShadow)'}>
+          {definition.board.symbol.render(component.parameters)}
+        </g>
         {component.pins.map((pin) => (
           <BoardPin
             key={pin.id}
@@ -160,6 +169,20 @@ export const BoardComponent = React.memo(function BoardComponent({
             onPinUp={onPinUp}
           />
         ))}
+        {refDes && (
+          <text
+            x={0}
+            y={-height / 2 - 8}
+            textAnchor="middle"
+            fontSize="8"
+            fill="#d4ecd4"
+            opacity="0.6"
+            fontFamily="Courier New"
+            style={{ pointerEvents: 'none' }}
+          >
+            {refDes}
+          </text>
+        )}
         {component.type === 'potentiometer' && (() => {
           const pos = (component.parameters.position as number) ?? 0.5;
           const sliderY = height / 2 + 14;
@@ -170,7 +193,7 @@ export const BoardComponent = React.memo(function BoardComponent({
               <rect x={-sliderW / 2} y={sliderY - 3} width={sliderW} height={6} rx={3} fill="#444" />
               <rect x={-sliderW / 2} y={sliderY - 3} width={pos * sliderW} height={6} rx={3} fill="#FF2D55" />
               <circle cx={thumbX} cy={sliderY} r={7} fill="white" stroke="#FF2D55" strokeWidth={2} style={{ cursor: 'ew-resize' }} onPointerDown={handleSliderDrag} />
-              <text x={0} y={sliderY + 16} textAnchor="middle" fontSize="8" fill="#a8d8a8" pointerEvents="none">
+              <text x={0} y={sliderY + 16} textAnchor="middle" fontSize="8" fill="#d4ecd4" pointerEvents="none">
                 {Math.round(pos * 100)}%
               </text>
             </g>
