@@ -141,7 +141,6 @@ export class SimulationEngine {
     for (let i = 0; i < BATCH_SIZE; i++) {
       this.evaluate();
       if (this.sampleCallback && this.active) {
-        // Provide a sample value — use first output component's first pin voltage
         const sample = this.getOutputSample();
         this.sampleCallback(sample);
       }
@@ -253,6 +252,8 @@ export class SimulationEngine {
     for (const comp of components) {
       // Skip supply/ground — already resolved
       if (comp.type === 'power' || comp.type === 'ground') continue;
+      // Skip output components — they read but don't transform the signal
+      if (OUTPUT_COMPONENT_TYPES.has(comp.type)) continue;
 
       const def = registry.get(comp.type);
       if (!def) continue;
