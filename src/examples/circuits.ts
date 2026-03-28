@@ -152,29 +152,28 @@ export const exampleCircuits: ExampleCircuit[] = [
   },
   {
     name: 'Pitch Control',
-    description: 'Pot sweeps ~130Hz–1.3kHz',
+    description: '4.7kΩ + 100kΩ pot → 80Hz–1.8kHz',
     build: () => {
       const power = createComponentFromDefinition(getDefinition('power'), { x: 200, y: 80 });
       const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 500 });
-      // 100kΩ pot as variable resistor in the RC feedback loop
-      // min position (0.01) → R = 1kΩ → ~8.3kHz (clamped by solver)
-      // max position (1.0) → R = 100kΩ → ~83Hz
-      // Effective audible range with 10nF cap: ~130Hz–1.3kHz
-      const pot = createComponentFromDefinition(getDefinition('potentiometer'), { x: 350, y: 280 });
+      // Fixed 4.7kΩ resistor sets the ceiling frequency (~1.8kHz)
+      const rFixed = createComponentFromDefinition(getDefinition('resistor'), { x: 300, y: 280 });
+      rFixed.parameters = { ...rFixed.parameters, resistance: 4700, value: '4.7k' };
+      // 100kΩ pot in series adds 0–100kΩ (floor frequency ~80Hz)
+      const pot = createComponentFromDefinition(getDefinition('potentiometer'), { x: 420, y: 280 });
       pot.parameters = { ...pot.parameters, maxResistance: 100000, value: '100k', position: 0.5 };
-      const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 400 });
-      capacitor.parameters = { ...capacitor.parameters, capacitance: 10e-9, value: '10nF' };
-      const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 500, y: 280 });
-      const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 650, y: 280 });
+      const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 420 });
+      const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 560, y: 300 });
+      const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 700, y: 300 });
 
-      const components = [power, ground, pot, capacitor, ic, output];
+      const components = [power, ground, rFixed, pot, capacitor, ic, output];
       const connections = [
         connect(power, 0, ic, 12),
         connect(ground, 0, ic, 13),
         connect(power, 1, ground, 0),
-        // Pot pin 0 to IC input 1A
-        connect(pot, 0, ic, 0),
-        // Pot pin 2 to IC output 1Y (feedback through pot)
+        // Series chain: IC input → fixed R → pot → IC output
+        connect(rFixed, 0, ic, 0),
+        connect(rFixed, 1, pot, 0),
         connect(pot, 2, ic, 6),
         // Capacitor from IC input to ground
         connect(capacitor, 0, ic, 0),
