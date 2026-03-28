@@ -290,6 +290,40 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
           onZoomOut={() => setZoom(Math.max(zoom - 0.1, 0.5))}
         />
 
+        {components.length === 0 && (
+          <div style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            textAlign: 'center',
+            fontFamily: "'Courier New', Courier, monospace",
+            zIndex: 5,
+            pointerEvents: 'none',
+          }}>
+            <div style={{
+              width: 48,
+              height: 48,
+              background: '#EBEBEB',
+              borderRadius: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 12px',
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24">
+                <path d="M12,4 L12,20 M4,12 L20,12" stroke="#999" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <div style={{ fontSize: 13, color: '#999', fontWeight: 'bold' }}>
+              Drag a component to start
+            </div>
+            <div style={{ fontSize: 10, color: '#CCC', marginTop: 4 }}>
+              from the sidebar on the left
+            </div>
+          </div>
+        )}
+
         <svg
           ref={svgRef}
           className={styles.canvas}
@@ -313,6 +347,9 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
                 strokeWidth="0.5"
               />
             </pattern>
+            <pattern id="dotGrid" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+              <circle cx="10" cy="10" r="0.8" fill="#CCC" />
+            </pattern>
             <filter id="glow">
               <feGaussianBlur stdDeviation="3" result="coloredBlur" />
               <feMerge>
@@ -321,6 +358,8 @@ function SchematicView({ activeView, onToggleView }: SchematicViewProps = {}) {
               </feMerge>
             </filter>
           </defs>
+
+          <rect width="100%" height="100%" fill="url(#dotGrid)" opacity="0.3" />
 
           <rect
             data-testid="schematic-grid"
