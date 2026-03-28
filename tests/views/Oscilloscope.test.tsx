@@ -49,14 +49,15 @@ describe('ProbeManager', () => {
   it('caps buffer at 10000 samples', () => {
     const manager = new ProbeManager();
     manager.addProbe(cid('c1'), pid('p1'));
-    for (let i = 0; i < 10050; i++) {
+    // Push 15001 samples to trigger trim (threshold is MAX_SAMPLES * 1.5 = 15000)
+    for (let i = 0; i < 15001; i++) {
       manager.pushSample(0, i);
     }
     const samples = manager.getSamples(0);
     expect(samples).toHaveLength(10000);
-    // Should have dropped the first 50
-    expect(samples[0]).toBe(50);
-    expect(samples[9999]).toBe(10049);
+    // Should have kept the last 10000 samples
+    expect(samples[0]).toBe(5001);
+    expect(samples[9999]).toBe(15000);
   });
 
   it('assigns correct colors to channels', () => {

@@ -34,15 +34,16 @@ export class ProbeManager {
   }
 
   getProbes(): Probe[] {
-    return this.probes;
+    return [...this.probes];
   }
 
   pushSample(probeIndex: number, voltage: number): void {
     const probe = this.probes[probeIndex];
     if (!probe) return;
     probe.samples.push(voltage);
-    if (probe.samples.length > MAX_SAMPLES) {
-      probe.samples.splice(0, probe.samples.length - MAX_SAMPLES);
+    // Only trim when significantly over limit to amortize cost
+    if (probe.samples.length > MAX_SAMPLES * 1.5) {
+      probe.samples = probe.samples.slice(-MAX_SAMPLES);
     }
   }
 
