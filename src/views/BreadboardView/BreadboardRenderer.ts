@@ -1,4 +1,4 @@
-import type { Component, ComponentDefinition } from '@/types/circuit';
+import type { Component } from '@/types/circuit';
 import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
 
 export const HOLE_SPACING = 10;
@@ -100,7 +100,7 @@ export class BreadboardRenderer {
   renderComponent(component: Component): void {
     const ctx = this.ctx;
     const registry = ComponentRegistry.getInstance();
-    const definition: ComponentDefinition | undefined = registry.get(component.type);
+    const definition = registry.get(component.type);
 
     if (!definition) return;
 
