@@ -10,10 +10,7 @@ function TestComponent() {
     const component: Component = {
       id: 'test-comp' as ComponentId,
       type: 'resistor',
-      position: {
-        schematic: { x: 0, y: 0 },
-        breadboard: { row: 0, column: 0 },
-      },
+      position: { x: 0, y: 0 },
       rotation: 0,
       parameters: {},
       pins: [],

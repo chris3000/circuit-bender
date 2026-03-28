@@ -18,10 +18,7 @@ describe('Circuit Types', () => {
     const component: Component = {
       id: 'comp1' as ComponentId,
       type: 'resistor',
-      position: {
-        schematic: { x: 100, y: 200 },
-        breadboard: { row: 5, column: 10 },
-      },
+      position: { x: 100, y: 200 },
       rotation: 0,
       parameters: { resistance: 1000, value: '1k' },
       pins: [
