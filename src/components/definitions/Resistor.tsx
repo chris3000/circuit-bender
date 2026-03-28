@@ -70,7 +70,7 @@ export const resistorDefinition: ComponentDefinition = {
             <rect x="-5" y="-8" width="3" height="16" rx="0.5" fill="#1a1a1a" opacity="0.85" />
             <rect x="2" y="-8" width="3" height="16" rx="0.5" fill="#FF8C00" opacity="0.85" />
             <rect x="11" y="-8" width="3" height="16" rx="0.5" fill="#CFB53B" opacity="0.85" />
-            <text x="0" y="20" textAnchor="middle" fontSize="8" fill="#a8d8a8" opacity="0.7" fontFamily="Courier New">
+            <text x="0" y="20" textAnchor="middle" fontSize="8" fill="#d4ecd4" opacity="0.85" fontFamily="Courier New">
               {params.value}
             </text>
           </g>

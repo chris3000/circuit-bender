@@ -59,7 +59,7 @@ export const diode1N914Definition: ComponentDefinition = {
             <rect x="12" y="-1.5" width="8" height="3" rx="1" fill="#ccc" />
             <rect x="-12" y="-5" width="24" height="10" rx="4" fill="#e8a060" stroke="#c07030" strokeWidth="0.6" opacity="0.8" />
             <rect x="8" y="-5" width="3" height="10" rx="0.5" fill="#1a1a1a" opacity="0.8" />
-            <text x="0" y="16" textAnchor="middle" fontSize="7" fill="#a8d8a8" opacity="0.7" fontFamily="Courier New">
+            <text x="0" y="16" textAnchor="middle" fontSize="7" fill="#d4ecd4" opacity="0.85" fontFamily="Courier New">
               1N914
             </text>
           </g>

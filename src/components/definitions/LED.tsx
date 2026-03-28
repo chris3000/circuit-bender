@@ -69,7 +69,7 @@ export const ledDefinition: ComponentDefinition = {
             <ellipse cx="0" cy="0" rx="7" ry="9" fill={cssColor} opacity="0.5" />
             <ellipse cx="-2" cy="-3" rx="3" ry="4" fill={cssColor} opacity="0.3" />
             <line x1="8" y1="-10" x2="8" y2="10" stroke={cssColor} strokeWidth="1" opacity="0.5" />
-            <text x="0" y="22" textAnchor="middle" fontSize="8" fill="#a8d8a8" opacity="0.7" fontFamily="Courier New">
+            <text x="0" y="22" textAnchor="middle" fontSize="8" fill="#d4ecd4" opacity="0.85" fontFamily="Courier New">
               LED
             </text>
           </g>

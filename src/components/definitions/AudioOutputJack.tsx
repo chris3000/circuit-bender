@@ -50,7 +50,7 @@ export const audioOutputJackDefinition: ComponentDefinition = {
             <rect x="-12" y="-8" width="24" height="16" rx="3" fill="#444" stroke="#666" strokeWidth="0.8" />
             <circle cx="8" cy="0" r="4" fill="#222" stroke="#666" strokeWidth="0.5" />
             <circle cx="8" cy="0" r="2" fill="#888" />
-            <text x="0" y="18" textAnchor="middle" fontSize="7" fill="#a8d8a8" opacity="0.7" fontFamily="Courier New">OUT</text>
+            <text x="0" y="18" textAnchor="middle" fontSize="7" fill="#d4ecd4" opacity="0.85" fontFamily="Courier New">OUT</text>
           </g>
         );
       },

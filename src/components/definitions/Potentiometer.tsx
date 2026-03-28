@@ -91,7 +91,7 @@ export const potentiometerDefinition: ComponentDefinition = {
             <rect x="-25" y="-1.5" width="10" height="3" rx="1" fill="#ccc" />
             <rect x="15" y="-1.5" width="10" height="3" rx="1" fill="#ccc" />
             <rect x="-1.5" y="-20" width="3" height="6" rx="1" fill="#ccc" />
-            <text x="0" y="26" textAnchor="middle" fontSize="8" fill="#a8d8a8" opacity="0.7" fontFamily="Courier New">
+            <text x="0" y="26" textAnchor="middle" fontSize="8" fill="#d4ecd4" opacity="0.85" fontFamily="Courier New">
               {params.value}
             </text>
           </g>

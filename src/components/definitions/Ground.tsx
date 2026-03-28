@@ -75,7 +75,7 @@ export const groundDefinition: ComponentDefinition = {
             <line x1="-6" y1="0" x2="6" y2="0" stroke="#888" strokeWidth="1.5" />
             <line x1="-4" y1="3" x2="4" y2="3" stroke="#888" strokeWidth="1.2" />
             <line x1="-2" y1="6" x2="2" y2="6" stroke="#888" strokeWidth="0.8" />
-            <text x="0" y="18" textAnchor="middle" fontSize="7" fill="#a8d8a8" opacity="0.7" fontFamily="Courier New">GND</text>
+            <text x="0" y="18" textAnchor="middle" fontSize="7" fill="#d4ecd4" opacity="0.85" fontFamily="Courier New">GND</text>
           </g>
         );
       },

@@ -70,7 +70,7 @@ export const capacitorDefinition: ComponentDefinition = {
             <text x="0" y="2" textAnchor="middle" fontSize="6" fill="#6a4000" fontFamily="Courier New" fontWeight="bold">
               104
             </text>
-            <text x="0" y="20" textAnchor="middle" fontSize="8" fill="#a8d8a8" opacity="0.7" fontFamily="Courier New">
+            <text x="0" y="20" textAnchor="middle" fontSize="8" fill="#d4ecd4" opacity="0.85" fontFamily="Courier New">
               {params.value}
             </text>
           </g>
