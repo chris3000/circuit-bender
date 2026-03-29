@@ -44,12 +44,21 @@ export class OpAmpModel implements ComponentModel {
   getBranchCount(): number { return 0; }
 
   init(pinNodes: number[], internalNodeStart: number, _branchStart: number, _params: Record<string, number>): void {
-    // Pin order: IN-(0), IN+(1), V-(2), OUT(3), V+(4)
-    this.nInvM = pinNodes[0];
-    this.nInvP = pinNodes[1];
-    this.nVneg = pinNodes[2];
-    this.nOut = pinNodes[3];
-    this.nVpos = pinNodes[4];
+    if (pinNodes.length >= 8) {
+      // DIP8 package: NC(0), IN-(1), IN+(2), V-(3), NC(4), OUT(5), V+(6), NC(7)
+      this.nInvM = pinNodes[1];
+      this.nInvP = pinNodes[2];
+      this.nVneg = pinNodes[3];
+      this.nOut = pinNodes[5];
+      this.nVpos = pinNodes[6];
+    } else {
+      // Simplified 5-pin (used in tests): IN-(0), IN+(1), V-(2), OUT(3), V+(4)
+      this.nInvM = pinNodes[0];
+      this.nInvP = pinNodes[1];
+      this.nVneg = pinNodes[2];
+      this.nOut = pinNodes[3];
+      this.nVpos = pinNodes[4];
+    }
     this.nGain = internalNodeStart;
   }
 

@@ -283,7 +283,7 @@ export const exampleCircuits: ExampleCircuit[] = [
         c9,
       ];
 
-      // LM741 pin mapping: 0=IN-, 1=IN+, 2=V-, 3=OUT, 4=V+
+      // LM741 DIP8 pins: 0=NC, 1=IN-, 2=IN+, 3=V-, 4=NC, 5=OUT, 6=V+, 7=NC
       // CD40106 pin mapping: 0-5=inputs(1A-6A), 6-11=outputs(1Y-6Y), 12=VDD, 13=VSS
       // 2N3904 pin mapping: 0=Base, 1=Collector, 2=Emitter
       // 1N914 pin mapping: 0=Anode, 1=Cathode
@@ -293,8 +293,8 @@ export const exampleCircuits: ExampleCircuit[] = [
         connect(power, 0, ic, 12),       // +9V to CD40106 VDD
         connect(power, 1, ground, 0),     // Power GND
         connect(ground, 0, ic, 13),       // CD40106 VSS to GND
-        connect(power, 0, opamp, 4),      // +9V to LM741 V+
-        connect(ground, 0, opamp, 2),     // GND to LM741 V-
+        connect(power, 0, opamp, 6),      // +9V to LM741 V+ (pin 6)
+        connect(ground, 0, opamp, 3),     // GND to LM741 V- (pin 3)
 
         // === Wacky Oscillator (U1-B: input=pin1, output=pin7) ===
         connect(potWacky, 0, ic, 1),      // Pot terminal to input
@@ -340,15 +340,15 @@ export const exampleCircuits: ExampleCircuit[] = [
         connect(r5, 1, c1, 0),            // COF1 → C1
         connect(c1, 1, r4, 0),            // C1 → COF2 → R4 (op-amp input)
 
-        // === LM741 Output Stage ===
-        connect(r4, 1, opamp, 0),         // R4 → IN- (inverting input)
-        connect(opamp, 3, r11, 0),        // OUT → R11 (feedback)
-        connect(r11, 1, opamp, 0),        // R11 → IN- (feedback to inverting)
+        // === LM741 Output Stage (DIP8: 1=IN-, 2=IN+, 5=OUT, 6=V+, 3=V-) ===
+        connect(r4, 1, opamp, 1),         // R4 → IN- (pin 1)
+        connect(opamp, 5, r11, 0),        // OUT (pin 5) → R11 (feedback)
+        connect(r11, 1, opamp, 1),        // R11 → IN- (pin 1)
         connect(power, 0, r16, 0),        // +9V → R16
-        connect(r16, 1, opamp, 1),        // R16 → IN+ (bias)
-        connect(opamp, 1, r17, 0),        // IN+ → R17
+        connect(r16, 1, opamp, 2),        // R16 → IN+ (pin 2, bias)
+        connect(opamp, 2, r17, 0),        // IN+ (pin 2) → R17
         connect(r17, 1, ground, 0),       // R17 → GND (bias divider = 4.5V)
-        connect(opamp, 3, r12, 0),        // OUT → R12 (output resistor)
+        connect(opamp, 5, r12, 0),        // OUT (pin 5) → R12 (output resistor)
         connect(r12, 1, c6, 0),           // R12 → C6 (coupling cap)
         connect(c6, 1, output, 0),        // C6 → audio output
 
