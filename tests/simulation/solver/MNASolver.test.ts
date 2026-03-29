@@ -5,6 +5,7 @@ import { ModelRegistry } from '@/simulation/models/ModelRegistry';
 import { ResistorModel } from '@/simulation/models/ResistorModel';
 import { CapacitorModel } from '@/simulation/models/CapacitorModel';
 import { DiodeModel, DIODE_1N914_PARAMS } from '@/simulation/models/DiodeModel';
+import { BJTModel, BJT_2N3904_PARAMS } from '@/simulation/models/BJTModel';
 
 function makeComp(id: string, type: string, pins: { id: string; type: string }[], params: Record<string, number | string | boolean> = {}) {
   return { id, type, pins: pins.map(p => ({ id: p.id, label: p.id, type: p.type })), parameters: params };
@@ -117,6 +118,41 @@ describe('MNASolver', () => {
       const vAnode = solver.getNodeVoltageByPin('d', 'a');
       expect(vAnode).toBeGreaterThan(0.5);
       expect(vAnode).toBeLessThan(0.85);
+    });
+  });
+
+  describe('BJT common emitter', () => {
+    it('saturates with heavy base drive', () => {
+      const reg = new ModelRegistry();
+      reg.register('resistor', () => new ResistorModel());
+      reg.register('2n3904', () => new BJTModel(BJT_2N3904_PARAMS));
+      const solver = new MNASolver(reg);
+
+      const components = [
+        makeComp('pwr', 'power', [{ id: 'pos', type: 'power' }, { id: 'neg', type: 'ground' }], { voltage: 9 }),
+        makeComp('gnd', 'ground', [{ id: 'gnd', type: 'ground' }]),
+        makeComp('rc', 'resistor', [{ id: 'p0', type: 'bidirectional' }, { id: 'p1', type: 'bidirectional' }], { resistance: 1000 }),
+        makeComp('rb', 'resistor', [{ id: 'p0', type: 'bidirectional' }, { id: 'p1', type: 'bidirectional' }], { resistance: 100000 }),
+        makeComp('q', '2n3904', [{ id: 'b', type: 'bidirectional' }, { id: 'c', type: 'bidirectional' }, { id: 'e', type: 'bidirectional' }]),
+      ];
+      const connections = [
+        makeConn('pwr', 'neg', 'gnd', 'gnd'),
+        makeConn('pwr', 'pos', 'rc', 'p0'),
+        makeConn('rc', 'p1', 'q', 'c'),
+        makeConn('pwr', 'pos', 'rb', 'p0'),
+        makeConn('rb', 'p1', 'q', 'b'),
+        makeConn('q', 'e', 'gnd', 'gnd'),
+      ];
+
+      solver.loadCircuit(components, connections);
+      for (let i = 0; i < 20; i++) solver.step(1 / 48000);
+
+      const vC = solver.getNodeVoltageByPin('q', 'c');
+      const vB = solver.getNodeVoltageByPin('q', 'b');
+      expect(vB).toBeGreaterThan(0.5);
+      expect(vB).toBeLessThan(0.8);
+      expect(vC).toBeLessThan(1.0); // Saturated
+      expect(vC).toBeGreaterThan(-0.5);
     });
   });
 });
