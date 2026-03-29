@@ -13,6 +13,7 @@ import { DiodeModel, DIODE_1N914_PARAMS, DIODE_LED_RED_PARAMS } from '../models/
 import { BJTModel, BJT_2N3904_PARAMS } from '../models/BJTModel';
 import { OpAmpModel, OPAMP_LM741_PARAMS } from '../models/OpAmpModel';
 import { SchmittTriggerModel } from '../models/SchmittTriggerModel';
+import { SwitchModel } from '../models/SwitchModel';
 
 function createRegistry(): ModelRegistry {
   const reg = new ModelRegistry();
@@ -27,6 +28,7 @@ function createRegistry(): ModelRegistry {
   reg.register('2n3904', () => new BJTModel(BJT_2N3904_PARAMS));
   reg.register('lm741', () => new OpAmpModel(OPAMP_LM741_PARAMS));
   reg.register('cd40106', () => new SchmittTriggerModel());
+  reg.register('switch', () => new SwitchModel());
   return reg;
 }
 

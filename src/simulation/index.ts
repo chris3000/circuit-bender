@@ -12,3 +12,4 @@ export { DiodeModel, DIODE_1N914_PARAMS, DIODE_LED_RED_PARAMS } from './models/D
 export { BJTModel, BJT_2N3904_PARAMS } from './models/BJTModel';
 export { OpAmpModel, OPAMP_LM741_PARAMS } from './models/OpAmpModel';
 export { SchmittTriggerModel } from './models/SchmittTriggerModel';
+export { SwitchModel } from './models/SwitchModel';
