@@ -31,7 +31,7 @@ describe('SchmittTriggerModel', () => {
     m.init(pins, 0, 0, {});
     const dt = 1 / 48000;
 
-    // Drive input above VT+ = 0.58*9 = 5.22V
+    // Drive input above VT+ = 0.59*9 = 5.31V
     const x1 = Float64Array.from([5.5, 0, 9]);
     m.postStep(x1, dt);
 

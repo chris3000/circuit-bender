@@ -289,9 +289,9 @@ describe('MNASolver', () => {
 
       // Analytic frequency for RC Schmitt oscillator:
       // T = R*C*(ln((Vdd-VT-)/(Vdd-VT+)) + ln(VT+/VT-))
-      // with VT+ = 0.58*Vdd, VT- = 0.45*Vdd
-      const vtPR = 0.58;
-      const vtNR = 0.45;
+      // with VT+ = 0.59*Vdd, VT- = 0.40*Vdd (CD40106 at 9V)
+      const vtPR = 0.59;
+      const vtNR = 0.40;
       const period = R * C * (Math.log((1 - vtNR) / (1 - vtPR)) + Math.log(vtPR / vtNR));
       const expectedFreq = 1 / period;
       const measuredFreq = transitions / 2 / simTime;

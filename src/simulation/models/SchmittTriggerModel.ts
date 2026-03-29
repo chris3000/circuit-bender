@@ -2,8 +2,9 @@ import type { ComponentModel } from './ComponentModel';
 import { stampConductance } from './stampUtils';
 
 const NUM_GATES = 6;
-const VT_POS_RATIO = 0.58;
-const VT_NEG_RATIO = 0.45;
+// CD40106 datasheet typical thresholds at Vdd=9V (interpolated from 5V/10V data)
+const VT_POS_RATIO = 0.59;  // VT+ ≈ 5.3V at 9V supply
+const VT_NEG_RATIO = 0.40;  // VT- ≈ 3.6V at 9V supply
 const ROUT = 280;
 const ROFF = 1e9;
 

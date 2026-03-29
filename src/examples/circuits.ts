@@ -30,12 +30,12 @@ function connect(
 export const exampleCircuits: ExampleCircuit[] = [
   {
     name: 'Simple Oscillator',
-    description: 'CD40106 + R + C → A4 (440Hz)',
+    description: 'CD40106 + 33kΩ + 100nF → ~400Hz tone',
     build: () => {
       const power = createComponentFromDefinition(getDefinition('power'), { x: 200, y: 80 });
       const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 500 });
       const resistor = createComponentFromDefinition(getDefinition('resistor'), { x: 350, y: 200 });
-      resistor.parameters = { ...resistor.parameters, resistance: 16000, value: '16k' };
+      resistor.parameters = { ...resistor.parameters, resistance: 33000, value: '33k' };
       const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 350 });
       const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 500, y: 280 });
       const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 650, y: 280 });
@@ -65,12 +65,12 @@ export const exampleCircuits: ExampleCircuit[] = [
   },
   {
     name: 'Low Drone',
-    description: 'CD40106 + 47kΩ + 100nF → ~177Hz bass tone',
+    description: 'CD40106 + 100kΩ + 100nF → ~130Hz bass tone',
     build: () => {
       const power = createComponentFromDefinition(getDefinition('power'), { x: 200, y: 80 });
       const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 500 });
       const resistor = createComponentFromDefinition(getDefinition('resistor'), { x: 350, y: 200 });
-      resistor.parameters = { ...resistor.parameters, resistance: 47000, value: '47k' };
+      resistor.parameters = { ...resistor.parameters, resistance: 100000, value: '100k' };
       const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 350 });
       const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 500, y: 280 });
       const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 650, y: 280 });
@@ -92,12 +92,12 @@ export const exampleCircuits: ExampleCircuit[] = [
   },
   {
     name: 'High Chirp',
-    description: 'CD40106 + 4.7kΩ + 100nF → ~1.77kHz treble',
+    description: 'CD40106 + 10kΩ + 100nF → ~1.3kHz treble',
     build: () => {
       const power = createComponentFromDefinition(getDefinition('power'), { x: 200, y: 80 });
       const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 500 });
       const resistor = createComponentFromDefinition(getDefinition('resistor'), { x: 350, y: 200 });
-      resistor.parameters = { ...resistor.parameters, resistance: 4700, value: '4.7k' };
+      resistor.parameters = { ...resistor.parameters, resistance: 10000, value: '10k' };
       const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 350 });
       const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 500, y: 280 });
       const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 650, y: 280 });
@@ -152,14 +152,14 @@ export const exampleCircuits: ExampleCircuit[] = [
   },
   {
     name: 'Pitch Control',
-    description: '4.7kΩ + 100kΩ pot → 80Hz–1.8kHz',
+    description: '10kΩ + 100kΩ pot → 120Hz–1.3kHz',
     build: () => {
       const power = createComponentFromDefinition(getDefinition('power'), { x: 200, y: 80 });
       const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 500 });
-      // Fixed 4.7kΩ resistor sets the ceiling frequency (~1.8kHz)
+      // Fixed 10kΩ resistor sets the ceiling frequency (~1.3kHz)
       const rFixed = createComponentFromDefinition(getDefinition('resistor'), { x: 300, y: 280 });
-      rFixed.parameters = { ...rFixed.parameters, resistance: 4700, value: '4.7k' };
-      // 100kΩ pot in series adds 0–100kΩ (floor frequency ~80Hz)
+      rFixed.parameters = { ...rFixed.parameters, resistance: 10000, value: '10k' };
+      // 100kΩ pot in series adds 0–100kΩ (floor frequency ~120Hz)
       const pot = createComponentFromDefinition(getDefinition('potentiometer'), { x: 420, y: 280 });
       pot.parameters = { ...pot.parameters, maxResistance: 100000, value: '100k', position: 0.5 };
       const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 420 });
