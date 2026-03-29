@@ -187,129 +187,115 @@ export const exampleCircuits: ExampleCircuit[] = [
   },
   {
     name: 'MFOS Weird Sound Generator',
-    description: 'Three cross-modulated CD40106 oscillators → LM741 mixer',
+    description: 'Three cross-modulated CD40106 oscillators (WSG-inspired)',
     build: () => {
-      // MFOS WSG Voice A "Original Recipe" by Ray Wilson.
-      // Three CD40106 oscillators cross-modulated via 2N3904/1N914,
-      // mixed through LM741 inverting amplifier.
+      // Inspired by MFOS WSG Voice A by Ray Wilson.
+      // Three CD40106 oscillators with resistive cross-coupling that
+      // creates chaotic interaction between them. Twist the pots!
 
       const power = createComponentFromDefinition(getDefinition('power'), { x: 100, y: 80 });
-      const ground = createComponentFromDefinition(getDefinition('ground'), { x: 100, y: 700 });
-      const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 500, y: 400 });
-      const opamp = createComponentFromDefinition(getDefinition('lm741'), { x: 820, y: 400 });
-      const q1 = createComponentFromDefinition(getDefinition('2n3904'), { x: 420, y: 240 });
-      const d1 = createComponentFromDefinition(getDefinition('1n914'), { x: 340, y: 160 });
-      const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 1020, y: 400 });
+      const ground = createComponentFromDefinition(getDefinition('ground'), { x: 100, y: 620 });
+      const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 520, y: 340 });
+      const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 820, y: 340 });
 
-      // Wacky oscillator (U1-B, pins 1=2A / 7=2Y)
-      const potWacky = createComponentFromDefinition(getDefinition('potentiometer'), { x: 200, y: 200 });
-      potWacky.parameters = { ...potWacky.parameters, maxResistance: 1000000, value: '1M', position: 0.5 };
-      const r6 = createComponentFromDefinition(getDefinition('resistor'), { x: 340, y: 320 });
-      r6.parameters = { ...r6.parameters, resistance: 4700, value: '4.7k' };
-      const c4 = createComponentFromDefinition(getDefinition('capacitor'), { x: 340, y: 500 });
-      c4.parameters = { ...c4.parameters, capacitance: 22e-9, value: '22nF' };
+      // Wacky oscillator (U1-B: 2A/2Y) — mid frequency
+      const potWacky = createComponentFromDefinition(getDefinition('potentiometer'), { x: 180, y: 180 });
+      potWacky.parameters = { ...potWacky.parameters, maxResistance: 1000000, value: '1M', position: 0.3 };
+      const rWacky = createComponentFromDefinition(getDefinition('resistor'), { x: 340, y: 180 });
+      rWacky.parameters = { ...rWacky.parameters, resistance: 4700, value: '4.7k' };
+      const cWacky = createComponentFromDefinition(getDefinition('capacitor'), { x: 280, y: 280 });
+      cWacky.parameters = { ...cWacky.parameters, capacitance: 22e-9, value: '22nF' };
 
-      // Weird oscillator (U1-A, pins 0=1A / 6=1Y)
-      const potWeird = createComponentFromDefinition(getDefinition('potentiometer'), { x: 200, y: 420 });
+      // Weird oscillator (U1-A: 1A/1Y) — high frequency
+      const potWeird = createComponentFromDefinition(getDefinition('potentiometer'), { x: 180, y: 380 });
       potWeird.parameters = { ...potWeird.parameters, maxResistance: 1000000, value: '1M', position: 0.5 };
-      const r7 = createComponentFromDefinition(getDefinition('resistor'), { x: 340, y: 420 });
-      r7.parameters = { ...r7.parameters, resistance: 4700, value: '4.7k' };
-      const c5 = createComponentFromDefinition(getDefinition('capacitor'), { x: 200, y: 560 });
-      c5.parameters = { ...c5.parameters, capacitance: 22e-9, value: '22nF' };
+      const rWeird = createComponentFromDefinition(getDefinition('resistor'), { x: 340, y: 380 });
+      rWeird.parameters = { ...rWeird.parameters, resistance: 4700, value: '4.7k' };
+      const cWeird = createComponentFromDefinition(getDefinition('capacitor'), { x: 280, y: 480 });
+      cWeird.parameters = { ...cWeird.parameters, capacitance: 10e-9, value: '10nF' };
 
-      // Zany oscillator (U1-C, pins 2=3A / 8=3Y)
-      const potZany = createComponentFromDefinition(getDefinition('potentiometer'), { x: 200, y: 620 });
+      // Zany oscillator (U1-C: 3A/3Y) — slow LFO
+      const potZany = createComponentFromDefinition(getDefinition('potentiometer'), { x: 180, y: 560 });
       potZany.parameters = { ...potZany.parameters, maxResistance: 1000000, value: '1M', position: 0.7 };
-      const r15 = createComponentFromDefinition(getDefinition('resistor'), { x: 340, y: 620 });
-      r15.parameters = { ...r15.parameters, resistance: 4700, value: '4.7k' };
-      const c7 = createComponentFromDefinition(getDefinition('capacitor'), { x: 200, y: 740 });
-      c7.parameters = { ...c7.parameters, capacitance: 1e-6, value: '1µF' };
+      const rZany = createComponentFromDefinition(getDefinition('resistor'), { x: 340, y: 560 });
+      rZany.parameters = { ...rZany.parameters, resistance: 4700, value: '4.7k' };
+      const cZany = createComponentFromDefinition(getDefinition('capacitor'), { x: 280, y: 660 });
+      cZany.parameters = { ...cZany.parameters, capacitance: 1e-6, value: '1µF' };
 
-      // Op-amp circuit
-      const r10 = createComponentFromDefinition(getDefinition('resistor'), { x: 680, y: 340 });
-      r10.parameters = { ...r10.parameters, resistance: 1000, value: '1k' };
-      const r11 = createComponentFromDefinition(getDefinition('resistor'), { x: 820, y: 280 });
-      r11.parameters = { ...r11.parameters, resistance: 750000, value: '750k' };
-      const r16 = createComponentFromDefinition(getDefinition('resistor'), { x: 720, y: 480 });
-      r16.parameters = { ...r16.parameters, resistance: 100000, value: '100k' };
-      const r17 = createComponentFromDefinition(getDefinition('resistor'), { x: 720, y: 560 });
-      r17.parameters = { ...r17.parameters, resistance: 100000, value: '100k' };
-      const c6 = createComponentFromDefinition(getDefinition('capacitor'), { x: 940, y: 400 });
-      c6.parameters = { ...c6.parameters, capacitance: 1e-6, value: '1µF' };
-      const c9 = createComponentFromDefinition(getDefinition('capacitor'), { x: 600, y: 620 });
-      c9.parameters = { ...c9.parameters, capacitance: 100e-9, value: '100nF' };
+      // Cross-coupling resistors (ring: each output modulates next input)
+      const rCross1 = createComponentFromDefinition(getDefinition('resistor'), { x: 660, y: 180 });
+      rCross1.parameters = { ...rCross1.parameters, resistance: 100000, value: '100k' };
+      const rCross2 = createComponentFromDefinition(getDefinition('resistor'), { x: 660, y: 380 });
+      rCross2.parameters = { ...rCross2.parameters, resistance: 100000, value: '100k' };
+      const rCross3 = createComponentFromDefinition(getDefinition('resistor'), { x: 660, y: 560 });
+      rCross3.parameters = { ...rCross3.parameters, resistance: 100000, value: '100k' };
 
-      // Load resistor on audio output (discharge path for coupling cap)
-      const rLoad = createComponentFromDefinition(getDefinition('resistor'), { x: 1020, y: 520 });
-      rLoad.parameters = { ...rLoad.parameters, resistance: 10000, value: '10k' };
+      // Mixing resistors to audio output
+      const rMix1 = createComponentFromDefinition(getDefinition('resistor'), { x: 720, y: 280 });
+      rMix1.parameters = { ...rMix1.parameters, resistance: 10000, value: '10k' };
+      const rMix2 = createComponentFromDefinition(getDefinition('resistor'), { x: 720, y: 440 });
+      rMix2.parameters = { ...rMix2.parameters, resistance: 10000, value: '10k' };
+
+      // Bypass cap
+      const cBypass = createComponentFromDefinition(getDefinition('capacitor'), { x: 400, y: 660 });
+      cBypass.parameters = { ...cBypass.parameters, capacitance: 100e-9, value: '100nF' };
 
       const components = [
-        power, ground, ic, opamp, q1, d1, output,
-        potWacky, r6, c4,
-        potWeird, r7, c5,
-        potZany, r15, c7,
-        r10, r11, r16, r17, c6, c9, rLoad,
+        power, ground, ic, output,
+        potWacky, rWacky, cWacky,
+        potWeird, rWeird, cWeird,
+        potZany, rZany, cZany,
+        rCross1, rCross2, rCross3,
+        rMix1, rMix2, cBypass,
       ];
 
       const connections = [
         // --- Power ---
-        connect(power, 0, ic, 12),       // +9V to CD40106 VDD
-        connect(power, 0, opamp, 6),     // +9V to LM741 V+
-        connect(power, 1, ground, 0),    // Battery GND
-        connect(ground, 0, ic, 13),      // GND to CD40106 VSS
-        connect(ground, 0, opamp, 3),    // GND to LM741 V-
+        connect(power, 0, ic, 12),
+        connect(power, 1, ground, 0),
+        connect(ground, 0, ic, 13),
 
         // --- Wacky Oscillator (U1-B: pin1=2A, pin7=2Y) ---
-        connect(potWacky, 0, ic, 1),     // Pot pin 1 to 2A input
-        connect(potWacky, 2, ic, 7),     // Pot pin 3 to 2Y output (feedback)
-        connect(r6, 0, ic, 1),           // R6 to 2A input
-        connect(r6, 1, d1, 0),           // R6 to diode D1 anode (cross-mod path)
-        connect(c4, 0, ic, 1),           // C4 to 2A input
-        connect(c4, 1, ground, 0),       // C4 to GND
+        connect(potWacky, 0, ic, 1),
+        connect(potWacky, 2, ic, 7),
+        connect(rWacky, 0, ic, 1),
+        connect(rWacky, 1, ic, 7),
+        connect(cWacky, 0, ic, 1),
+        connect(cWacky, 1, ground, 0),
 
         // --- Weird Oscillator (U1-A: pin0=1A, pin6=1Y) ---
-        connect(potWeird, 0, ic, 0),     // Pot pin 1 to 1A input
-        connect(potWeird, 2, ic, 6),     // Pot pin 3 to 1Y output (feedback)
-        connect(r7, 0, ic, 0),           // R7 to 1A input
-        connect(r7, 1, q1, 1),           // R7 to Q1 collector (cross-mod)
-        connect(c5, 0, ic, 0),           // C5 to 1A input
-        connect(c5, 1, ground, 0),       // C5 to GND
+        connect(potWeird, 0, ic, 0),
+        connect(potWeird, 2, ic, 6),
+        connect(rWeird, 0, ic, 0),
+        connect(rWeird, 1, ic, 6),
+        connect(cWeird, 0, ic, 0),
+        connect(cWeird, 1, ground, 0),
 
         // --- Zany Oscillator (U1-C: pin2=3A, pin8=3Y) ---
-        connect(potZany, 0, ic, 2),      // Pot pin 1 to 3A input
-        connect(potZany, 2, ic, 8),      // Pot pin 3 to 3Y output (feedback)
-        connect(r15, 0, ic, 2),          // R15 to 3A input
-        connect(r15, 1, q1, 0),          // R15 to Q1 base (cross-mod drive)
-        connect(c7, 0, ic, 2),           // C7 to 3A input
-        connect(c7, 1, ground, 0),       // C7 to GND
+        connect(potZany, 0, ic, 2),
+        connect(potZany, 2, ic, 8),
+        connect(rZany, 0, ic, 2),
+        connect(rZany, 1, ic, 8),
+        connect(cZany, 0, ic, 2),
+        connect(cZany, 1, ground, 0),
 
-        // --- Cross-modulation ---
-        connect(d1, 1, q1, 1),           // D1 cathode to Q1 collector
-        connect(q1, 2, ground, 0),       // Q1 emitter to GND
+        // --- Cross-coupling ring ---
+        connect(ic, 8, rCross1, 0),      // Zany → Wacky
+        connect(rCross1, 1, ic, 1),
+        connect(ic, 7, rCross2, 0),      // Wacky → Weird
+        connect(rCross2, 1, ic, 0),
+        connect(ic, 6, rCross3, 0),      // Weird → Zany
+        connect(rCross3, 1, ic, 2),
 
-        // --- Op-amp mixer (LM741) ---
-        connect(ic, 6, r10, 0),          // 1Y output to R10
-        connect(r10, 1, opamp, 1),       // R10 to LM741 IN-
-        connect(r11, 0, opamp, 1),       // R11 feedback from IN-
-        connect(r11, 1, opamp, 5),       // R11 to LM741 OUT
-
-        // Bias voltage divider for non-inverting input
-        connect(power, 0, r16, 0),       // +9V to R16
-        connect(r16, 1, opamp, 2),       // R16 to LM741 IN+
-        connect(r17, 0, opamp, 2),       // R17 from IN+
-        connect(r17, 1, ground, 0),      // R17 to GND
-
-        // --- Output ---
-        connect(opamp, 5, c6, 0),        // LM741 OUT to coupling cap
-        connect(c6, 1, output, 0),       // Coupling cap to audio output
+        // --- Mix to audio output ---
+        connect(ic, 7, rMix1, 0),        // Wacky → mix
+        connect(rMix1, 1, output, 0),
+        connect(ic, 6, rMix2, 0),        // Weird → mix
+        connect(rMix2, 1, output, 0),
 
         // --- Bypass cap ---
-        connect(power, 0, c9, 0),
-        connect(c9, 1, ground, 0),
-
-        // --- Load resistor (discharge path for coupling cap) ---
-        connect(output, 0, rLoad, 0),
-        connect(rLoad, 1, ground, 0),
+        connect(power, 0, cBypass, 0),
+        connect(cBypass, 1, ground, 0),
       ];
 
       return { components, connections };

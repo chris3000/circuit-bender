@@ -215,6 +215,22 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
       }
     }
 
+    // Op-amp outputs are voltage sources (updated post-solve like Schmitt triggers)
+    for (const comp of this.components) {
+      if (comp.type !== 'lm741') continue;
+      const outNet = this.getNetForPin(comp.id, comp.pins[5].id); // pin 5 = OUT
+      const outNode = outNet !== -1 ? (this.netToNode[outNet] ?? -1) : -1;
+      if (outNode === -1) continue;
+      this.vsSources.push({
+        posNode: outNode,
+        negNode: -1,
+        voltage: this.supplyVoltage / 2,
+        compId: comp.id,
+        type: 'opamp'
+      });
+      this.vsCount++;
+    }
+
     this.matrixSize = this.numNodes + this.vsCount;
   }
 
@@ -372,31 +388,15 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
         }
       }
 
-      // LM741 Op-Amp: VCCS model (solved within the matrix, no timestep delay)
-      // Output current = Gm * (V+ - V-), with output conductance Gout.
-      // Open-loop gain = Gm / Gout. Rail clamping applied post-solve.
+      // LM741 Op-Amp: input impedance only (output is a voltage source)
       if (comp.type === 'lm741') {
-        const netInv = this.getNetForPin(comp.id, comp.pins[1].id);    // IN-
-        const netNonInv = this.getNetForPin(comp.id, comp.pins[2].id); // IN+
-        const netOut = this.getNetForPin(comp.id, comp.pins[5].id);    // OUT
+        const netInv = this.getNetForPin(comp.id, comp.pins[1].id);
+        const netNonInv = this.getNetForPin(comp.id, comp.pins[2].id);
         const nInv = netInv !== -1 ? (this.netToNode[netInv] ?? -1) : -1;
         const nNonInv = netNonInv !== -1 ? (this.netToNode[netNonInv] ?? -1) : -1;
-        const nOut = netOut !== -1 ? (this.netToNode[netOut] ?? -1) : -1;
-
-        // High input impedance (10M to ground)
         const Gin = 1 / 10000000;
         if (nInv !== -1) G[nInv][nInv] += Gin;
         if (nNonInv !== -1) G[nNonInv][nNonInv] += Gin;
-
-        // VCCS: Iout = Gm * (V_nonInv - V_inv)
-        // Stamp transconductance: current enters output, controlled by differential input
-        const Gm = 1.0; // 1 siemens transconductance
-        if (nOut !== -1 && nNonInv !== -1) G[nOut][nNonInv] += Gm;
-        if (nOut !== -1 && nInv !== -1)    G[nOut][nInv]    -= Gm;
-
-        // Output conductance (sets open-loop gain = Gm/Gout = 1/0.001 = 1000)
-        const Gout = 0.001; // 1k output impedance
-        if (nOut !== -1) G[nOut][nOut] += Gout;
       }
     }
 
@@ -433,17 +433,22 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
       this.nodeVoltages[this.groundNet] = 0;
     }
 
-    // Clamp op-amp outputs to supply rails (post-solve)
-    for (const comp of this.components) {
-      if (comp.type !== 'lm741') continue;
-      const outNet = this.getNetForPin(comp.id, comp.pins[5].id);
-      if (outNet === -1) continue;
-      const vpNet = this.getNetForPin(comp.id, comp.pins[6].id);
-      const vmNet = this.getNetForPin(comp.id, comp.pins[3].id);
+    // Update op-amp voltage sources for next timestep (post-solve, like Schmitt triggers)
+    for (const vs of this.vsSources) {
+      if (vs.type !== 'opamp') continue;
+      const comp = this.components.find(c => c.id === vs.compId);
+      if (!comp) continue;
+      const invNet = this.getNetForPin(comp.id, comp.pins[1].id);    // IN-
+      const nonInvNet = this.getNetForPin(comp.id, comp.pins[2].id); // IN+
+      const vpNet = this.getNetForPin(comp.id, comp.pins[6].id);     // V+
+      const vmNet = this.getNetForPin(comp.id, comp.pins[3].id);     // V-
+      const vInv = invNet !== -1 ? (this.nodeVoltages[invNet] || 0) : 0;
+      const vNonInv = nonInvNet !== -1 ? (this.nodeVoltages[nonInvNet] || 0) : 0;
       const vRailPlus = vpNet !== -1 ? (this.nodeVoltages[vpNet] || 0) : vdd;
       const vRailMinus = vmNet !== -1 ? (this.nodeVoltages[vmNet] || 0) : 0;
-      const vOut = this.nodeVoltages[outNet] || 0;
-      this.nodeVoltages[outNet] = Math.max(vRailMinus, Math.min(vRailPlus, vOut));
+      // High gain amplifier clamped to rails
+      const gain = 10000;
+      vs.voltage = Math.max(vRailMinus, Math.min(vRailPlus, gain * (vNonInv - vInv)));
     }
 
     // Update capacitor states for next timestep
