@@ -7,6 +7,7 @@ import { CapacitorModel } from '@/simulation/models/CapacitorModel';
 import { DiodeModel, DIODE_1N914_PARAMS } from '@/simulation/models/DiodeModel';
 import { BJTModel, BJT_2N3904_PARAMS } from '@/simulation/models/BJTModel';
 import { OpAmpModel, OPAMP_LM741_PARAMS } from '@/simulation/models/OpAmpModel';
+import { SchmittTriggerModel } from '@/simulation/models/SchmittTriggerModel';
 
 function makeComp(id: string, type: string, pins: { id: string; type: string }[], params: Record<string, number | string | boolean> = {}) {
   return { id, type, pins: pins.map(p => ({ id: p.id, label: p.id, type: p.type })), parameters: params };
@@ -235,6 +236,67 @@ describe('MNASolver', () => {
       // IN- > IN+ -> saturate near negative rail
       expect(vOut).toBeLessThan(1.5);
       expect(vOut).toBeGreaterThan(-1);
+    });
+  });
+
+  describe('Schmitt trigger oscillator', () => {
+    it('oscillates at approximately correct frequency', () => {
+      const reg = new ModelRegistry();
+      reg.register('resistor', () => new ResistorModel());
+      reg.register('capacitor', () => new CapacitorModel());
+      reg.register('cd40106', () => new SchmittTriggerModel());
+      const solver = new MNASolver(reg);
+
+      const R = 100000;
+      const C = 100e-9;
+      const icPins = Array.from({ length: 14 }, (_, i) => ({
+        id: `p${i}`, type: i >= 12 ? 'power' : 'bidirectional',
+      }));
+
+      const components = [
+        makeComp('pwr', 'power', [{ id: 'pos', type: 'power' }, { id: 'neg', type: 'ground' }], { voltage: 9 }),
+        makeComp('gnd', 'ground', [{ id: 'gnd', type: 'ground' }]),
+        makeComp('r', 'resistor', [{ id: 'p0', type: 'bidirectional' }, { id: 'p1', type: 'bidirectional' }], { resistance: R }),
+        makeComp('c', 'capacitor', [{ id: 'p0', type: 'bidirectional' }, { id: 'p1', type: 'bidirectional' }], { capacitance: C }),
+        makeComp('ic', 'cd40106', icPins),
+      ];
+      const connections = [
+        makeConn('pwr', 'neg', 'gnd', 'gnd'),
+        makeConn('pwr', 'pos', 'ic', 'p12'),
+        makeConn('gnd', 'gnd', 'ic', 'p13'),
+        makeConn('r', 'p0', 'ic', 'p0'),
+        makeConn('r', 'p1', 'ic', 'p6'),
+        makeConn('c', 'p0', 'ic', 'p0'),
+        makeConn('c', 'p1', 'gnd', 'gnd'),
+      ];
+
+      solver.loadCircuit(components, connections);
+
+      const dt = 1 / 48000;
+      const totalSamples = 24000;
+      const simTime = totalSamples * dt;
+      let transitions = 0;
+      let lastV = 0;
+
+      for (let i = 0; i < totalSamples; i++) {
+        solver.step(dt);
+        const v = solver.getNodeVoltageByPin('ic', 'p6');
+        if (i > 0 && ((v > 4.5 && lastV < 4.5) || (v < 4.5 && lastV > 4.5))) {
+          transitions++;
+        }
+        lastV = v;
+      }
+
+      // Analytic frequency for RC Schmitt oscillator:
+      // T = R*C*(ln((Vdd-VT-)/(Vdd-VT+)) + ln(VT+/VT-))
+      // with VT+ = 0.58*Vdd, VT- = 0.45*Vdd
+      const vtPR = 0.58;
+      const vtNR = 0.45;
+      const period = R * C * (Math.log((1 - vtNR) / (1 - vtPR)) + Math.log(vtPR / vtNR));
+      const expectedFreq = 1 / period;
+      const measuredFreq = transitions / 2 / simTime;
+      const error = Math.abs(measuredFreq - expectedFreq) / expectedFreq;
+      expect(error).toBeLessThan(0.15);
     });
   });
 });
