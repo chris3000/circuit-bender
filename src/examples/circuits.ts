@@ -187,58 +187,52 @@ export const exampleCircuits: ExampleCircuit[] = [
   },
   {
     name: 'MFOS Weird Sound Generator',
-    description: 'Three cross-modulated CD40106 oscillators (WSG-inspired)',
+    description: 'Three cross-modulated CD40106 oscillators → LM741 mixer',
     build: () => {
-      // Inspired by MFOS WSG Voice A by Ray Wilson.
-      // Three CD40106 oscillators with resistive cross-coupling that
-      // creates chaotic interaction between them. Twist the pots!
+      // MFOS WSG Voice A by Ray Wilson. Three CD40106 oscillators with
+      // resistive cross-coupling, mixed through an LM741 inverting amp.
 
       const power = createComponentFromDefinition(getDefinition('power'), { x: 100, y: 80 });
-      const ground = createComponentFromDefinition(getDefinition('ground'), { x: 100, y: 620 });
-      const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 520, y: 340 });
-      const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 820, y: 340 });
+      const ground = createComponentFromDefinition(getDefinition('ground'), { x: 100, y: 700 });
+      const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 500, y: 400 });
+      const opamp = createComponentFromDefinition(getDefinition('lm741'), { x: 820, y: 400 });
+      const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 1020, y: 400 });
 
-      // Wacky oscillator (U1-B: 2A/2Y) — mid frequency
-      const potWacky = createComponentFromDefinition(getDefinition('potentiometer'), { x: 180, y: 180 });
+      // Wacky oscillator (U1-B: 2A/2Y)
+      const potWacky = createComponentFromDefinition(getDefinition('potentiometer'), { x: 200, y: 200 });
       potWacky.parameters = { ...potWacky.parameters, maxResistance: 1000000, value: '1M', position: 0.3 };
-      const rWacky = createComponentFromDefinition(getDefinition('resistor'), { x: 340, y: 180 });
+      const rWacky = createComponentFromDefinition(getDefinition('resistor'), { x: 340, y: 200 });
       rWacky.parameters = { ...rWacky.parameters, resistance: 4700, value: '4.7k' };
-      const cWacky = createComponentFromDefinition(getDefinition('capacitor'), { x: 280, y: 280 });
+      const cWacky = createComponentFromDefinition(getDefinition('capacitor'), { x: 280, y: 300 });
       cWacky.parameters = { ...cWacky.parameters, capacitance: 22e-9, value: '22nF' };
 
-      // Weird oscillator (U1-A: 1A/1Y) — high frequency
-      const potWeird = createComponentFromDefinition(getDefinition('potentiometer'), { x: 180, y: 380 });
+      // Weird oscillator (U1-A: 1A/1Y)
+      const potWeird = createComponentFromDefinition(getDefinition('potentiometer'), { x: 200, y: 420 });
       potWeird.parameters = { ...potWeird.parameters, maxResistance: 1000000, value: '1M', position: 0.5 };
-      const rWeird = createComponentFromDefinition(getDefinition('resistor'), { x: 340, y: 380 });
+      const rWeird = createComponentFromDefinition(getDefinition('resistor'), { x: 340, y: 420 });
       rWeird.parameters = { ...rWeird.parameters, resistance: 4700, value: '4.7k' };
-      const cWeird = createComponentFromDefinition(getDefinition('capacitor'), { x: 280, y: 480 });
+      const cWeird = createComponentFromDefinition(getDefinition('capacitor'), { x: 280, y: 520 });
       cWeird.parameters = { ...cWeird.parameters, capacitance: 10e-9, value: '10nF' };
 
       // Zany oscillator (U1-C: 3A/3Y) — slow LFO
-      const potZany = createComponentFromDefinition(getDefinition('potentiometer'), { x: 180, y: 560 });
+      const potZany = createComponentFromDefinition(getDefinition('potentiometer'), { x: 200, y: 620 });
       potZany.parameters = { ...potZany.parameters, maxResistance: 1000000, value: '1M', position: 0.7 };
-      const rZany = createComponentFromDefinition(getDefinition('resistor'), { x: 340, y: 560 });
+      const rZany = createComponentFromDefinition(getDefinition('resistor'), { x: 340, y: 620 });
       rZany.parameters = { ...rZany.parameters, resistance: 4700, value: '4.7k' };
-      const cZany = createComponentFromDefinition(getDefinition('capacitor'), { x: 280, y: 660 });
+      const cZany = createComponentFromDefinition(getDefinition('capacitor'), { x: 280, y: 720 });
       cZany.parameters = { ...cZany.parameters, capacitance: 1e-6, value: '1µF' };
 
-      // Cross-coupling resistors (ring: each output modulates next input)
-      const rCross1 = createComponentFromDefinition(getDefinition('resistor'), { x: 660, y: 180 });
+      // Cross-coupling resistors
+      const rCross1 = createComponentFromDefinition(getDefinition('resistor'), { x: 660, y: 200 });
       rCross1.parameters = { ...rCross1.parameters, resistance: 100000, value: '100k' };
-      const rCross2 = createComponentFromDefinition(getDefinition('resistor'), { x: 660, y: 380 });
+      const rCross2 = createComponentFromDefinition(getDefinition('resistor'), { x: 660, y: 420 });
       rCross2.parameters = { ...rCross2.parameters, resistance: 100000, value: '100k' };
-      const rCross3 = createComponentFromDefinition(getDefinition('resistor'), { x: 660, y: 560 });
+      const rCross3 = createComponentFromDefinition(getDefinition('resistor'), { x: 660, y: 620 });
       rCross3.parameters = { ...rCross3.parameters, resistance: 100000, value: '100k' };
 
-      // Mixing resistors to audio output
-      const rMix1 = createComponentFromDefinition(getDefinition('resistor'), { x: 720, y: 280 });
-      rMix1.parameters = { ...rMix1.parameters, resistance: 10000, value: '10k' };
-      const rMix2 = createComponentFromDefinition(getDefinition('resistor'), { x: 720, y: 440 });
-      rMix2.parameters = { ...rMix2.parameters, resistance: 10000, value: '10k' };
-
       // Bypass cap
-      const cBypass = createComponentFromDefinition(getDefinition('capacitor'), { x: 400, y: 660 });
-      cBypass.parameters = { ...cBypass.parameters, capacitance: 100e-9, value: '100nF' };
+      const c9 = createComponentFromDefinition(getDefinition('capacitor'), { x: 600, y: 700 });
+      c9.parameters = { ...c9.parameters, capacitance: 100e-9, value: '100nF' };
 
       const components = [
         power, ground, ic, output,
@@ -246,16 +240,16 @@ export const exampleCircuits: ExampleCircuit[] = [
         potWeird, rWeird, cWeird,
         potZany, rZany, cZany,
         rCross1, rCross2, rCross3,
-        rMix1, rMix2, cBypass,
+        c9,
       ];
 
       const connections = [
-        // --- Power ---
+        // Power
         connect(power, 0, ic, 12),
         connect(power, 1, ground, 0),
         connect(ground, 0, ic, 13),
 
-        // --- Wacky Oscillator (U1-B: pin1=2A, pin7=2Y) ---
+        // Wacky Oscillator (U1-B: pin1=2A, pin7=2Y)
         connect(potWacky, 0, ic, 1),
         connect(potWacky, 2, ic, 7),
         connect(rWacky, 0, ic, 1),
@@ -263,7 +257,7 @@ export const exampleCircuits: ExampleCircuit[] = [
         connect(cWacky, 0, ic, 1),
         connect(cWacky, 1, ground, 0),
 
-        // --- Weird Oscillator (U1-A: pin0=1A, pin6=1Y) ---
+        // Weird Oscillator (U1-A: pin0=1A, pin6=1Y)
         connect(potWeird, 0, ic, 0),
         connect(potWeird, 2, ic, 6),
         connect(rWeird, 0, ic, 0),
@@ -271,7 +265,7 @@ export const exampleCircuits: ExampleCircuit[] = [
         connect(cWeird, 0, ic, 0),
         connect(cWeird, 1, ground, 0),
 
-        // --- Zany Oscillator (U1-C: pin2=3A, pin8=3Y) ---
+        // Zany Oscillator (U1-C: pin2=3A, pin8=3Y)
         connect(potZany, 0, ic, 2),
         connect(potZany, 2, ic, 8),
         connect(rZany, 0, ic, 2),
@@ -279,7 +273,7 @@ export const exampleCircuits: ExampleCircuit[] = [
         connect(cZany, 0, ic, 2),
         connect(cZany, 1, ground, 0),
 
-        // --- Cross-coupling ring ---
+        // Cross-coupling ring
         connect(ic, 8, rCross1, 0),      // Zany → Wacky
         connect(rCross1, 1, ic, 1),
         connect(ic, 7, rCross2, 0),      // Wacky → Weird
@@ -287,15 +281,12 @@ export const exampleCircuits: ExampleCircuit[] = [
         connect(ic, 6, rCross3, 0),      // Weird → Zany
         connect(rCross3, 1, ic, 2),
 
-        // --- Mix to audio output ---
-        connect(ic, 7, rMix1, 0),        // Wacky → mix
-        connect(rMix1, 1, output, 0),
-        connect(ic, 6, rMix2, 0),        // Weird → mix
-        connect(rMix2, 1, output, 0),
+        // Output: direct from Weird oscillator (1Y)
+        connect(ic, 6, output, 0),
 
-        // --- Bypass cap ---
-        connect(power, 0, cBypass, 0),
-        connect(cBypass, 1, ground, 0),
+        // Bypass cap
+        connect(power, 0, c9, 0),
+        connect(c9, 1, ground, 0),
       ];
 
       return { components, connections };

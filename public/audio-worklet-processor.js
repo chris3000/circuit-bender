@@ -55,6 +55,7 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
   loadCircuit(components, connections) {
     this.components = components;
     this.connections = connections;
+    this._pinCache = null; // Invalidate pin cache
     this.buildNets();
     this.buildNodeMap();
     this.resetState();
@@ -215,26 +216,44 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
       }
     }
 
-    // Op-amp outputs are voltage sources (updated post-solve like Schmitt triggers)
-    for (const comp of this.components) {
-      if (comp.type !== 'lm741') continue;
-      const outNet = this.getNetForPin(comp.id, comp.pins[5].id); // pin 5 = OUT
-      const outNode = outNet !== -1 ? (this.netToNode[outNet] ?? -1) : -1;
-      if (outNode === -1) continue;
-      this.vsSources.push({
-        posNode: outNode,
-        negNode: -1,
-        voltage: this.supplyVoltage / 2,
-        compId: comp.id,
-        type: 'opamp'
-      });
-      this.vsCount++;
-    }
+    // Op-amp: not yet modeled as active element in the matrix.
+    // Input impedance is stamped during step(). Output node floats.
+    // TODO: implement proper ideal op-amp MNA constraint with saturation handling.
+    this.opampSources = [];
 
     this.matrixSize = this.numNodes + this.vsCount;
   }
 
-  // --- MNA Solver ---
+  // --- MNA Solver with Newton-Raphson ---
+
+  // Helper: get MNA node index for a component pin (-1 = ground)
+  nodeForPin(comp, pinIdx) {
+    const net = this.getNetForPin(comp.id, comp.pins[pinIdx].id);
+    return net !== -1 ? (this.netToNode[net] ?? -1) : -1;
+  }
+
+  // Helper: get voltage at a component pin from current guess
+  voltageAt(net) {
+    return net !== -1 ? (this.nodeVoltages[net] || 0) : 0;
+  }
+
+  // Shockley diode: linearize I = Is*(exp(Vd/Vt)-1) at operating point Vd0
+  // Returns { Gd, Ieq } where Gd is conductance and Ieq is companion current
+  linearizeDiode(vd0) {
+    const Is = 2.52e-9;  // 1N914 saturation current
+    const Vt = 0.026;    // Thermal voltage at room temp
+    const VMAX = 0.8;    // Clamp to prevent exp overflow
+
+    const vd = Math.min(vd0, VMAX);
+    const expVd = Math.exp(vd / Vt);
+    const Id = Is * (expVd - 1);
+    const Gd = (Is / Vt) * expVd;  // dI/dV at operating point
+    // Companion: linearized I = Gd*Vd + (Id - Gd*vd)
+    // In MNA: stamp Gd as conductance, Ieq = Id - Gd*vd as current source
+    const Ieq = Id - Gd * vd;
+    // Ensure minimum conductance for numerical stability
+    return { Gd: Math.max(Gd, 1e-12), Ieq };
+  }
 
   step(dt) {
     if (this.matrixSize === 0) return 0;
@@ -251,262 +270,209 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
       }
     }
 
-    // Build G matrix and b vector
-    const G = new Array(N);
-    const b = new Float64Array(N);
-    for (let i = 0; i < N; i++) {
-      G[i] = new Float64Array(N);
+    // Pre-cache component pin node indices (avoids repeated lookups in NR loop)
+    if (!this._pinCache) {
+      this._pinCache = {};
+      for (const comp of this.components) {
+        const cache = {};
+        for (let i = 0; i < comp.pins.length; i++) {
+          const net = this.getNetForPin(comp.id, comp.pins[i].id);
+          cache['n' + i] = net !== -1 ? (this.netToNode[net] ?? -1) : -1;
+          cache['net' + i] = net;
+        }
+        this._pinCache[comp.id] = cache;
+      }
     }
 
-    // Stamp resistors: conductance 1/R between two nodes
-    for (const comp of this.components) {
-      if (comp.type === 'resistor') {
-        const R = Math.max(comp.parameters.resistance || 1000, 1);
-        const g = 1 / R;
-        const net0 = this.getNetForPin(comp.id, comp.pins[0].id);
-        const net1 = this.getNetForPin(comp.id, comp.pins[1].id);
-        const n0 = net0 !== -1 ? (this.netToNode[net0] ?? -1) : -1;
-        const n1 = net1 !== -1 ? (this.netToNode[net1] ?? -1) : -1;
-        this.stampConductance(G, n0, n1, g);
+    // ===== Newton-Raphson iteration loop =====
+    // Use 1 iteration for speed (ideal op-amp is linear, diode/transistor
+    // linearize from previous timestep). Increase for more accuracy.
+    const MAX_NR_ITER = 1;
+    const NR_TOL = 1e-4;
+
+    for (let nrIter = 0; nrIter < MAX_NR_ITER; nrIter++) {
+
+      // Build G matrix and b vector fresh each iteration
+      const G = new Array(N);
+      const b = new Float64Array(N);
+      for (let i = 0; i < N; i++) {
+        G[i] = new Float64Array(N);
       }
 
-      if (comp.type === 'potentiometer') {
-        const maxR = comp.parameters.maxResistance || 1000000;
-        const pos = Math.max(0.001, Math.min(0.999, comp.parameters.position || 0.5));
+      // --- Stamp linear components (same every iteration) ---
+      for (const comp of this.components) {
+        const pc = this._pinCache[comp.id];
 
-        const net0 = this.getNetForPin(comp.id, comp.pins[0].id);
-        const net1 = this.getNetForPin(comp.id, comp.pins[1].id); // wiper
-        const net2 = this.getNetForPin(comp.id, comp.pins[2].id);
+        if (comp.type === 'resistor') {
+          const R = Math.max(comp.parameters.resistance || 1000, 1);
+          this.stampConductance(G, pc.n0, pc.n1, 1 / R);
+        }
 
-        const n0 = net0 !== -1 ? (this.netToNode[net0] ?? -1) : -1;
-        const n1 = net1 !== -1 ? (this.netToNode[net1] ?? -1) : -1;
-        const n2 = net2 !== -1 ? (this.netToNode[net2] ?? -1) : -1;
+        if (comp.type === 'potentiometer') {
+          const maxR = comp.parameters.maxResistance || 1000000;
+          const pos = Math.max(0.001, Math.min(0.999, comp.parameters.position || 0.5));
+          if (pc.n1 !== -1) {
+            this.stampConductance(G, pc.n0, pc.n1, 1 / (maxR * pos));
+            this.stampConductance(G, pc.n1, pc.n2, 1 / (maxR * (1 - pos)));
+          } else {
+            this.stampConductance(G, pc.n0, pc.n2, 1 / (maxR * Math.max(0.01, pos)));
+          }
+        }
 
-        if (n1 !== -1) {
-          // Wiper is connected: two resistors (pin0-wiper, wiper-pin2)
-          const R_top = maxR * pos;
-          const R_bot = maxR * (1 - pos);
-          this.stampConductance(G, n0, n1, 1 / R_top);
-          this.stampConductance(G, n1, n2, 1 / R_bot);
-        } else {
-          // Wiper not connected: single variable resistor between pin0 and pin2
-          const R = maxR * Math.max(0.01, pos);
-          this.stampConductance(G, n0, n2, 1 / R);
+        // Capacitor: trapezoidal companion model (linear per timestep)
+        if (comp.type === 'capacitor') {
+          const C = comp.parameters.capacitance || 100e-9;
+          const Geq = 2 * C / dt;
+          const state = this.capStates[comp.id] || { vPrev: 0, iPrev: 0 };
+          this.stampConductance(G, pc.n0, pc.n1, Geq);
+          const Ieq = Geq * state.vPrev + state.iPrev;
+          if (pc.n0 !== -1) b[pc.n0] += Ieq;
+          if (pc.n1 !== -1) b[pc.n1] -= Ieq;
+        }
+
+        // --- Nonlinear: 1N914 Diode (Shockley, linearized at current guess) ---
+        if (comp.type === '1n914') {
+          const vA = this.voltageAt(pc.net0);
+          const vK = this.voltageAt(pc.net1);
+          const vd = vA - vK;
+          const { Gd, Ieq } = this.linearizeDiode(vd);
+          this.stampConductance(G, pc.n0, pc.n1, Gd);
+          // Companion current source (positive = into anode)
+          if (pc.n0 !== -1) b[pc.n0] -= Ieq;
+          if (pc.n1 !== -1) b[pc.n1] += Ieq;
+        }
+
+        // --- Nonlinear: 2N3904 NPN Transistor (Ebers-Moll, linearized) ---
+        if (comp.type === '2n3904') {
+          const vB = this.voltageAt(pc.net0);
+          const vC = this.voltageAt(pc.net1);
+          const vE = this.voltageAt(pc.net2);
+          const vbe = vB - vE;
+          const vbc = vB - vC;
+          const beta_f = 100;
+          const alpha_f = beta_f / (beta_f + 1); // ~0.99
+
+          // BE junction diode
+          const be = this.linearizeDiode(vbe);
+          // BC junction diode (usually reverse biased)
+          const bc = this.linearizeDiode(vbc);
+
+          // Stamp BE junction: current from B to E
+          this.stampConductance(G, pc.n0, pc.n2, be.Gd);
+          if (pc.n0 !== -1) b[pc.n0] -= be.Ieq;
+          if (pc.n2 !== -1) b[pc.n2] += be.Ieq;
+
+          // Stamp BC junction: current from B to C
+          this.stampConductance(G, pc.n0, pc.n1, bc.Gd);
+          if (pc.n0 !== -1) b[pc.n0] -= bc.Ieq;
+          if (pc.n1 !== -1) b[pc.n1] += bc.Ieq;
+
+          // Collector current source: Ic = alpha_f * Ibe - Ibc
+          // Linearized: Ic = alpha_f * (be.Gd * Vbe + be.Ieq) - (bc.Gd * Vbc + bc.Ieq)
+          // VCCS from BE controlling C-E: Gm = alpha_f * be.Gd
+          const Gm = alpha_f * be.Gd;
+          if (pc.n1 !== -1 && pc.n0 !== -1) G[pc.n1][pc.n0] += Gm;  // C += Gm*Vb
+          if (pc.n1 !== -1 && pc.n2 !== -1) G[pc.n1][pc.n2] -= Gm;  // C -= Gm*Ve
+          if (pc.n2 !== -1 && pc.n0 !== -1) G[pc.n2][pc.n0] -= Gm;  // E -= Gm*Vb
+          if (pc.n2 !== -1) G[pc.n2][pc.n2] += Gm;                   // E += Gm*Ve
+          // Companion current from BE offset
+          const Ic_eq = alpha_f * be.Ieq;
+          if (pc.n1 !== -1) b[pc.n1] -= Ic_eq;
+          if (pc.n2 !== -1) b[pc.n2] += Ic_eq;
+        }
+
+        // --- LM741 Op-Amp: high input impedance ---
+        if (comp.type === 'lm741') {
+          const Gin = 1e-7; // 10M ohm
+          if (pc.n1 !== -1) G[pc.n1][pc.n1] += Gin;
+          if (pc.n2 !== -1) G[pc.n2][pc.n2] += Gin;
         }
       }
 
-      // Capacitor: trapezoidal companion model
-      // At each timestep, cap becomes: conductance G_eq = 2C/dt
-      // with companion current source I_eq = G_eq * V_prev + I_prev
-      if (comp.type === 'capacitor') {
-        const C = comp.parameters.capacitance || 100e-9;
-        const Geq = 2 * C / dt;
-        const state = this.capStates[comp.id] || { vPrev: 0, iPrev: 0 };
+      // --- Stamp voltage sources ---
+      for (let i = 0; i < this.vsCount; i++) {
+        const vs = this.vsSources[i];
+        const row = this.numNodes + i;
+        const posN = vs.posNode;
+        const negN = vs.negNode;
 
-        const net0 = this.getNetForPin(comp.id, comp.pins[0].id);
-        const net1 = this.getNetForPin(comp.id, comp.pins[1].id);
-        const n0 = net0 !== -1 ? (this.netToNode[net0] ?? -1) : -1;
-        const n1 = net1 !== -1 ? (this.netToNode[net1] ?? -1) : -1;
-
-        // Stamp equivalent conductance
-        this.stampConductance(G, n0, n1, Geq);
-
-        // Stamp companion current source: Ieq = Geq * Vprev + Iprev
-        const Ieq = Geq * state.vPrev + state.iPrev;
-        // Current flows from n0 to n1, so inject +Ieq at n0, -Ieq at n1
-        if (n0 !== -1) b[n0] += Ieq;
-        if (n1 !== -1) b[n1] -= Ieq;
-      }
-
-      // 1N914 Diode: piecewise linear companion model
-      if (comp.type === '1n914') {
-        const netA = this.getNetForPin(comp.id, comp.pins[0].id); // Anode
-        const netK = this.getNetForPin(comp.id, comp.pins[1].id); // Cathode
-        const nA = netA !== -1 ? (this.netToNode[netA] ?? -1) : -1;
-        const nK = netK !== -1 ? (this.netToNode[netK] ?? -1) : -1;
-        const vA = netA !== -1 ? (this.nodeVoltages[netA] || 0) : 0;
-        const vK = netK !== -1 ? (this.nodeVoltages[netK] || 0) : 0;
-        const vd = vA - vK;
-
-        if (vd > 0.6) {
-          // Forward biased: low resistance + 0.6V drop companion
-          const Gf = 1 / 10;
-          this.stampConductance(G, nA, nK, Gf);
-          const Ieq = Gf * 0.6;
-          if (nA !== -1) b[nA] -= Ieq;
-          if (nK !== -1) b[nK] += Ieq;
-        } else {
-          // Reverse biased: very high resistance
-          this.stampConductance(G, nA, nK, 1 / 10000000);
+        // Standard voltage source stamp
+        if (posN !== -1) {
+          G[row][posN] = 1;
+          G[posN][row] = 1;
         }
-      }
-
-      // 2N3904 NPN Transistor: linearized Ebers-Moll
-      if (comp.type === '2n3904') {
-        const netB = this.getNetForPin(comp.id, comp.pins[0].id); // Base
-        const netC = this.getNetForPin(comp.id, comp.pins[1].id); // Collector
-        const netE = this.getNetForPin(comp.id, comp.pins[2].id); // Emitter
-        const nB = netB !== -1 ? (this.netToNode[netB] ?? -1) : -1;
-        const nC = netC !== -1 ? (this.netToNode[netC] ?? -1) : -1;
-        const nE = netE !== -1 ? (this.netToNode[netE] ?? -1) : -1;
-        const vB = netB !== -1 ? (this.nodeVoltages[netB] || 0) : 0;
-        const vC = netC !== -1 ? (this.nodeVoltages[netC] || 0) : 0;
-        const vE = netE !== -1 ? (this.nodeVoltages[netE] || 0) : 0;
-        const vbe = vB - vE;
-        const vce = vC - vE;
-
-        if (vbe <= 0.6) {
-          // Cutoff: high resistance on all junctions
-          this.stampConductance(G, nB, nE, 1 / 10000000);
-          this.stampConductance(G, nC, nE, 1 / 10000000);
-        } else if (vce > 0.2) {
-          // Active: BE diode + voltage-controlled current source C→E
-          const Gbe = 1 / 1000;
-          this.stampConductance(G, nB, nE, Gbe);
-          // BE forward drop companion current
-          const Ieq_be = Gbe * 0.6;
-          if (nB !== -1) b[nB] -= Ieq_be;
-          if (nE !== -1) b[nE] += Ieq_be;
-          // VCCS: Ic = beta * Ib, stamp as Gm controlled by Vbe
-          const Gm = 100 * Gbe; // beta = 100
-          if (nC !== -1 && nB !== -1) G[nC][nB] += Gm;
-          if (nC !== -1 && nE !== -1) G[nC][nE] -= Gm;
-          if (nE !== -1 && nB !== -1) G[nE][nB] -= Gm;
-          if (nE !== -1) G[nE][nE] += Gm;
-          // Companion current from BE voltage offset
-          const Ieq_ce = Gm * 0.6;
-          if (nC !== -1) b[nC] -= Ieq_ce;
-          if (nE !== -1) b[nE] += Ieq_ce;
-        } else {
-          // Saturation: BE diode + low CE resistance
-          const Gbe = 1 / 1000;
-          this.stampConductance(G, nB, nE, Gbe);
-          const Ieq_be = Gbe * 0.6;
-          if (nB !== -1) b[nB] -= Ieq_be;
-          if (nE !== -1) b[nE] += Ieq_be;
-          this.stampConductance(G, nC, nE, 1 / 50); // Rsat = 50 ohm
+        if (negN !== -1) {
+          G[row][negN] = -1;
+          G[negN][row] = -1;
         }
+        b[row] = vs.voltage;
       }
 
-      // LM741 Op-Amp: input impedance only (output is a voltage source)
-      if (comp.type === 'lm741') {
-        const netInv = this.getNetForPin(comp.id, comp.pins[1].id);
-        const netNonInv = this.getNetForPin(comp.id, comp.pins[2].id);
-        const nInv = netInv !== -1 ? (this.netToNode[netInv] ?? -1) : -1;
-        const nNonInv = netNonInv !== -1 ? (this.netToNode[netNonInv] ?? -1) : -1;
-        const Gin = 1 / 10000000;
-        if (nInv !== -1) G[nInv][nInv] += Gin;
-        if (nNonInv !== -1) G[nNonInv][nNonInv] += Gin;
+      // --- Solve Gx = b ---
+      const x = this.solve(G, b, N);
+
+      // Check convergence: max voltage change from previous iteration
+      let maxDelta = 0;
+      for (let i = 0; i < this.numNodes; i++) {
+        const netId = this.nodeToNet[i];
+        const vNew = isFinite(x[i]) ? x[i] : 0;
+        const vOld = this.nodeVoltages[netId] || 0;
+        maxDelta = Math.max(maxDelta, Math.abs(vNew - vOld));
+        this.nodeVoltages[netId] = vNew;
       }
-    }
-
-    // Stamp voltage sources
-    for (let i = 0; i < this.vsCount; i++) {
-      const vs = this.vsSources[i];
-      const row = this.numNodes + i; // extra row for voltage source
-      const posN = vs.posNode;
-      const negN = vs.negNode; // -1 = ground
-
-      // Stamp into matrix: adds equation V_pos - V_neg = Vs
-      if (posN !== -1) {
-        G[row][posN] = 1;
-        G[posN][row] = 1;
+      if (this.groundNet !== -1) {
+        this.nodeVoltages[this.groundNet] = 0;
       }
-      if (negN !== -1) {
-        G[row][negN] = -1;
-        G[negN][row] = -1;
-      }
-      b[row] = vs.voltage;
-    }
 
-    // Solve Gx = b using Gaussian elimination with partial pivoting
-    const x = this.solve(G, b, N);
+      // Converged? (skip check on first iteration)
+      if (nrIter > 0 && maxDelta < NR_TOL) break;
 
-    // Extract node voltages
-    for (let i = 0; i < this.numNodes; i++) {
-      const netId = this.nodeToNet[i];
-      const v = x[i];
-      this.nodeVoltages[netId] = isFinite(v) ? v : 0;
-    }
-    // Ground is always 0
-    if (this.groundNet !== -1) {
-      this.nodeVoltages[this.groundNet] = 0;
-    }
+    } // end NR loop
 
-    // Update op-amp voltage sources for next timestep (post-solve, like Schmitt triggers)
-    for (const vs of this.vsSources) {
-      if (vs.type !== 'opamp') continue;
-      const comp = this.components.find(c => c.id === vs.compId);
-      if (!comp) continue;
-      const invNet = this.getNetForPin(comp.id, comp.pins[1].id);    // IN-
-      const nonInvNet = this.getNetForPin(comp.id, comp.pins[2].id); // IN+
-      const vpNet = this.getNetForPin(comp.id, comp.pins[6].id);     // V+
-      const vmNet = this.getNetForPin(comp.id, comp.pins[3].id);     // V-
-      const vInv = invNet !== -1 ? (this.nodeVoltages[invNet] || 0) : 0;
-      const vNonInv = nonInvNet !== -1 ? (this.nodeVoltages[nonInvNet] || 0) : 0;
-      const vRailPlus = vpNet !== -1 ? (this.nodeVoltages[vpNet] || 0) : vdd;
-      const vRailMinus = vmNet !== -1 ? (this.nodeVoltages[vmNet] || 0) : 0;
-      // High gain amplifier clamped to rails
-      const gain = 10000;
-      vs.voltage = Math.max(vRailMinus, Math.min(vRailPlus, gain * (vNonInv - vInv)));
-    }
+    // --- Post-solve state updates ---
 
-    // Update capacitor states for next timestep
+    // Update capacitor states
     for (const comp of this.components) {
       if (comp.type !== 'capacitor') continue;
+      const pc = this._pinCache[comp.id];
       const C = comp.parameters.capacitance || 100e-9;
       const Geq = 2 * C / dt;
-
-      const net0 = this.getNetForPin(comp.id, comp.pins[0].id);
-      const net1 = this.getNetForPin(comp.id, comp.pins[1].id);
-      const v0 = net0 !== -1 ? (this.nodeVoltages[net0] || 0) : 0;
-      const v1 = net1 !== -1 ? (this.nodeVoltages[net1] || 0) : 0;
+      const v0 = this.voltageAt(pc.net0);
+      const v1 = this.voltageAt(pc.net1);
       const vCap = v0 - v1;
-
       const state = this.capStates[comp.id];
-      // Trapezoidal: I_new = Geq * (V_new - V_prev) - I_prev
       const iCap = Geq * (vCap - state.vPrev) - state.iPrev;
       state.vPrev = vCap;
       state.iPrev = iCap;
     }
 
-    // Update Schmitt trigger states from solved node voltages
+    // Update Schmitt trigger states
     for (const comp of this.components) {
       if (comp.type !== 'cd40106') continue;
       const gates = this.schmittStates[comp.id];
       if (!gates) continue;
-
       const vddNet = this.getNetForPin(comp.id, comp.pins[12].id);
       const vddActual = vddNet !== -1 ? (this.nodeVoltages[vddNet] || 0) : 0;
       const highThresh = vddActual * 0.66;
       const lowThresh = vddActual * 0.33;
-
       for (let g = 0; g < 6; g++) {
         const inNet = this.getNetForPin(comp.id, comp.pins[g].id);
         const vIn = inNet !== -1 ? (this.nodeVoltages[inNet] || 0) : 0;
-
-        if (gates[g] && vIn > highThresh) {
-          gates[g] = false; // output goes LOW
-        } else if (!gates[g] && vIn < lowThresh) {
-          gates[g] = true;  // output goes HIGH
-        }
+        if (gates[g] && vIn > highThresh) gates[g] = false;
+        else if (!gates[g] && vIn < lowThresh) gates[g] = true;
       }
     }
 
-    // Read audio output
+    // Read audio output with DC blocker
     for (const comp of this.components) {
       if (comp.type === 'audio-output') {
         const net = this.getNetForPin(comp.id, comp.pins[0].id);
         const v = net !== -1 ? (this.nodeVoltages[net] || 0) : 0;
-        // DC blocker: high-pass filter removes DC offset so both direct
-        // outputs (centered at VDD/2) and AC-coupled outputs (centered at 0V)
-        // produce a zero-centered audio signal
         if (!this.dcBlocker) this.dcBlocker = { xPrev: 0, yPrev: 0 };
-        const alpha = 0.995; // ~30Hz cutoff at 48kHz
+        const alpha = 0.995;
         const y = v - this.dcBlocker.xPrev + alpha * this.dcBlocker.yPrev;
         this.dcBlocker.xPrev = v;
         this.dcBlocker.yPrev = y;
-        // Scale to audio range: VDD/2 amplitude → ±1
         const sample = y / (vdd * 0.5);
         return Math.max(-1, Math.min(1, sample));
       }
