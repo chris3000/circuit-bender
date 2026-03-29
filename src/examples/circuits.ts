@@ -225,25 +225,16 @@ export const exampleCircuits: ExampleCircuit[] = [
       const c7 = createComponentFromDefinition(getDefinition('capacitor'), { x: 280, y: 750 });
       c7.parameters = { ...c7.parameters, capacitance: 1e-6, value: '1uF' };
 
-      // --- Cross-coupling: Wacky → Weird via D1 + S2 + Q1 ---
-      const d1 = createComponentFromDefinition(getDefinition('1n914'), { x: 650, y: 150 });
-      const s2 = createComponentFromDefinition(getDefinition('switch'), { x: 720, y: 200 });
-      s2.parameters = { ...s2.parameters, closed: 1 }; // Wackiness ON by default
-      const q1 = createComponentFromDefinition(getDefinition('2n3904'), { x: 650, y: 350 });
-      const r7 = createComponentFromDefinition(getDefinition('resistor'), { x: 650, y: 280 });
-      r7.parameters = { ...r7.parameters, resistance: 4700, value: '4.7k' };
-      const r14 = createComponentFromDefinition(getDefinition('resistor'), { x: 650, y: 450 });
-      r14.parameters = { ...r14.parameters, resistance: 4700, value: '4.7k' };
-
-      // --- Cross-coupling: Zany → Wacky ---
-      const r13 = createComponentFromDefinition(getDefinition('resistor'), { x: 450, y: 650 });
-      r13.parameters = { ...r13.parameters, resistance: 1000000, value: '1M' };
-
-      // --- Zaniness Amount ---
-      const potZaniness = createComponentFromDefinition(getDefinition('potentiometer'), { x: 450, y: 750 });
-      potZaniness.parameters = { ...potZaniness.parameters, maxResistance: 100000, value: '100k', position: 0.5 };
-      const r19 = createComponentFromDefinition(getDefinition('resistor'), { x: 520, y: 750 });
-      r19.parameters = { ...r19.parameters, resistance: 47000, value: '47k' };
+      // --- Cross-coupling: resistive ring ---
+      // NOTE: The MFOS schematic uses D1+S2+Q1 for Wacky→Weird coupling, but
+      // that path causes NR convergence issues in the current solver. Using
+      // resistive cross-coupling instead until solver convergence is improved.
+      const rCross1 = createComponentFromDefinition(getDefinition('resistor'), { x: 650, y: 200 });
+      rCross1.parameters = { ...rCross1.parameters, resistance: 100000, value: '100k' };
+      const rCross2 = createComponentFromDefinition(getDefinition('resistor'), { x: 650, y: 420 });
+      rCross2.parameters = { ...rCross2.parameters, resistance: 100000, value: '100k' };
+      const rCross3 = createComponentFromDefinition(getDefinition('resistor'), { x: 650, y: 650 });
+      rCross3.parameters = { ...rCross3.parameters, resistance: 100000, value: '100k' };
 
       // --- Oddness Filter ---
       const r5 = createComponentFromDefinition(getDefinition('resistor'), { x: 750, y: 500 });
@@ -255,9 +246,9 @@ export const exampleCircuits: ExampleCircuit[] = [
 
       // --- LM741 Output Stage ---
       const r4 = createComponentFromDefinition(getDefinition('resistor'), { x: 900, y: 450 });
-      r4.parameters = { ...r4.parameters, resistance: 10000000, value: '10M' };
+      r4.parameters = { ...r4.parameters, resistance: 1000000, value: '1M' };
       const r11 = createComponentFromDefinition(getDefinition('resistor'), { x: 950, y: 420 });
-      r11.parameters = { ...r11.parameters, resistance: 750000, value: '750k' };
+      r11.parameters = { ...r11.parameters, resistance: 75000, value: '75k' };
       const r16 = createComponentFromDefinition(getDefinition('resistor'), { x: 900, y: 550 });
       r16.parameters = { ...r16.parameters, resistance: 100000, value: '100k' };
       const r17 = createComponentFromDefinition(getDefinition('resistor'), { x: 900, y: 620 });
@@ -276,8 +267,7 @@ export const exampleCircuits: ExampleCircuit[] = [
         potWacky, r6, c4,
         potWeird, c5,
         potZany, r15, c7,
-        d1, s2, q1, r7, r14,
-        r13, potZaniness, r19,
+        rCross1, rCross2, rCross3,
         r5, potOddness, c1,
         r4, r11, r16, r17, r12, c6,
         c9,
@@ -318,20 +308,13 @@ export const exampleCircuits: ExampleCircuit[] = [
         connect(c7, 0, ic, 2),            // C7 to input
         connect(c7, 1, ground, 0),        // C7 to GND
 
-        // === Cross-coupling: Wacky → Weird (D1 + S2 + Q1) ===
-        connect(ic, 7, d1, 0),            // Wacky output → D1 anode
-        connect(d1, 1, s2, 0),            // D1 cathode → S2 switch pin 1
-        connect(s2, 1, q1, 0),            // S2 pin 2 → Q1 base
-        connect(q1, 1, r7, 0),            // Q1 collector → R7
-        connect(r7, 1, ic, 6),            // R7 → Weird output (pin 6)
-        connect(q1, 2, r14, 0),           // Q1 emitter → R14
-        connect(r14, 1, ic, 0),           // R14 → Weird input (pin 0)
-
-        // === Cross-coupling: Zany → Wacky ===
-        connect(ic, 8, potZaniness, 0),   // Zany output → Zaniness pot
-        connect(potZaniness, 1, r19, 0),  // Zaniness wiper → R19
-        connect(r19, 1, r13, 0),          // R19 → R13
-        connect(r13, 1, ic, 1),           // R13 → Wacky input
+        // === Cross-coupling: resistive ring ===
+        connect(ic, 8, rCross1, 0),       // Zany output → Wacky input
+        connect(rCross1, 1, ic, 1),
+        connect(ic, 7, rCross2, 0),       // Wacky output → Weird input
+        connect(rCross2, 1, ic, 0),
+        connect(ic, 6, rCross3, 0),       // Weird output → Zany input
+        connect(rCross3, 1, ic, 2),
 
         // === Oddness Filter ===
         connect(ic, 6, r5, 0),            // Weird output → R5 (filter input)

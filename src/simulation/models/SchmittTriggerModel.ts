@@ -7,6 +7,7 @@ const VT_POS_RATIO = 0.59;  // VT+ ≈ 5.3V at 9V supply
 const VT_NEG_RATIO = 0.40;  // VT- ≈ 3.6V at 9V supply
 const ROUT = 280;
 const ROFF = 1e9;
+const G_CLAMP = 0.1; // 10Ω body diode clamp when output exceeds rails
 
 export class SchmittTriggerModel implements ComponentModel {
   readonly type = 'cd40106';
@@ -21,18 +22,31 @@ export class SchmittTriggerModel implements ComponentModel {
     this.gateStates = [true, true, true, true, true, true];
   }
 
-  stamp(G: Float64Array[], _b: Float64Array, _x: Float64Array, _dt: number): void {
+  stamp(G: Float64Array[], _b: Float64Array, x: Float64Array, _dt: number): void {
     const nVdd = this.pins[12];
     const nVss = this.pins[13];
+    const vdd = nVdd >= 0 ? x[nVdd] : 0;
+    const vss = nVss >= 0 ? x[nVss] : 0;
+
     for (let g = 0; g < NUM_GATES; g++) {
       const nOut = this.pins[g + 6];
       if (nOut < 0) continue;
+
       if (this.gateStates[g]) {
         stampConductance(G, nOut, nVdd, 1 / ROUT);
         stampConductance(G, nOut, nVss, 1 / ROFF);
       } else {
         stampConductance(G, nOut, nVdd, 1 / ROFF);
         stampConductance(G, nOut, nVss, 1 / ROUT);
+      }
+
+      // CMOS body diode clamping — prevents output from exceeding rails
+      const vOut = nOut >= 0 ? x[nOut] : 0;
+      if (vOut > vdd + 0.3) {
+        stampConductance(G, nOut, nVdd, G_CLAMP);
+      }
+      if (vOut < vss - 0.3) {
+        stampConductance(G, nOut, nVss, G_CLAMP);
       }
     }
   }

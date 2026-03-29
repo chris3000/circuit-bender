@@ -36,7 +36,8 @@ export class MNASolver {
   private G: Float64Array[] = [];
   private b = new Float64Array(0);
   private x = new Float64Array(0);
-  private xPrev = new Float64Array(0);
+  private xPrev = new Float64Array(0);     // previous NR iteration (for convergence check)
+  private xSaved = new Float64Array(0);    // start-of-timestep snapshot (for NaN recovery)
   private M: Float64Array[] = [];
 
   // Built-in voltage source branches (for power components without registered models)
@@ -265,6 +266,7 @@ export class MNASolver {
     this.b = new Float64Array(n);
     this.x = new Float64Array(n);
     this.xPrev = new Float64Array(n);
+    this.xSaved = new Float64Array(n);
     this.M = new Array(n);
     for (let i = 0; i < n; i++) {
       this.M[i] = new Float64Array(n + 1);
@@ -274,6 +276,7 @@ export class MNASolver {
   resetState(): void {
     this.x.fill(0);
     this.xPrev.fill(0);
+    this.xSaved.fill(0);
     this.dcBlockPrev = 0;
     this.dcBlockOut = 0;
     for (const model of this.models.values()) {
@@ -286,11 +289,13 @@ export class MNASolver {
     let audioSample = 0;
 
     for (let sub = 0; sub < this.subcycles; sub++) {
-      this.solveOneStep(subDt);
+      const converged = this.solveOneStep(subDt);
 
-      // Call postStep on all models
-      for (const model of this.models.values()) {
-        model.postStep(this.x, subDt);
+      // Only update model state if the solve was valid (no NaN)
+      if (converged) {
+        for (const model of this.models.values()) {
+          model.postStep(this.x, subDt);
+        }
       }
 
       // Capture audio on last subcycle
@@ -302,14 +307,16 @@ export class MNASolver {
     return audioSample;
   }
 
-  private solveOneStep(dt: number): void {
+  private solveOneStep(dt: number): boolean {
     const n = this.size;
-    if (n === 0) return;
+    if (n === 0) return true;
+
+    // Save start-of-timestep solution for NaN recovery
+    this.xSaved.set(this.x);
 
     for (let iter = 0; iter < MAX_NR_ITERATIONS; iter++) {
-      // Save previous solution
+      // Save previous NR iteration for convergence check
       this.xPrev.set(this.x);
-
       // Clear G and b
       for (let i = 0; i < n; i++) {
         this.G[i].fill(0);
@@ -324,9 +331,6 @@ export class MNASolver {
       // Stamp built-in voltage sources
       for (const vs of this.builtinVSources) {
         const { posNode, negNode, voltage, branchIdx } = vs;
-        // Voltage source stamps: V(pos) - V(neg) = voltage
-        // Row branchIdx: V(pos) - V(neg) = voltage
-        // Column branchIdx: current flows into pos, out of neg
         if (posNode >= 0) {
           this.G[posNode][branchIdx] += 1;
           this.G[branchIdx][posNode] += 1;
@@ -345,6 +349,20 @@ export class MNASolver {
 
       // Solve Gx = b
       const result = solveLinearSystem(this.G, this.b, n, this.M);
+
+      // Check for NaN/Infinity — if found, restore previous state and skip timestep
+      let hadNaN = false;
+      for (let i = 0; i < n; i++) {
+        if (!isFinite(result[i])) {
+          hadNaN = true;
+          break;
+        }
+      }
+      if (hadNaN) {
+        this.x.set(this.xSaved);
+        return false; // signal caller to skip postStep
+      }
+
       this.x.set(result);
 
       // Check convergence
@@ -354,7 +372,6 @@ export class MNASolver {
         if (err > maxErr) maxErr = err;
       }
 
-      // Also check voltage change across all nodes
       let maxDv = 0;
       for (let i = 0; i < n; i++) {
         const dv = Math.abs(this.x[i] - this.xPrev[i]);
@@ -363,6 +380,7 @@ export class MNASolver {
 
       if (maxErr < NR_VTOL && maxDv < NR_VTOL) break;
     }
+    return true;
   }
 
   private getAudioSample(): number {
