@@ -16,7 +16,7 @@ export interface SerializedConnection {
 }
 
 const GMIN = 1e-12;
-const MAX_NR_ITERATIONS = 8;
+const MAX_NR_ITERATIONS = 15;
 const NR_VTOL = 1e-4;
 
 export class MNASolver {
