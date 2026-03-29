@@ -36,7 +36,12 @@ export class AudioEngine {
   }
 
   async initialize(): Promise<void> {
-    await this.context.audioWorklet.addModule('/audio-worklet-processor.js?v=' + Date.now());
+    // In dev mode, Vite transforms .ts on the fly via its dev server.
+    // In production, the audio-worklet-bundle plugin emits a self-contained IIFE.
+    const processorUrl = import.meta.env.DEV
+      ? new URL('../simulation/worklet/processor.ts', import.meta.url).href
+      : new URL('/audio-worklet-processor.js', import.meta.url).href;
+    await this.context.audioWorklet.addModule(processorUrl);
     this.workletNode = new AudioWorkletNode(this.context, 'circuit-audio-processor');
     this.workletNode.connect(this.context.destination);
 
