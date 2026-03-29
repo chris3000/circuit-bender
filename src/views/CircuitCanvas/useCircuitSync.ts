@@ -106,22 +106,30 @@ export function useCircuitSync(
   // --- Upstream: React Flow -> Circuit ---
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
-    for (const change of changes) {
-      if (change.type === 'position') {
-        if (change.dragging) {
-          draggingIds.current.add(change.id);
-        } else {
-          draggingIds.current.delete(change.id);
-          if (change.position) {
-            updateComponent(change.id as ComponentId, {
-              position: { x: change.position.x, y: change.position.y },
-            });
+    // Apply changes to local state first so we can read final positions
+    setNodes((nds) => {
+      const updated = applyNodeChanges(changes, nds);
+
+      for (const change of changes) {
+        if (change.type === 'position') {
+          if (change.dragging) {
+            draggingIds.current.add(change.id);
+          } else {
+            draggingIds.current.delete(change.id);
+            // Read position from the updated nodes — change.position may be
+            // undefined on drag-end in some React Flow versions
+            const node = updated.find((n) => n.id === change.id);
+            if (node) {
+              updateComponent(change.id as ComponentId, {
+                position: { x: node.position.x, y: node.position.y },
+              });
+            }
           }
         }
       }
-    }
-    // Apply all changes to React Flow's visual state (enables dragging)
-    setNodes((nds) => applyNodeChanges(changes, nds));
+
+      return updated;
+    });
   }, [updateComponent]);
 
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
