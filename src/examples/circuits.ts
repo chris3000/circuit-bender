@@ -246,9 +246,9 @@ export const exampleCircuits: ExampleCircuit[] = [
 
       // --- LM741 Output Stage ---
       const r4 = createComponentFromDefinition(getDefinition('resistor'), { x: 900, y: 450 });
-      r4.parameters = { ...r4.parameters, resistance: 1000000, value: '1M' };
+      r4.parameters = { ...r4.parameters, resistance: 100000, value: '100k' };
       const r11 = createComponentFromDefinition(getDefinition('resistor'), { x: 950, y: 420 });
-      r11.parameters = { ...r11.parameters, resistance: 75000, value: '75k' };
+      r11.parameters = { ...r11.parameters, resistance: 100000, value: '100k' };
       const r16 = createComponentFromDefinition(getDefinition('resistor'), { x: 900, y: 550 });
       r16.parameters = { ...r16.parameters, resistance: 100000, value: '100k' };
       const r17 = createComponentFromDefinition(getDefinition('resistor'), { x: 900, y: 620 });
