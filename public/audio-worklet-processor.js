@@ -81,6 +81,7 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
         this.transistorStates[comp.id] = { vbePrev: 0, vcePrev: 0 };
       }
     }
+    this.dcBlocker = { xPrev: 0, yPrev: 0 };
   }
 
   findSupplyVoltage() {
@@ -214,22 +215,6 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
       }
     }
 
-    // Op-amp outputs are voltage sources (clamped VCVS)
-    for (const comp of this.components) {
-      if (comp.type !== 'lm741') continue;
-      const outNet = this.getNetForPin(comp.id, comp.pins[5].id); // pin 5 = OUT
-      const outNode = outNet !== -1 ? (this.netToNode[outNet] ?? -1) : -1;
-      if (outNode === -1) continue;
-      this.vsSources.push({
-        posNode: outNode,
-        negNode: -1,
-        voltage: this.supplyVoltage / 2, // initial: mid-rail
-        compId: comp.id,
-        type: 'opamp'
-      });
-      this.vsCount++;
-    }
-
     this.matrixSize = this.numNodes + this.vsCount;
   }
 
@@ -246,34 +231,6 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
         const gates = this.schmittStates[vs.compId];
         if (gates) {
           vs.voltage = gates[vs.gateIndex] ? vdd : 0;
-        }
-      }
-      // Update op-amp output voltage (clamped VCVS)
-      if (vs.type === 'opamp') {
-        const comp = this.components.find(c => c.id === vs.compId);
-        if (comp) {
-          const invNet = this.getNetForPin(comp.id, comp.pins[1].id);    // IN-
-          const nonInvNet = this.getNetForPin(comp.id, comp.pins[2].id); // IN+
-          const vpNet = this.getNetForPin(comp.id, comp.pins[6].id);     // V+
-          const vmNet = this.getNetForPin(comp.id, comp.pins[3].id);     // V-
-          const vInv = invNet !== -1 ? (this.nodeVoltages[invNet] || 0) : 0;
-          const vNonInv = nonInvNet !== -1 ? (this.nodeVoltages[nonInvNet] || 0) : 0;
-          const vRailPlus = vpNet !== -1 ? (this.nodeVoltages[vpNet] || 0) : vdd;
-          const vRailMinus = vmNet !== -1 ? (this.nodeVoltages[vmNet] || 0) : 0;
-          // Open-loop gain (reduced for single-timestep stability with feedback)
-          const gain = 1000;
-          const vTarget = Math.max(vRailMinus, Math.min(vRailPlus, gain * (vNonInv - vInv)));
-          // Slew rate limiting: LM741 slews at ~0.5V/µs = 500000 V/s
-          const slewRate = 500000;
-          const maxDelta = slewRate * dt;
-          const prev = vs.voltage;
-          if (vTarget > prev + maxDelta) {
-            vs.voltage = prev + maxDelta;
-          } else if (vTarget < prev - maxDelta) {
-            vs.voltage = prev - maxDelta;
-          } else {
-            vs.voltage = vTarget;
-          }
         }
       }
     }
@@ -415,16 +372,31 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
         }
       }
 
-      // LM741 Op-Amp: high impedance inputs (stabilize matrix)
+      // LM741 Op-Amp: VCCS model (solved within the matrix, no timestep delay)
+      // Output current = Gm * (V+ - V-), with output conductance Gout.
+      // Open-loop gain = Gm / Gout. Rail clamping applied post-solve.
       if (comp.type === 'lm741') {
         const netInv = this.getNetForPin(comp.id, comp.pins[1].id);    // IN-
         const netNonInv = this.getNetForPin(comp.id, comp.pins[2].id); // IN+
+        const netOut = this.getNetForPin(comp.id, comp.pins[5].id);    // OUT
         const nInv = netInv !== -1 ? (this.netToNode[netInv] ?? -1) : -1;
         const nNonInv = netNonInv !== -1 ? (this.netToNode[netNonInv] ?? -1) : -1;
-        // Small conductance to ground prevents floating nodes
-        const Gin = 1 / 10000000; // 10M ohm input impedance
+        const nOut = netOut !== -1 ? (this.netToNode[netOut] ?? -1) : -1;
+
+        // High input impedance (10M to ground)
+        const Gin = 1 / 10000000;
         if (nInv !== -1) G[nInv][nInv] += Gin;
         if (nNonInv !== -1) G[nNonInv][nNonInv] += Gin;
+
+        // VCCS: Iout = Gm * (V_nonInv - V_inv)
+        // Stamp transconductance: current enters output, controlled by differential input
+        const Gm = 1.0; // 1 siemens transconductance
+        if (nOut !== -1 && nNonInv !== -1) G[nOut][nNonInv] += Gm;
+        if (nOut !== -1 && nInv !== -1)    G[nOut][nInv]    -= Gm;
+
+        // Output conductance (sets open-loop gain = Gm/Gout = 1/0.001 = 1000)
+        const Gout = 0.001; // 1k output impedance
+        if (nOut !== -1) G[nOut][nOut] += Gout;
       }
     }
 
@@ -459,6 +431,19 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
     // Ground is always 0
     if (this.groundNet !== -1) {
       this.nodeVoltages[this.groundNet] = 0;
+    }
+
+    // Clamp op-amp outputs to supply rails (post-solve)
+    for (const comp of this.components) {
+      if (comp.type !== 'lm741') continue;
+      const outNet = this.getNetForPin(comp.id, comp.pins[5].id);
+      if (outNet === -1) continue;
+      const vpNet = this.getNetForPin(comp.id, comp.pins[6].id);
+      const vmNet = this.getNetForPin(comp.id, comp.pins[3].id);
+      const vRailPlus = vpNet !== -1 ? (this.nodeVoltages[vpNet] || 0) : vdd;
+      const vRailMinus = vmNet !== -1 ? (this.nodeVoltages[vmNet] || 0) : 0;
+      const vOut = this.nodeVoltages[outNet] || 0;
+      this.nodeVoltages[outNet] = Math.max(vRailMinus, Math.min(vRailPlus, vOut));
     }
 
     // Update capacitor states for next timestep
@@ -508,7 +493,16 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
       if (comp.type === 'audio-output') {
         const net = this.getNetForPin(comp.id, comp.pins[0].id);
         const v = net !== -1 ? (this.nodeVoltages[net] || 0) : 0;
-        const sample = (v / vdd) * 2 - 1;
+        // DC blocker: high-pass filter removes DC offset so both direct
+        // outputs (centered at VDD/2) and AC-coupled outputs (centered at 0V)
+        // produce a zero-centered audio signal
+        if (!this.dcBlocker) this.dcBlocker = { xPrev: 0, yPrev: 0 };
+        const alpha = 0.995; // ~30Hz cutoff at 48kHz
+        const y = v - this.dcBlocker.xPrev + alpha * this.dcBlocker.yPrev;
+        this.dcBlocker.xPrev = v;
+        this.dcBlocker.yPrev = y;
+        // Scale to audio range: VDD/2 amplitude → ±1
+        const sample = y / (vdd * 0.5);
         return Math.max(-1, Math.min(1, sample));
       }
     }
