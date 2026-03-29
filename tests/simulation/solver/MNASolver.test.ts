@@ -6,6 +6,7 @@ import { ResistorModel } from '@/simulation/models/ResistorModel';
 import { CapacitorModel } from '@/simulation/models/CapacitorModel';
 import { DiodeModel, DIODE_1N914_PARAMS } from '@/simulation/models/DiodeModel';
 import { BJTModel, BJT_2N3904_PARAMS } from '@/simulation/models/BJTModel';
+import { OpAmpModel, OPAMP_LM741_PARAMS } from '@/simulation/models/OpAmpModel';
 
 function makeComp(id: string, type: string, pins: { id: string; type: string }[], params: Record<string, number | string | boolean> = {}) {
   return { id, type, pins: pins.map(p => ({ id: p.id, label: p.id, type: p.type })), parameters: params };
@@ -153,6 +154,87 @@ describe('MNASolver', () => {
       expect(vB).toBeLessThan(0.8);
       expect(vC).toBeLessThan(1.0); // Saturated
       expect(vC).toBeGreaterThan(-0.5);
+    });
+  });
+
+  describe('op-amp inverting amplifier', () => {
+    it('produces gain approx -R2/R1', () => {
+      const reg = new ModelRegistry();
+      reg.register('resistor', () => new ResistorModel());
+      reg.register('lm741', () => new OpAmpModel(OPAMP_LM741_PARAMS));
+      const solver = new MNASolver(reg);
+
+      const components = [
+        makeComp('pwr', 'power', [{ id: 'pos', type: 'power' }, { id: 'neg', type: 'ground' }], { voltage: 9 }),
+        makeComp('gnd', 'ground', [{ id: 'gnd', type: 'ground' }]),
+        makeComp('rb1', 'resistor', [{ id: 'p0', type: 'bidirectional' }, { id: 'p1', type: 'bidirectional' }], { resistance: 10000 }),
+        makeComp('rb2', 'resistor', [{ id: 'p0', type: 'bidirectional' }, { id: 'p1', type: 'bidirectional' }], { resistance: 10000 }),
+        makeComp('r1', 'resistor', [{ id: 'p0', type: 'bidirectional' }, { id: 'p1', type: 'bidirectional' }], { resistance: 10000 }),
+        makeComp('r2', 'resistor', [{ id: 'p0', type: 'bidirectional' }, { id: 'p1', type: 'bidirectional' }], { resistance: 100000 }),
+        makeComp('vin', 'power', [{ id: 'pos', type: 'power' }, { id: 'neg', type: 'ground' }], { voltage: 4.6 }),
+        makeComp('u', 'lm741', [
+          { id: 'inm', type: 'input' }, { id: 'inp', type: 'input' },
+          { id: 'vneg', type: 'power' }, { id: 'out', type: 'output' }, { id: 'vpos', type: 'power' },
+        ]),
+      ];
+      const connections = [
+        makeConn('pwr', 'neg', 'gnd', 'gnd'),
+        makeConn('vin', 'neg', 'gnd', 'gnd'),
+        makeConn('pwr', 'pos', 'rb1', 'p0'),
+        makeConn('rb1', 'p1', 'rb2', 'p0'),
+        makeConn('rb2', 'p1', 'gnd', 'gnd'),
+        makeConn('rb1', 'p1', 'u', 'inp'),
+        makeConn('vin', 'pos', 'r1', 'p0'),
+        makeConn('r1', 'p1', 'u', 'inm'),
+        makeConn('u', 'out', 'r2', 'p0'),
+        makeConn('r2', 'p1', 'u', 'inm'),
+        makeConn('pwr', 'pos', 'u', 'vpos'),
+        makeConn('gnd', 'gnd', 'u', 'vneg'),
+      ];
+
+      solver.loadCircuit(components, connections);
+      for (let i = 0; i < 500; i++) solver.step(1 / 48000);
+
+      const vOut = solver.getNodeVoltageByPin('u', 'out');
+      // Gain = -R2/R1 = -10, Vin_ac = 0.1V -> expect Vout near 4.5 - 1.0 = 3.5V
+      expect(vOut).toBeGreaterThan(2.5);
+      expect(vOut).toBeLessThan(4.5);
+    });
+
+    it('saturates at supply rails', () => {
+      const reg = new ModelRegistry();
+      reg.register('resistor', () => new ResistorModel());
+      reg.register('lm741', () => new OpAmpModel(OPAMP_LM741_PARAMS));
+      const solver = new MNASolver(reg);
+
+      const components = [
+        makeComp('pwr', 'power', [{ id: 'pos', type: 'power' }, { id: 'neg', type: 'ground' }], { voltage: 9 }),
+        makeComp('gnd', 'ground', [{ id: 'gnd', type: 'ground' }]),
+        makeComp('r1', 'resistor', [{ id: 'p0', type: 'bidirectional' }, { id: 'p1', type: 'bidirectional' }], { resistance: 10000 }),
+        makeComp('r2', 'resistor', [{ id: 'p0', type: 'bidirectional' }, { id: 'p1', type: 'bidirectional' }], { resistance: 10000 }),
+        makeComp('u', 'lm741', [
+          { id: 'inm', type: 'input' }, { id: 'inp', type: 'input' },
+          { id: 'vneg', type: 'power' }, { id: 'out', type: 'output' }, { id: 'vpos', type: 'power' },
+        ]),
+      ];
+      const connections = [
+        makeConn('pwr', 'neg', 'gnd', 'gnd'),
+        makeConn('gnd', 'gnd', 'u', 'inp'),
+        makeConn('pwr', 'pos', 'r1', 'p0'),
+        makeConn('r1', 'p1', 'u', 'inm'),
+        makeConn('u', 'out', 'r2', 'p0'),
+        makeConn('r2', 'p1', 'gnd', 'gnd'),
+        makeConn('pwr', 'pos', 'u', 'vpos'),
+        makeConn('gnd', 'gnd', 'u', 'vneg'),
+      ];
+
+      solver.loadCircuit(components, connections);
+      for (let i = 0; i < 500; i++) solver.step(1 / 48000);
+
+      const vOut = solver.getNodeVoltageByPin('u', 'out');
+      // IN- > IN+ -> saturate near negative rail
+      expect(vOut).toBeLessThan(1.5);
+      expect(vOut).toBeGreaterThan(-1);
     });
   });
 });
