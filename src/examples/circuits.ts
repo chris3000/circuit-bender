@@ -175,10 +175,10 @@ export const exampleCircuits: ExampleCircuit[] = [
         connect(power, 0, ic, 12),
         connect(ground, 0, ic, 13),
         connect(power, 1, ground, 0),
-        // Series chain: IC input → fixed R → pot → IC output
+        // Series chain: IC input → fixed R → pot wiper → IC output
         connect(rFixed, 0, ic, 0),
         connect(rFixed, 1, pot, 0),
-        connect(pot, 2, ic, 6),
+        connect(pot, 1, ic, 6),   // wiper (pin 1) to output — rheostat wiring
         // Capacitor from IC input to ground
         connect(capacitor, 0, ic, 0),
         connect(capacitor, 1, ground, 0),
@@ -298,7 +298,7 @@ export const exampleCircuits: ExampleCircuit[] = [
 
         // === Wacky Oscillator (U1-B: input=pin1, output=pin7) ===
         connect(potWacky, 0, ic, 1),      // Pot terminal to input
-        connect(potWacky, 2, ic, 7),      // Pot terminal to output
+        connect(potWacky, 1, ic, 7),      // Pot wiper to output (rheostat)
         connect(r6, 0, ic, 1),            // R6 to input (min R, parallel with pot)
         connect(r6, 1, ic, 7),            // R6 to output
         connect(c4, 0, ic, 1),            // C4 to input
@@ -306,13 +306,13 @@ export const exampleCircuits: ExampleCircuit[] = [
 
         // === Weird Oscillator (U1-A: input=pin0, output=pin6) ===
         connect(potWeird, 0, ic, 0),      // Pot terminal to input
-        connect(potWeird, 2, ic, 6),      // Pot terminal to output
+        connect(potWeird, 1, ic, 6),      // Pot wiper to output (rheostat)
         connect(c5, 0, ic, 0),            // C5 to input
         connect(c5, 1, ground, 0),        // C5 to GND
 
         // === Zany Oscillator (U1-C: input=pin2, output=pin8) ===
         connect(potZany, 0, ic, 2),       // Pot terminal to input
-        connect(potZany, 2, ic, 8),       // Pot terminal to output
+        connect(potZany, 1, ic, 8),       // Pot wiper to output (rheostat)
         connect(r15, 0, ic, 2),           // R15 to input (min R)
         connect(r15, 1, ic, 8),           // R15 to output
         connect(c7, 0, ic, 2),            // C7 to input
