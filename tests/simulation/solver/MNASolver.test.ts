@@ -4,6 +4,7 @@ import { MNASolver } from '@/simulation/solver/MNASolver';
 import { ModelRegistry } from '@/simulation/models/ModelRegistry';
 import { ResistorModel } from '@/simulation/models/ResistorModel';
 import { CapacitorModel } from '@/simulation/models/CapacitorModel';
+import { DiodeModel, DIODE_1N914_PARAMS } from '@/simulation/models/DiodeModel';
 
 function makeComp(id: string, type: string, pins: { id: string; type: string }[], params: Record<string, number | string | boolean> = {}) {
   return { id, type, pins: pins.map(p => ({ id: p.id, label: p.id, type: p.type })), parameters: params };
@@ -87,6 +88,35 @@ describe('MNASolver', () => {
       const actual = solver.getNodeVoltageByPin('c', 'p0');
       const error = Math.abs(actual - expected) / expected;
       expect(error).toBeLessThan(0.02);
+    });
+  });
+
+  describe('diode forward bias', () => {
+    it('produces ~0.6-0.7V drop across 1N914', () => {
+      const reg = new ModelRegistry();
+      reg.register('resistor', () => new ResistorModel());
+      reg.register('1n914', () => new DiodeModel(DIODE_1N914_PARAMS));
+      const solver = new MNASolver(reg);
+
+      const components = [
+        makeComp('pwr', 'power', [{ id: 'pos', type: 'power' }, { id: 'neg', type: 'ground' }], { voltage: 9 }),
+        makeComp('gnd', 'ground', [{ id: 'gnd', type: 'ground' }]),
+        makeComp('r', 'resistor', [{ id: 'p0', type: 'bidirectional' }, { id: 'p1', type: 'bidirectional' }], { resistance: 1000 }),
+        makeComp('d', '1n914', [{ id: 'a', type: 'bidirectional' }, { id: 'k', type: 'bidirectional' }]),
+      ];
+      const connections = [
+        makeConn('pwr', 'neg', 'gnd', 'gnd'),
+        makeConn('pwr', 'pos', 'r', 'p0'),
+        makeConn('r', 'p1', 'd', 'a'),
+        makeConn('d', 'k', 'gnd', 'gnd'),
+      ];
+
+      solver.loadCircuit(components, connections);
+      for (let i = 0; i < 10; i++) solver.step(1 / 48000);
+
+      const vAnode = solver.getNodeVoltageByPin('d', 'a');
+      expect(vAnode).toBeGreaterThan(0.5);
+      expect(vAnode).toBeLessThan(0.85);
     });
   });
 });
