@@ -65,12 +65,20 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
     this.nodeVoltages = {};
     this.capStates = {};
     this.schmittStates = {};
+    this.diodeStates = {};
+    this.transistorStates = {};
     for (const comp of this.components) {
       if (comp.type === 'capacitor') {
         this.capStates[comp.id] = { vPrev: 0, iPrev: 0 };
       }
       if (comp.type === 'cd40106') {
         this.schmittStates[comp.id] = [true, true, true, true, true, true];
+      }
+      if (comp.type === '1n914') {
+        this.diodeStates[comp.id] = { vPrev: 0 };
+      }
+      if (comp.type === '2n3904') {
+        this.transistorStates[comp.id] = { vbePrev: 0, vcePrev: 0 };
       }
     }
   }
@@ -206,6 +214,22 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
       }
     }
 
+    // Op-amp outputs are voltage sources (clamped VCVS)
+    for (const comp of this.components) {
+      if (comp.type !== 'lm741') continue;
+      const outNet = this.getNetForPin(comp.id, comp.pins[5].id); // pin 5 = OUT
+      const outNode = outNet !== -1 ? (this.netToNode[outNet] ?? -1) : -1;
+      if (outNode === -1) continue;
+      this.vsSources.push({
+        posNode: outNode,
+        negNode: -1,
+        voltage: this.supplyVoltage / 2, // initial: mid-rail
+        compId: comp.id,
+        type: 'opamp'
+      });
+      this.vsCount++;
+    }
+
     this.matrixSize = this.numNodes + this.vsCount;
   }
 
@@ -222,6 +246,34 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
         const gates = this.schmittStates[vs.compId];
         if (gates) {
           vs.voltage = gates[vs.gateIndex] ? vdd : 0;
+        }
+      }
+      // Update op-amp output voltage (clamped VCVS)
+      if (vs.type === 'opamp') {
+        const comp = this.components.find(c => c.id === vs.compId);
+        if (comp) {
+          const invNet = this.getNetForPin(comp.id, comp.pins[1].id);    // IN-
+          const nonInvNet = this.getNetForPin(comp.id, comp.pins[2].id); // IN+
+          const vpNet = this.getNetForPin(comp.id, comp.pins[6].id);     // V+
+          const vmNet = this.getNetForPin(comp.id, comp.pins[3].id);     // V-
+          const vInv = invNet !== -1 ? (this.nodeVoltages[invNet] || 0) : 0;
+          const vNonInv = nonInvNet !== -1 ? (this.nodeVoltages[nonInvNet] || 0) : 0;
+          const vRailPlus = vpNet !== -1 ? (this.nodeVoltages[vpNet] || 0) : vdd;
+          const vRailMinus = vmNet !== -1 ? (this.nodeVoltages[vmNet] || 0) : 0;
+          // Open-loop gain (reduced for single-timestep stability with feedback)
+          const gain = 1000;
+          const vTarget = Math.max(vRailMinus, Math.min(vRailPlus, gain * (vNonInv - vInv)));
+          // Slew rate limiting: LM741 slews at ~0.5V/µs = 500000 V/s
+          const slewRate = 500000;
+          const maxDelta = slewRate * dt;
+          const prev = vs.voltage;
+          if (vTarget > prev + maxDelta) {
+            vs.voltage = prev + maxDelta;
+          } else if (vTarget < prev - maxDelta) {
+            vs.voltage = prev - maxDelta;
+          } else {
+            vs.voltage = vTarget;
+          }
         }
       }
     }
@@ -291,6 +343,88 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
         // Current flows from n0 to n1, so inject +Ieq at n0, -Ieq at n1
         if (n0 !== -1) b[n0] += Ieq;
         if (n1 !== -1) b[n1] -= Ieq;
+      }
+
+      // 1N914 Diode: piecewise linear companion model
+      if (comp.type === '1n914') {
+        const netA = this.getNetForPin(comp.id, comp.pins[0].id); // Anode
+        const netK = this.getNetForPin(comp.id, comp.pins[1].id); // Cathode
+        const nA = netA !== -1 ? (this.netToNode[netA] ?? -1) : -1;
+        const nK = netK !== -1 ? (this.netToNode[netK] ?? -1) : -1;
+        const vA = netA !== -1 ? (this.nodeVoltages[netA] || 0) : 0;
+        const vK = netK !== -1 ? (this.nodeVoltages[netK] || 0) : 0;
+        const vd = vA - vK;
+
+        if (vd > 0.6) {
+          // Forward biased: low resistance + 0.6V drop companion
+          const Gf = 1 / 10;
+          this.stampConductance(G, nA, nK, Gf);
+          const Ieq = Gf * 0.6;
+          if (nA !== -1) b[nA] -= Ieq;
+          if (nK !== -1) b[nK] += Ieq;
+        } else {
+          // Reverse biased: very high resistance
+          this.stampConductance(G, nA, nK, 1 / 10000000);
+        }
+      }
+
+      // 2N3904 NPN Transistor: linearized Ebers-Moll
+      if (comp.type === '2n3904') {
+        const netB = this.getNetForPin(comp.id, comp.pins[0].id); // Base
+        const netC = this.getNetForPin(comp.id, comp.pins[1].id); // Collector
+        const netE = this.getNetForPin(comp.id, comp.pins[2].id); // Emitter
+        const nB = netB !== -1 ? (this.netToNode[netB] ?? -1) : -1;
+        const nC = netC !== -1 ? (this.netToNode[netC] ?? -1) : -1;
+        const nE = netE !== -1 ? (this.netToNode[netE] ?? -1) : -1;
+        const vB = netB !== -1 ? (this.nodeVoltages[netB] || 0) : 0;
+        const vC = netC !== -1 ? (this.nodeVoltages[netC] || 0) : 0;
+        const vE = netE !== -1 ? (this.nodeVoltages[netE] || 0) : 0;
+        const vbe = vB - vE;
+        const vce = vC - vE;
+
+        if (vbe <= 0.6) {
+          // Cutoff: high resistance on all junctions
+          this.stampConductance(G, nB, nE, 1 / 10000000);
+          this.stampConductance(G, nC, nE, 1 / 10000000);
+        } else if (vce > 0.2) {
+          // Active: BE diode + voltage-controlled current source C→E
+          const Gbe = 1 / 1000;
+          this.stampConductance(G, nB, nE, Gbe);
+          // BE forward drop companion current
+          const Ieq_be = Gbe * 0.6;
+          if (nB !== -1) b[nB] -= Ieq_be;
+          if (nE !== -1) b[nE] += Ieq_be;
+          // VCCS: Ic = beta * Ib, stamp as Gm controlled by Vbe
+          const Gm = 100 * Gbe; // beta = 100
+          if (nC !== -1 && nB !== -1) G[nC][nB] += Gm;
+          if (nC !== -1 && nE !== -1) G[nC][nE] -= Gm;
+          if (nE !== -1 && nB !== -1) G[nE][nB] -= Gm;
+          if (nE !== -1) G[nE][nE] += Gm;
+          // Companion current from BE voltage offset
+          const Ieq_ce = Gm * 0.6;
+          if (nC !== -1) b[nC] -= Ieq_ce;
+          if (nE !== -1) b[nE] += Ieq_ce;
+        } else {
+          // Saturation: BE diode + low CE resistance
+          const Gbe = 1 / 1000;
+          this.stampConductance(G, nB, nE, Gbe);
+          const Ieq_be = Gbe * 0.6;
+          if (nB !== -1) b[nB] -= Ieq_be;
+          if (nE !== -1) b[nE] += Ieq_be;
+          this.stampConductance(G, nC, nE, 1 / 50); // Rsat = 50 ohm
+        }
+      }
+
+      // LM741 Op-Amp: high impedance inputs (stabilize matrix)
+      if (comp.type === 'lm741') {
+        const netInv = this.getNetForPin(comp.id, comp.pins[1].id);    // IN-
+        const netNonInv = this.getNetForPin(comp.id, comp.pins[2].id); // IN+
+        const nInv = netInv !== -1 ? (this.netToNode[netInv] ?? -1) : -1;
+        const nNonInv = netNonInv !== -1 ? (this.netToNode[netNonInv] ?? -1) : -1;
+        // Small conductance to ground prevents floating nodes
+        const Gin = 1 / 10000000; // 10M ohm input impedance
+        if (nInv !== -1) G[nInv][nInv] += Gin;
+        if (nNonInv !== -1) G[nNonInv][nNonInv] += Gin;
       }
     }
 
