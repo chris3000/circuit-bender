@@ -35,4 +35,13 @@ export class PotentiometerModel implements ComponentModel {
   postStep(_x: Float64Array, _dt: number): void {}
   convergenceError(_xOld: Float64Array, _xNew: Float64Array): number { return 0; }
   reset(): void {}
+
+  updateParam(key: string, value: number): void {
+    if (key === 'position') {
+      const maxR = 1 / this.gTop + 1 / this.gBottom; // total R is constant
+      const pos = Math.min(Math.max(value, 0.001), 0.999);
+      this.gTop = 1 / (maxR * pos);
+      this.gBottom = 1 / (maxR * (1 - pos));
+    }
+  }
 }

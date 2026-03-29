@@ -26,4 +26,10 @@ export class SwitchModel implements ComponentModel {
   postStep(_x: Float64Array, _dt: number): void {}
   convergenceError(_xOld: Float64Array, _xNew: Float64Array): number { return 0; }
   reset(): void {}
+
+  updateParam(key: string, value: number): void {
+    if (key === 'closed') {
+      this.closed = value >= 1;
+    }
+  }
 }

@@ -51,7 +51,15 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
         this.solver.loadCircuit(msg.components, msg.connections);
       } else if (msg.type === 'setParam') {
         const comp = this.components.find((c: SerializedComponent) => c.id === msg.componentId);
-        if (comp) comp.parameters[msg.key] = msg.value;
+        if (comp) {
+          comp.parameters[msg.key] = msg.value;
+          const model = this.solver.getModel(msg.componentId) as unknown;
+          if (model && typeof (model as { updateParam?: unknown }).updateParam === 'function') {
+            (model as { updateParam: (k: string, v: number) => void }).updateParam(
+              msg.key, Number(msg.value)
+            );
+          }
+        }
       } else if (msg.type === 'setProbes') {
         this.probes = msg.probes || [];
         this.probeSampleBuffers = this.probes.map(() => new Float32Array(128));
