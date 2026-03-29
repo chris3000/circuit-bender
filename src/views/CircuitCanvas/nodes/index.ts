@@ -3,6 +3,7 @@ import { CircuitNode } from './CircuitNode';
 import { LEDNode } from './LEDNode';
 import { PotentiometerNode } from './PotentiometerNode';
 import { EditableNode } from './EditableNode';
+import { SwitchNode } from './SwitchNode';
 
 export const nodeTypes: NodeTypes = {
   resistor: EditableNode,
@@ -16,4 +17,5 @@ export const nodeTypes: NodeTypes = {
   'audio-output': CircuitNode,
   '1n914': CircuitNode,
   '2n3904': CircuitNode,
+  switch: SwitchNode,
 };

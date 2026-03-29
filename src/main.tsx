@@ -13,6 +13,7 @@ import { transistor2N3904Definition } from './components/definitions/Transistor2
 import { diode1N914Definition } from './components/definitions/Diode1N914';
 import { audioOutputJackDefinition } from './components/definitions/AudioOutputJack';
 import { ledDefinition } from './components/definitions/LED';
+import { switchDefinition } from './components/definitions/Switch';
 import { SimulationEngine } from './simulation/SimulationEngine';
 import 'reactflow/dist/style.css';
 import './styles/globals.css';
@@ -30,6 +31,7 @@ registry.register(transistor2N3904Definition);
 registry.register(diode1N914Definition);
 registry.register(audioOutputJackDefinition);
 registry.register(ledDefinition);
+registry.register(switchDefinition);
 
 SimulationEngine.registerOutputType('audio-output');
 SimulationEngine.registerOutputType('led');
