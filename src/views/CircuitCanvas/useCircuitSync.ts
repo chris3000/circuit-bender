@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import type { Node, Edge, NodeChange, EdgeChange, Connection as RFConnection } from 'reactflow';
 import { applyNodeChanges, applyEdgeChanges } from 'reactflow';
 import { useCircuit } from '@/context/CircuitContext';
@@ -57,9 +57,21 @@ export function useCircuitSync(
   // Use state for nodes so React Flow can apply drag changes
   const [nodes, setNodes] = useState<Node<CircuitNodeData>[]>(derivedNodes);
 
-  // Sync derived nodes into state when circuit changes
+  // Track which nodes are mid-drag so we don't overwrite their positions
+  const draggingIds = useRef<Set<string>>(new Set());
+
+  // Sync derived nodes into state when circuit changes, but preserve drag positions
   useEffect(() => {
-    setNodes(derivedNodes);
+    setNodes((prev) => {
+      if (draggingIds.current.size === 0) return derivedNodes;
+      return derivedNodes.map((derived) => {
+        if (draggingIds.current.has(derived.id)) {
+          const existing = prev.find((n) => n.id === derived.id);
+          return existing ? { ...derived, position: existing.position } : derived;
+        }
+        return derived;
+      });
+    });
   }, [derivedNodes]);
 
   const edges: Edge[] = useMemo(() => {
@@ -94,17 +106,22 @@ export function useCircuitSync(
   // --- Upstream: React Flow -> Circuit ---
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
-    // Apply all changes to React Flow's visual state (enables dragging)
-    setNodes((nds) => applyNodeChanges(changes, nds));
-
-    // Persist position to CircuitContext on drag end
     for (const change of changes) {
-      if (change.type === 'position' && change.position && !change.dragging) {
-        updateComponent(change.id as ComponentId, {
-          position: { x: change.position.x, y: change.position.y },
-        });
+      if (change.type === 'position') {
+        if (change.dragging) {
+          draggingIds.current.add(change.id);
+        } else {
+          draggingIds.current.delete(change.id);
+          if (change.position) {
+            updateComponent(change.id as ComponentId, {
+              position: { x: change.position.x, y: change.position.y },
+            });
+          }
+        }
       }
     }
+    // Apply all changes to React Flow's visual state (enables dragging)
+    setNodes((nds) => applyNodeChanges(changes, nds));
   }, [updateComponent]);
 
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
