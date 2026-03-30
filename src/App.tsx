@@ -5,6 +5,7 @@ import { ComponentDrawer } from './views/ComponentDrawer';
 import { AudioEngine } from './audio/AudioEngine';
 import OscilloscopePanel from './views/Oscilloscope/OscilloscopePanel';
 import { ExamplesMenu } from './views/ExamplesMenu';
+import { SaveLoadControls } from './views/SaveLoadControls';
 import CircuitCanvas from './views/CircuitCanvas/CircuitCanvas';
 import type { Circuit } from './models/Circuit';
 
@@ -115,6 +116,7 @@ export function AppContent() {
         <h1>Circuit Bender</h1>
         <div style={{ width: '1px', height: '18px', background: '#444' }} />
         <ExamplesMenu />
+        <SaveLoadControls />
         <div className="audio-controls" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
           {!audioStarted ? (
             <button className="play-btn" onClick={handleStartAudio}>&#9654;</button>
