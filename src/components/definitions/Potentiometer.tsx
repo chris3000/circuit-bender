@@ -1,5 +1,6 @@
 import type { ComponentDefinition } from '@/types/circuit';
 import { generatePinId } from '@/utils/ids';
+import { formatValue } from '@/utils/parameterParser';
 
 export const potentiometerDefinition: ComponentDefinition = {
   type: 'potentiometer',
@@ -83,12 +84,31 @@ export const potentiometerDefinition: ComponentDefinition = {
       height: 70,
       render: (params) => {
         const pos = (params.position as number) ?? 0.5;
+        const maxR = (params.maxResistance as number) ?? 1000000;
+        const currentR = maxR * Math.max(0.001, pos);
+        const currentLabel = formatValue(currentR, 'resistance');
         // Map 0-1 to angle range: -135° to +135° (270° sweep)
         const angle = -135 + pos * 270;
         const rad = (angle * Math.PI) / 180;
         const pointerLen = 18;
+        // Min/max marker angles
+        const minRad = (-135 * Math.PI) / 180;
+        const maxRad = (135 * Math.PI) / 180;
+        const markerR = 28;
         return (
           <g>
+            {/* Sweep arc background */}
+            <path
+              d={`M ${Math.cos(minRad) * 26} ${Math.sin(minRad) * 26} A 26 26 0 1 1 ${Math.cos(maxRad) * 26} ${Math.sin(maxRad) * 26}`}
+              fill="none" stroke="#1a2a3a" strokeWidth="3" strokeLinecap="round"
+            />
+            {/* Active arc (shows current position) */}
+            {pos > 0.01 && (
+              <path
+                d={`M ${Math.cos(minRad) * 26} ${Math.sin(minRad) * 26} A 26 26 0 ${pos > 0.5 ? 1 : 0} 1 ${Math.cos(rad) * 26} ${Math.sin(rad) * 26}`}
+                fill="none" stroke="#4a8abf" strokeWidth="3" strokeLinecap="round"
+              />
+            )}
             {/* Outer ring */}
             <circle cx="0" cy="0" r="24" fill="#2a3a5a" stroke="#1a2a4a" strokeWidth="1.5" />
             {/* Knurled edge ticks */}
@@ -110,29 +130,35 @@ export const potentiometerDefinition: ComponentDefinition = {
             <circle cx="0" cy="0" r="18" fill="#3a5a8a" stroke="#2a4a7a" strokeWidth="0.5" />
             {/* Position indicator line */}
             <line
-              x1={0}
-              y1={0}
+              x1={0} y1={0}
               x2={Math.cos(rad) * pointerLen}
               y2={Math.sin(rad) * pointerLen}
-              stroke="#eee"
-              strokeWidth="2.5"
-              strokeLinecap="round"
+              stroke="#eee" strokeWidth="2.5" strokeLinecap="round"
             />
             {/* Center cap */}
             <circle cx="0" cy="0" r="4" fill="#666" stroke="#555" strokeWidth="0.5" />
+            {/* Min/Max markers */}
+            <text x={Math.cos(minRad) * markerR} y={Math.sin(minRad) * markerR + 3}
+              textAnchor="middle" fontSize="6" fill="#668" fontFamily="Courier New">0</text>
+            <text x={Math.cos(maxRad) * markerR} y={Math.sin(maxRad) * markerR + 3}
+              textAnchor="middle" fontSize="6" fill="#668" fontFamily="Courier New">{params.value}</text>
             {/* Leads */}
             <rect x="-25" y="-1.5" width="6" height="3" rx="1" fill="#ccc" />
             <rect x="19" y="-1.5" width="6" height="3" rx="1" fill="#ccc" />
             <rect x="-1.5" y="-20" width="3" height="6" rx="1" fill="#ccc" />
-            {/* Value label */}
-            <text x="0" y="36" textAnchor="middle" fontSize="9" fill="#d4ecd4" opacity="0.85" fontFamily="Courier New">
-              {params.value}
+            {/* Current resistance reading */}
+            <text x="0" y="38" textAnchor="middle" fontSize="9" fill="#8cf" opacity="0.95" fontFamily="Courier New" fontWeight="bold">
+              {currentLabel}
+            </text>
+            {/* Max value label */}
+            <text x="0" y="48" textAnchor="middle" fontSize="7" fill="#668" fontFamily="Courier New">
+              / {params.value}
             </text>
           </g>
         );
       },
     },
-    dimensions: { width: 70, height: 70 },
+    dimensions: { width: 70, height: 100 },
   },
   simulate: (inputs, params) => {
     const v1 = inputs.pin_0?.voltage ?? 0;
