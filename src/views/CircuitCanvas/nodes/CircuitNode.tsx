@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react';
 import { Handle, Position, type NodeProps } from 'reactflow';
 import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
 import type { CircuitNodeData } from '../useCircuitSync';
+import { pinTooltip } from './pinTooltip';
 
 function pinPositionToHandleStyle(
   pinX: number, pinY: number, symbolWidth: number, symbolHeight: number,
@@ -47,8 +48,9 @@ export const CircuitNode = memo(function CircuitNode({ data, selected }: NodePro
           border: viewMode === 'schematic' ? '2px solid #666' : '1px solid #8a7030',
         };
         const pos = getHandlePosition(pin.position.x);
+        const tooltip = pinTooltip(component.type, pin.label, pin.type);
         return [
-          <Handle key={`${pin.id}-src`} id={pin.id} type="source" position={pos} isConnectable={true} style={handleStyle} />,
+          <Handle key={`${pin.id}-src`} id={pin.id} type="source" position={pos} isConnectable={true} style={handleStyle} title={tooltip} />,
           <Handle key={`${pin.id}-tgt`} id={pin.id} type="target" position={pos} isConnectable={true} style={{ ...handleStyle, opacity: 0, pointerEvents: 'none' }} />,
         ];
       })}

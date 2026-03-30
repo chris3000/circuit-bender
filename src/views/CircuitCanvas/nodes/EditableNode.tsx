@@ -3,6 +3,7 @@ import { Handle, Position, type NodeProps } from 'reactflow';
 import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
 import { useCircuit } from '@/context/CircuitContext';
 import { parseValue, formatValue } from '@/utils/parameterParser';
+import { pinTooltip } from './pinTooltip';
 import type { CircuitNodeData } from '../useCircuitSync';
 
 function pinPositionToHandleStyle(pinX: number, pinY: number, w: number, h: number): React.CSSProperties {
@@ -53,7 +54,7 @@ export const EditableNode = memo(function EditableNode({ data, selected }: NodeP
         const handleStyle = { ...pinPositionToHandleStyle(pin.position.x, pin.position.y, dims.width, dims.height), width: 10, height: 10, borderRadius: '50%', background: viewMode === 'schematic' ? '#999' : '#c4a24e', border: viewMode === 'schematic' ? '2px solid #666' : '1px solid #8a7030' };
         const pos = getHandlePosition(pin.position.x);
         return [
-          <Handle key={`${pin.id}-src`} id={pin.id} type="source" position={pos} isConnectable={true} style={handleStyle} />,
+          <Handle key={`${pin.id}-src`} id={pin.id} type="source" position={pos} isConnectable={true} style={handleStyle} title={pinTooltip(component.type, pin.label, pin.type)} />,
           <Handle key={`${pin.id}-tgt`} id={pin.id} type="target" position={pos} isConnectable={true} style={{ ...handleStyle, opacity: 0, pointerEvents: 'none' }} />,
         ];
       })}
