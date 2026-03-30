@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { type EdgeProps, getSmoothStepPath } from 'reactflow';
+import { generateWaypointPath } from '@/utils/wiring';
 
 const WIRE_WIDTH = { power: 3, ground: 2.5, signal: 2 } as const;
 
@@ -9,8 +10,11 @@ export const BoardEdge = memo(function BoardEdge({
   const wireType = (data?.wireType || 'signal') as 'power' | 'ground' | 'signal';
   const wireColor = (data?.wireColor || '#4a82c4') as string;
   const strokeWidth = selected ? WIRE_WIDTH[wireType] + 1 : WIRE_WIDTH[wireType];
+  const waypoints = data?.waypoints as { x: number; y: number }[] | undefined;
 
-  const [edgePath] = getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 20 });
+  const edgePath = waypoints && waypoints.length > 0
+    ? generateWaypointPath(sourceX, sourceY, targetX, targetY, waypoints)
+    : getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 20 })[0];
 
   return (
     <g>
