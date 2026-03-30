@@ -1,6 +1,19 @@
 import type { ComponentDefinition } from '@/types/circuit';
 import { generatePinId } from '@/utils/ids';
 
+/** Convert capacitance in farads to ceramic cap code (e.g., 100nF → "104", 22nF → "223") */
+function capCode(farads: number): string {
+  const pf = farads * 1e12;
+  if (pf < 1) return String(Math.round(pf * 10) / 10);
+  if (pf < 10) return String(Math.round(pf * 10) / 10);
+  if (pf < 100) return String(Math.round(pf));
+  // Standard 3-digit code: first two significant digits + number of trailing zeros
+  const log = Math.floor(Math.log10(pf));
+  const sig = Math.round(pf / Math.pow(10, log - 1));
+  const zeros = log - 1;
+  return `${sig}${zeros}`;
+}
+
 export const capacitorDefinition: ComponentDefinition = {
   type: 'capacitor',
   metadata: {
@@ -68,7 +81,7 @@ export const capacitorDefinition: ComponentDefinition = {
             <rect x="12" y="-1.5" width="8" height="3" rx="1" fill="#ccc" />
             <ellipse cx="0" cy="0" rx="12" ry="10" fill="#e8a020" stroke="#c08010" strokeWidth="0.8" />
             <text x="0" y="2" textAnchor="middle" fontSize="6" fill="#6a4000" fontFamily="Courier New" fontWeight="bold">
-              104
+              {capCode(params.capacitance as number)}
             </text>
             <text x="0" y="20" textAnchor="middle" fontSize="8" fill="#d4ecd4" opacity="0.85" fontFamily="Courier New">
               {params.value}
