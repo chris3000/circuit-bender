@@ -9,40 +9,40 @@ export const lm741Definition: ComponentDefinition = {
     description: 'General-purpose operational amplifier',
   },
   pins: [
-    // pin_0: Inverting input (-)
+    // pin_0: Inverting input (-) — DIP pin 2
     {
       id: generatePinId('lm741', 0),
       label: '-',
       type: 'input',
-      position: { x: -25, y: -10 },
+      position: { x: -25, y: -11 },
     },
-    // pin_1: Non-inverting input (+)
+    // pin_1: Non-inverting input (+) — DIP pin 3
     {
       id: generatePinId('lm741', 1),
       label: '+',
       type: 'input',
-      position: { x: -25, y: 10 },
+      position: { x: -25, y: 9 },
     },
-    // pin_2: V- (ground)
+    // pin_2: V- (ground) — DIP pin 4
     {
       id: generatePinId('lm741', 2),
       label: 'V-',
       type: 'power',
-      position: { x: -25, y: 30 },
+      position: { x: -25, y: 29 },
     },
-    // pin_3: OUT (output)
+    // pin_3: OUT (output) — DIP pin 6
     {
       id: generatePinId('lm741', 3),
       label: 'OUT',
       type: 'output',
-      position: { x: 25, y: 10 },
+      position: { x: 25, y: 9 },
     },
-    // pin_4: V+ (power)
+    // pin_4: V+ (power) — DIP pin 7
     {
       id: generatePinId('lm741', 4),
       label: 'V+',
       type: 'power',
-      position: { x: 25, y: -10 },
+      position: { x: 25, y: -11 },
     },
   ],
   defaultParameters: {},
@@ -96,7 +96,7 @@ export const lm741Definition: ComponentDefinition = {
         );
       },
     },
-    dimensions: { width: 70, height: 70 },
+    dimensions: { width: 70, height: 90 },
   },
   board: {
     symbol: {
@@ -105,23 +105,26 @@ export const lm741Definition: ComponentDefinition = {
       render: () => {
         return (
           <g>
-            <rect x="-20" y="-25" width="40" height="50" rx="3" fill="#2a2a2a" stroke="#555" strokeWidth="0.8" />
-            <path d="M 0,-25 A 5,5 0 0,0 0,-15" fill="none" stroke="#555" strokeWidth="1" />
-            <circle cx="-10" cy="-17" r="2" fill="#555" />
-            <text x="0" y="2" textAnchor="middle" fontSize="7" fill="#ccc" fontFamily="Courier New" fontWeight="bold">LM741</text>
-            <text x="0" y="12" textAnchor="middle" fontSize="6" fill="#888" fontFamily="Courier New">OP-AMP</text>
-            {/* Left pins: IN-, IN+, V- */}
+            <rect x="-20" y="-35" width="40" height="70" rx="3" fill="#2a2a2a" stroke="#555" strokeWidth="0.8" />
+            <path d="M 0,-35 A 5,5 0 0,0 0,-25" fill="none" stroke="#555" strokeWidth="1" />
+            <circle cx="-10" cy="-27" r="2" fill="#555" />
+            <text x="0" y="0" textAnchor="middle" fontSize="7" fill="#ccc" fontFamily="Courier New" fontWeight="bold">LM741</text>
+            <text x="0" y="10" textAnchor="middle" fontSize="6" fill="#888" fontFamily="Courier New">OP-AMP</text>
+            {/* Left legs: NC, IN-, IN+, V- (4 pins, DIP8 layout) */}
+            <rect x="-25" y="-32" width="6" height="2" fill="#666"><title>Unused</title></rect>
             <rect x="-25" y="-12" width="6" height="2" fill="#bbb" />
             <rect x="-25" y="8" width="6" height="2" fill="#bbb" />
             <rect x="-25" y="28" width="6" height="2" fill="#bbb" />
-            {/* Right pins: OUT, V+ */}
-            <rect x="19" y="8" width="6" height="2" fill="#bbb" />
+            {/* Right legs: NC, V+, OUT, NC (4 pins, DIP8 layout) */}
+            <rect x="19" y="-32" width="6" height="2" fill="#666"><title>Unused</title></rect>
             <rect x="19" y="-12" width="6" height="2" fill="#bbb" />
+            <rect x="19" y="8" width="6" height="2" fill="#bbb" />
+            <rect x="19" y="28" width="6" height="2" fill="#666"><title>Unused</title></rect>
           </g>
         );
       },
     },
-    dimensions: { width: 70, height: 70 },
+    dimensions: { width: 70, height: 90 },
   },
   simulate: (inputs, _params) => {
     const vPlus = inputs.pin_1?.voltage ?? 0;
