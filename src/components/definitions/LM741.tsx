@@ -9,61 +9,40 @@ export const lm741Definition: ComponentDefinition = {
     description: 'General-purpose operational amplifier',
   },
   pins: [
-    // pin_0: NC (not connected)
+    // pin_0: Inverting input (-)
     {
       id: generatePinId('lm741', 0),
-      label: 'NC',
-      type: 'bidirectional',
-      position: { x: -25, y: -30 },
-    },
-    // pin_1: Inverting input (-)
-    {
-      id: generatePinId('lm741', 1),
       label: '-',
       type: 'input',
       position: { x: -25, y: -10 },
     },
-    // pin_2: Non-inverting input (+)
+    // pin_1: Non-inverting input (+)
     {
-      id: generatePinId('lm741', 2),
+      id: generatePinId('lm741', 1),
       label: '+',
       type: 'input',
       position: { x: -25, y: 10 },
     },
-    // pin_3: V- (negative supply)
+    // pin_2: V- (ground)
     {
-      id: generatePinId('lm741', 3),
+      id: generatePinId('lm741', 2),
       label: 'V-',
       type: 'power',
       position: { x: -25, y: 30 },
     },
-    // pin_4: NC (not connected)
+    // pin_3: OUT (output)
     {
-      id: generatePinId('lm741', 4),
-      label: 'NC',
-      type: 'bidirectional',
-      position: { x: 25, y: 30 },
-    },
-    // pin_5: OUT (output)
-    {
-      id: generatePinId('lm741', 5),
+      id: generatePinId('lm741', 3),
       label: 'OUT',
       type: 'output',
       position: { x: 25, y: 10 },
     },
-    // pin_6: V+ (positive supply)
+    // pin_4: V+ (power)
     {
-      id: generatePinId('lm741', 6),
+      id: generatePinId('lm741', 4),
       label: 'V+',
       type: 'power',
       position: { x: 25, y: -10 },
-    },
-    // pin_7: NC (not connected)
-    {
-      id: generatePinId('lm741', 7),
-      label: 'NC',
-      type: 'bidirectional',
-      position: { x: 25, y: -30 },
     },
   ],
   defaultParameters: {},
@@ -117,7 +96,7 @@ export const lm741Definition: ComponentDefinition = {
         );
       },
     },
-    dimensions: { width: 70, height: 90 },
+    dimensions: { width: 70, height: 70 },
   },
   board: {
     symbol: {
@@ -126,51 +105,39 @@ export const lm741Definition: ComponentDefinition = {
       render: () => {
         return (
           <g>
-            <rect x="-20" y="-35" width="40" height="70" rx="3" fill="#2a2a2a" stroke="#555" strokeWidth="0.8" />
-            <path d="M 0,-35 A 5,5 0 0,0 0,-25" fill="none" stroke="#555" strokeWidth="1" />
-            <circle cx="-10" cy="-27" r="2" fill="#555" />
-            <text x="0" y="0" textAnchor="middle" fontSize="7" fill="#ccc" fontFamily="Courier New" fontWeight="bold">LM741</text>
-            <text x="0" y="10" textAnchor="middle" fontSize="6" fill="#888" fontFamily="Courier New">OP-AMP</text>
-            <rect x="-25" y="-32" width="6" height="2" fill="#bbb" />
+            <rect x="-20" y="-25" width="40" height="50" rx="3" fill="#2a2a2a" stroke="#555" strokeWidth="0.8" />
+            <path d="M 0,-25 A 5,5 0 0,0 0,-15" fill="none" stroke="#555" strokeWidth="1" />
+            <circle cx="-10" cy="-17" r="2" fill="#555" />
+            <text x="0" y="2" textAnchor="middle" fontSize="7" fill="#ccc" fontFamily="Courier New" fontWeight="bold">LM741</text>
+            <text x="0" y="12" textAnchor="middle" fontSize="6" fill="#888" fontFamily="Courier New">OP-AMP</text>
+            {/* Left pins: IN-, IN+, V- */}
             <rect x="-25" y="-12" width="6" height="2" fill="#bbb" />
             <rect x="-25" y="8" width="6" height="2" fill="#bbb" />
             <rect x="-25" y="28" width="6" height="2" fill="#bbb" />
-            <rect x="19" y="-32" width="6" height="2" fill="#bbb" />
-            <rect x="19" y="-12" width="6" height="2" fill="#bbb" />
+            {/* Right pins: OUT, V+ */}
             <rect x="19" y="8" width="6" height="2" fill="#bbb" />
-            <rect x="19" y="28" width="6" height="2" fill="#bbb" />
+            <rect x="19" y="-12" width="6" height="2" fill="#bbb" />
           </g>
         );
       },
     },
-    dimensions: { width: 70, height: 90 },
+    dimensions: { width: 70, height: 70 },
   },
   simulate: (inputs, _params) => {
-    const vPlus = inputs.pin_2?.voltage ?? 0;      // Non-inverting input
-    const vMinus = inputs.pin_1?.voltage ?? 0;      // Inverting input
-    const vSupplyPos = inputs.pin_6?.voltage ?? 0;  // V+ supply
-    const vSupplyNeg = inputs.pin_3?.voltage ?? 0;  // V- supply
+    const vPlus = inputs.pin_1?.voltage ?? 0;
+    const vMinus = inputs.pin_0?.voltage ?? 0;
+    const vSupplyPos = inputs.pin_4?.voltage ?? 0;
+    const vSupplyNeg = inputs.pin_2?.voltage ?? 0;
 
-    // High gain amplification
     const rawOutput = (vPlus - vMinus) * 100000;
-
-    // Clamp output to supply rails
     const clampedOutput = Math.max(vSupplyNeg, Math.min(vSupplyPos, rawOutput));
 
-    const result: Record<string, { voltage: number; current: number }> = {};
-
-    // Pass through all input pin states
-    for (let i = 0; i < 8; i++) {
-      const pinKey = `pin_${i}`;
-      result[pinKey] = {
-        voltage: inputs[pinKey]?.voltage ?? 0,
-        current: 0,
-      };
-    }
-
-    // Set the output pin
-    result.pin_5 = { voltage: clampedOutput, current: 0 };
-
-    return result;
+    return {
+      pin_0: { voltage: inputs.pin_0?.voltage ?? 0, current: 0 },
+      pin_1: { voltage: inputs.pin_1?.voltage ?? 0, current: 0 },
+      pin_2: { voltage: inputs.pin_2?.voltage ?? 0, current: 0 },
+      pin_3: { voltage: clampedOutput, current: 0 },
+      pin_4: { voltage: inputs.pin_4?.voltage ?? 0, current: 0 },
+    };
   },
 };

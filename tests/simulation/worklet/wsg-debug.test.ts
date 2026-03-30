@@ -44,10 +44,14 @@ const icPins = Array.from({ length: 14 }, (_, i) => ({
   id: `p${i}`, type: i >= 12 ? 'power' : 'bidirectional',
 }));
 
-const opampPins = Array.from({ length: 8 }, (_, i) => {
-  const types: Record<number, string> = { 1: 'input', 2: 'input', 3: 'power', 5: 'output', 6: 'power' };
-  return { id: `p${i}`, type: types[i] ?? 'bidirectional' };
-});
+// LM741 pins: 0=IN-, 1=IN+, 2=V-, 3=OUT, 4=V+
+const opampPins = [
+  { id: 'inm', type: 'input' },
+  { id: 'inp', type: 'input' },
+  { id: 'vneg', type: 'power' },
+  { id: 'out', type: 'output' },
+  { id: 'vpos', type: 'power' },
+];
 
 const dt = 1 / 48000;
 
@@ -122,21 +126,21 @@ describe('WSG Debug', () => {
       makeConn('c_osc', 'p0', 'ic', 'p0'),
       makeConn('c_osc', 'p1', 'gnd', 'gnd'),
       // Op-amp power (DIP8: pin 3=V-, pin 6=V+)
-      makeConn('pwr', 'pos', 'u', 'p6'),
-      makeConn('gnd', 'gnd', 'u', 'p3'),
+      makeConn('pwr', 'pos', 'u', 'vpos'),
+      makeConn('gnd', 'gnd', 'u', 'vneg'),
       // Op-amp input: oscillator → R_in → IN- (pin 1)
       makeConn('ic', 'p6', 'r_in', 'p0'),
-      makeConn('r_in', 'p1', 'u', 'p1'),
+      makeConn('r_in', 'p1', 'u', 'inm'),
       // Op-amp feedback: OUT (pin 5) → R_fb2 → IN-
-      makeConn('u', 'p5', 'r_fb2', 'p0'),
-      makeConn('r_fb2', 'p1', 'u', 'p1'),
+      makeConn('u', 'out', 'r_fb2', 'p0'),
+      makeConn('r_fb2', 'p1', 'u', 'inm'),
       // Op-amp bias: R16 from V+ to IN+ (pin 2), R17 from IN+ to GND
       makeConn('pwr', 'pos', 'r16', 'p0'),
-      makeConn('r16', 'p1', 'u', 'p2'),
-      makeConn('u', 'p2', 'r17', 'p0'),
+      makeConn('r16', 'p1', 'u', 'inp'),
+      makeConn('u', 'inp', 'r17', 'p0'),
       makeConn('r17', 'p1', 'gnd', 'gnd'),
       // Op-amp output: OUT → R12 → C6 → audio
-      makeConn('u', 'p5', 'r12', 'p0'),
+      makeConn('u', 'out', 'r12', 'p0'),
       makeConn('r12', 'p1', 'c6', 'p0'),
       makeConn('c6', 'p1', 'out', 'in'),
     ];
@@ -147,10 +151,10 @@ describe('WSG Debug', () => {
     for (let i = 0; i < 500; i++) solver.step(dt);
 
     // Check op-amp bias point
-    const vInPlus = solver.getNodeVoltageByPin('u', 'p2');
+    const vInPlus = solver.getNodeVoltageByPin('u', 'inp');
     console.log(`Test 2: Op-amp IN+ bias = ${vInPlus.toFixed(2)}V (expect ~4.5V)`);
 
-    const vOut = solver.getNodeVoltageByPin('u', 'p5');
+    const vOut = solver.getNodeVoltageByPin('u', 'out');
     console.log(`Test 2: Op-amp OUT = ${vOut.toFixed(2)}V`);
 
     const vOsc = solver.getNodeVoltageByPin('ic', 'p6');
@@ -181,22 +185,22 @@ describe('WSG Debug', () => {
     ];
     const connections = [
       makeConn('pwr', 'neg', 'gnd', 'gnd'),
-      makeConn('pwr', 'pos', 'u', 'p6'),
-      makeConn('gnd', 'gnd', 'u', 'p3'),
+      makeConn('pwr', 'pos', 'u', 'vpos'),
+      makeConn('gnd', 'gnd', 'u', 'vneg'),
       makeConn('pwr', 'pos', 'r16', 'p0'),
-      makeConn('r16', 'p1', 'u', 'p2'),
-      makeConn('u', 'p2', 'r17', 'p0'),
+      makeConn('r16', 'p1', 'u', 'inp'),
+      makeConn('u', 'inp', 'r17', 'p0'),
       makeConn('r17', 'p1', 'gnd', 'gnd'),
-      makeConn('u', 'p5', 'r11', 'p0'),
-      makeConn('r11', 'p1', 'u', 'p1'),
+      makeConn('u', 'out', 'r11', 'p0'),
+      makeConn('r11', 'p1', 'u', 'inm'),
     ];
 
     solver.loadCircuit(components, connections);
     for (let i = 0; i < 2000; i++) solver.step(dt);
 
-    const vInPlus = solver.getNodeVoltageByPin('u', 'p2');
-    const vInMinus = solver.getNodeVoltageByPin('u', 'p1');
-    const vOut = solver.getNodeVoltageByPin('u', 'p5');
+    const vInPlus = solver.getNodeVoltageByPin('u', 'inp');
+    const vInMinus = solver.getNodeVoltageByPin('u', 'inm');
+    const vOut = solver.getNodeVoltageByPin('u', 'out');
 
     console.log(`Test 3: IN+=${vInPlus.toFixed(2)}V, IN-=${vInMinus.toFixed(2)}V, OUT=${vOut.toFixed(2)}V`);
     expect(vInPlus).toBeCloseTo(4.5, 0);
@@ -322,8 +326,8 @@ describe('WSG Debug', () => {
       makeConn('pwr', 'neg', 'gnd', 'gnd'),
       makeConn('pwr', 'pos', 'ic', 'p12'),
       makeConn('gnd', 'gnd', 'ic', 'p13'),
-      makeConn('pwr', 'pos', 'opamp', 'p6'),
-      makeConn('gnd', 'gnd', 'opamp', 'p3'),
+      makeConn('pwr', 'pos', 'opamp', 'vpos'),
+      makeConn('gnd', 'gnd', 'opamp', 'vneg'),
       // Wacky (gate B: p1=in, p7=out)
       makeConn('potWacky', 'p0', 'ic', 'p1'),
       makeConn('potWacky', 'p1', 'ic', 'p7'),
@@ -362,14 +366,14 @@ describe('WSG Debug', () => {
       makeConn('r5', 'p1', 'c1', 'p0'),
       makeConn('c1', 'p1', 'r4', 'p0'),
       // Op-amp (DIP8: p1=IN-, p2=IN+, p3=V-, p5=OUT, p6=V+)
-      makeConn('r4', 'p1', 'opamp', 'p1'),
-      makeConn('opamp', 'p5', 'r11', 'p0'),
-      makeConn('r11', 'p1', 'opamp', 'p1'),
+      makeConn('r4', 'p1', 'opamp', 'inm'),
+      makeConn('opamp', 'out', 'r11', 'p0'),
+      makeConn('r11', 'p1', 'opamp', 'inm'),
       makeConn('pwr', 'pos', 'r16', 'p0'),
-      makeConn('r16', 'p1', 'opamp', 'p2'),
-      makeConn('opamp', 'p2', 'r17', 'p0'),
+      makeConn('r16', 'p1', 'opamp', 'inp'),
+      makeConn('opamp', 'inp', 'r17', 'p0'),
       makeConn('r17', 'p1', 'gnd', 'gnd'),
-      makeConn('opamp', 'p5', 'r12', 'p0'),
+      makeConn('opamp', 'out', 'r12', 'p0'),
       makeConn('r12', 'p1', 'c6', 'p0'),
       makeConn('c6', 'p1', 'out', 'in'),
       // Bypass
@@ -398,9 +402,9 @@ describe('WSG Debug', () => {
     const vWacky = solver.getNodeVoltageByPin('ic', 'p7');
     const vWeird = solver.getNodeVoltageByPin('ic', 'p6');
     const vZany = solver.getNodeVoltageByPin('ic', 'p8');
-    const vInPlus = solver.getNodeVoltageByPin('opamp', 'p2');
-    const vInMinus = solver.getNodeVoltageByPin('opamp', 'p1');
-    const vOpOut = solver.getNodeVoltageByPin('opamp', 'p5');
+    const vInPlus = solver.getNodeVoltageByPin('opamp', 'inp');
+    const vInMinus = solver.getNodeVoltageByPin('opamp', 'inm');
+    const vOpOut = solver.getNodeVoltageByPin('opamp', 'out');
     const vAudioOut = solver.getNodeVoltageByPin('out', 'in');
 
     console.log(`Test 5 (full WSG) after 2000 steps:`);
