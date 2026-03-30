@@ -86,26 +86,35 @@ export const potentiometerDefinition: ComponentDefinition = {
         const pos = (params.position as number) ?? 0.5;
         const maxR = (params.maxResistance as number) ?? 1000000;
         const currentR = maxR * Math.max(0.001, pos);
-        const currentLabel = formatValue(currentR, 'resistance');
+        // Round to 2 significant figures
+        const sig2 = Number(currentR.toPrecision(2));
+        const currentLabel = formatValue(sig2, 'resistance');
         // Map 0-1 to angle range: -135° to +135° (270° sweep)
         const angle = -135 + pos * 270;
         const rad = (angle * Math.PI) / 180;
         const pointerLen = 18;
-        // Min/max marker angles
+        // Arc radius — same as knob outer ring
+        const arcR = 24;
         const minRad = (-135 * Math.PI) / 180;
-        const maxRad = (135 * Math.PI) / 180;
-        const markerR = 28;
+        // The arc sweep in degrees (0-270)
+        const sweepDeg = pos * 270;
+        // large-arc flag: 1 if sweep > 180°
+        const largeArc = sweepDeg > 180 ? 1 : 0;
         return (
           <g>
-            {/* Sweep arc background */}
+            {/* Current resistance reading — above the knob */}
+            <text x="0" y="-32" textAnchor="middle" fontSize="9" fill="#8cf" fontFamily="Courier New" fontWeight="bold">
+              {currentLabel}
+            </text>
+            {/* Sweep arc background (inside the knob ring) */}
             <path
-              d={`M ${Math.cos(minRad) * 26} ${Math.sin(minRad) * 26} A 26 26 0 1 1 ${Math.cos(maxRad) * 26} ${Math.sin(maxRad) * 26}`}
+              d={`M ${Math.cos(minRad) * arcR} ${Math.sin(minRad) * arcR} A ${arcR} ${arcR} 0 1 1 ${Math.cos((135 * Math.PI) / 180) * arcR} ${Math.sin((135 * Math.PI) / 180) * arcR}`}
               fill="none" stroke="#1a2a3a" strokeWidth="3" strokeLinecap="round"
             />
             {/* Active arc (shows current position) */}
             {pos > 0.01 && (
               <path
-                d={`M ${Math.cos(minRad) * 26} ${Math.sin(minRad) * 26} A 26 26 0 ${pos > 0.5 ? 1 : 0} 1 ${Math.cos(rad) * 26} ${Math.sin(rad) * 26}`}
+                d={`M ${Math.cos(minRad) * arcR} ${Math.sin(minRad) * arcR} A ${arcR} ${arcR} 0 ${largeArc} 1 ${Math.cos(rad) * arcR} ${Math.sin(rad) * arcR}`}
                 fill="none" stroke="#4a8abf" strokeWidth="3" strokeLinecap="round"
               />
             )}
@@ -137,22 +146,13 @@ export const potentiometerDefinition: ComponentDefinition = {
             />
             {/* Center cap */}
             <circle cx="0" cy="0" r="4" fill="#666" stroke="#555" strokeWidth="0.5" />
-            {/* Min/Max markers */}
-            <text x={Math.cos(minRad) * markerR} y={Math.sin(minRad) * markerR + 3}
-              textAnchor="middle" fontSize="6" fill="#668" fontFamily="Courier New">0</text>
-            <text x={Math.cos(maxRad) * markerR} y={Math.sin(maxRad) * markerR + 3}
-              textAnchor="middle" fontSize="6" fill="#668" fontFamily="Courier New">{params.value}</text>
             {/* Leads */}
             <rect x="-25" y="-1.5" width="6" height="3" rx="1" fill="#ccc" />
             <rect x="19" y="-1.5" width="6" height="3" rx="1" fill="#ccc" />
             <rect x="-1.5" y="-20" width="3" height="6" rx="1" fill="#ccc" />
-            {/* Current resistance reading */}
-            <text x="0" y="38" textAnchor="middle" fontSize="9" fill="#8cf" opacity="0.95" fontFamily="Courier New" fontWeight="bold">
-              {currentLabel}
-            </text>
-            {/* Max value label */}
-            <text x="0" y="48" textAnchor="middle" fontSize="7" fill="#668" fontFamily="Courier New">
-              / {params.value}
+            {/* Part value label — below */}
+            <text x="0" y="36" textAnchor="middle" fontSize="9" fill="#d4ecd4" opacity="0.85" fontFamily="Courier New">
+              {params.value}
             </text>
           </g>
         );
