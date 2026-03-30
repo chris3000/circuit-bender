@@ -9,6 +9,9 @@ import ReactFlow, {
 import { useCircuit } from '@/context/CircuitContext';
 import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
 import { createComponentFromDefinition } from '@/utils/componentFactory';
+import { pointToSegmentDistance, getEdgeSegments } from '@/utils/wiring';
+import { generateConnectionId, generateNetId } from '@/utils/ids';
+import type { ComponentId, PinId } from '@/types/circuit';
 import { useCircuitSync } from './useCircuitSync';
 import { nodeTypes } from './nodes';
 import { edgeTypes } from './edges';
@@ -26,7 +29,7 @@ interface CircuitCanvasProps {
 function CircuitCanvasInner({
   viewMode, onToggleView, ledStates, onPotChange, onAddProbe,
 }: CircuitCanvasProps) {
-  const { addComponent, undo, redo, canUndo, canRedo } = useCircuit();
+  const { addComponent, addConnection, removeConnection, undo, redo, canUndo, canRedo, circuit } = useCircuit();
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
 
   const {
@@ -60,6 +63,76 @@ function CircuitCanvasInner({
     else if ((e.metaKey || e.ctrlKey) && (e.key === 'Z' || e.key === 'y')) { e.preventDefault(); redo(); }
   }, [undo, redo]);
 
+  const onConnectEnd = useCallback((event: MouseEvent | TouchEvent) => {
+    if (!reactFlowInstance.current) return;
+    const clientX = 'clientX' in event ? event.clientX : event.touches[0].clientX;
+    const clientY = 'clientY' in event ? event.clientY : event.touches[0].clientY;
+    const dropPos = reactFlowInstance.current.screenToFlowPosition({ x: clientX, y: clientY });
+
+    const allEdges = reactFlowInstance.current.getEdges();
+    const allNodes = reactFlowInstance.current.getNodes();
+    const THRESHOLD = 15;
+
+    for (const edge of allEdges) {
+      const sourceNode = allNodes.find(n => n.id === edge.source);
+      const targetNode = allNodes.find(n => n.id === edge.target);
+      if (!sourceNode || !targetNode) continue;
+
+      const srcComp = sourceNode.data?.component;
+      const tgtComp = targetNode.data?.component;
+      if (!srcComp || !tgtComp) continue;
+
+      const sourcePin = srcComp.pins?.find((p: { id: string }) => p.id === edge.sourceHandle);
+      const targetPin = tgtComp.pins?.find((p: { id: string }) => p.id === edge.targetHandle);
+      if (!sourcePin || !targetPin) continue;
+
+      const sx = sourceNode.position.x + sourcePin.position.x;
+      const sy = sourceNode.position.y + sourcePin.position.y;
+      const tx = targetNode.position.x + targetPin.position.x;
+      const ty = targetNode.position.y + targetPin.position.y;
+
+      const segments = getEdgeSegments(sx, sy, tx, ty, edge.data?.waypoints);
+      for (const seg of segments) {
+        const dist = pointToSegmentDistance(dropPos.x, dropPos.y, seg.x1, seg.y1, seg.x2, seg.y2);
+        if (dist < THRESHOLD) {
+          // Found a nearby wire — insert junction
+          const registry = ComponentRegistry.getInstance();
+          const junctionDef = registry.get('junction');
+          if (!junctionDef) return;
+
+          const snapped = { x: Math.round(dropPos.x / 20) * 20, y: Math.round(dropPos.y / 20) * 20 };
+          const junction = createComponentFromDefinition(junctionDef, snapped);
+          const junctionPinId = junction.pins[0].id;
+
+          addComponent(junction);
+
+          // Get original connection
+          const conn = circuit.getConnections().find(c => c.id === edge.id);
+          if (!conn) return;
+
+          // Remove original wire
+          removeConnection(conn.id);
+
+          // Create two new wires through junction
+          addConnection({
+            id: generateConnectionId(),
+            from: conn.from,
+            to: { componentId: junction.id as ComponentId, pinId: junctionPinId as PinId },
+            net: generateNetId(),
+          });
+          addConnection({
+            id: generateConnectionId(),
+            from: { componentId: junction.id as ComponentId, pinId: junctionPinId as PinId },
+            to: conn.to,
+            net: generateNetId(),
+          });
+
+          return;
+        }
+      }
+    }
+  }, [addComponent, addConnection, removeConnection, circuit]);
+
   return (
     <div style={{ flex: 1, width: '100%', height: '100%', position: 'relative' }} onKeyDown={onKeyDown} tabIndex={0}>
       <Toolbar onUndo={undo} onRedo={redo} canUndo={canUndo} canRedo={canRedo} activeView={viewMode} onToggleView={onToggleView} />
@@ -70,7 +143,7 @@ function CircuitCanvasInner({
         isValidConnection={isValidConnection}
         onInit={onInit}
         onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
-        onConnect={onConnect} onSelectionChange={onSelectionChange}
+        onConnect={onConnect} onConnectEnd={onConnectEnd} onSelectionChange={onSelectionChange}
         onNodesDelete={onNodesDelete} onEdgesDelete={onEdgesDelete}
         onDrop={onDrop} onDragOver={onDragOver}
         snapToGrid={true} snapGrid={[20, 20]}
