@@ -58,7 +58,7 @@ export const resistorDefinition: ComponentDefinition = {
   ],
   defaultParameters: {
     resistance: 1000, // ohms
-    value: '1k',
+    value: '1kΩ',
   },
   schematic: {
     symbol: {

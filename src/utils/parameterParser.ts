@@ -69,9 +69,13 @@ function formatWithScales(value: number, scales: ScaleEntry[]): string {
  * Resistance: 1000 → "1k", 4700 → "4.7k", 1000000 → "1M"
  * Capacitance: 0.0000001 → "100n", 0.000001 → "1u"
  */
+const UNIT_SUFFIX: Record<string, string> = {
+  resistance: 'Ω',
+  capacitance: 'F',
+};
+
 export function formatValue(value: number, type: 'resistance' | 'capacitance'): string {
-  if (type === 'resistance') {
-    return formatWithScales(value, RESISTANCE_SCALES);
-  }
-  return formatWithScales(value, CAPACITANCE_SCALES);
+  const scales = type === 'resistance' ? RESISTANCE_SCALES : CAPACITANCE_SCALES;
+  const unit = UNIT_SUFFIX[type] ?? '';
+  return formatWithScales(value, scales) + unit;
 }

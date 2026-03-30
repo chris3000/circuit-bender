@@ -37,7 +37,7 @@ export const capacitorDefinition: ComponentDefinition = {
   ],
   defaultParameters: {
     capacitance: 0.0000001, // 100nF in farads
-    value: '100n',
+    value: '100nF',
   },
   schematic: {
     symbol: {
@@ -62,7 +62,7 @@ export const capacitorDefinition: ComponentDefinition = {
               fontSize="10"
               fill="currentColor"
             >
-              {params.value || '100n'}
+              {params.value || '100nF'}
             </text>
           </g>
         );
