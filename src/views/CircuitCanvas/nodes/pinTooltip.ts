@@ -7,7 +7,7 @@ export function pinTooltip(componentType: string, label: string, pinType: string
     led: { A: 'Anode (+)', K: 'Cathode (-)' },
     lm741: {
       '-': 'Inverting input', '+': 'Non-inverting input',
-      'V-': 'Negative supply', 'V+': 'Positive supply',
+      'V-': 'Ground / V-', 'V+': 'Power / V+',
       OUT: 'Output', NC: 'Not connected',
     },
     power: { '+': 'Positive (+9V)', '\u2212': 'Ground (0V)' },
@@ -22,8 +22,8 @@ export function pinTooltip(componentType: string, label: string, pinType: string
       const [, gate, io] = gateMatch;
       return `Gate ${gate} ${io === 'A' ? 'Input' : 'Output'}`;
     }
-    if (label === 'VDD') return 'Positive supply (VDD)';
-    if (label === 'VSS') return 'Negative supply (VSS)';
+    if (label === 'VDD') return 'Power (VDD)';
+    if (label === 'VSS') return 'Ground (VSS)';
   }
 
   // Check component-specific descriptions
