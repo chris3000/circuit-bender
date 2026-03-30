@@ -335,6 +335,9 @@ export const exampleCircuits: ExampleCircuit[] = [
         connect(r12, 1, c6, 0),           // R12 → C6 (coupling cap)
         connect(c6, 1, output, 0),        // C6 → audio output
 
+        // === Direct audio from Weird output (bypass op-amp for reliable audio) ===
+        connect(ic, 6, output, 0),
+
         // === Bypass ===
         connect(power, 0, c9, 0),         // +9V → C9
         connect(c9, 1, ground, 0),        // C9 → GND
