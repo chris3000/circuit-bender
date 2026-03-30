@@ -16,6 +16,7 @@ interface CircuitContextType {
   updateComponent: (componentId: ComponentId, updates: Partial<Component>) => void;
   addConnection: (connection: Connection) => void;
   removeConnection: (connectionId: ConnectionId) => void;
+  updateConnection: (connectionId: ConnectionId, updates: Partial<Connection>) => void;
   loadCircuit: (circuit: Circuit) => void;
   selectedComponents: ComponentId[];
   selectedConnections: ConnectionId[];
@@ -43,6 +44,7 @@ type CircuitAction =
   | { type: 'UPDATE_COMPONENT'; componentId: ComponentId; updates: Partial<Component> }
   | { type: 'ADD_CONNECTION'; connection: Connection }
   | { type: 'REMOVE_CONNECTION'; connectionId: ConnectionId }
+  | { type: 'UPDATE_CONNECTION'; connectionId: ConnectionId; updates: Partial<Connection> }
   | { type: 'LOAD_CIRCUIT'; circuit: Circuit }
   | { type: 'SET_SELECTION'; components: ComponentId[]; connections: ConnectionId[] }
   | { type: 'CLEAR_SELECTION' }
@@ -93,6 +95,11 @@ function circuitReducer(state: CircuitState, action: CircuitAction): CircuitStat
         undoStack: pushUndoStack(state.undoStack, state.circuit),
         redoStack: [],
         circuit: state.circuit.removeConnection(action.connectionId),
+      };
+    case 'UPDATE_CONNECTION':
+      return {
+        ...state,
+        circuit: state.circuit.updateConnection(action.connectionId, action.updates),
       };
     case 'UNDO': {
       if (state.undoStack.length === 0) return state;
@@ -174,6 +181,13 @@ export function CircuitProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'REMOVE_CONNECTION', connectionId });
   }, []);
 
+  const updateConnection = useCallback(
+    (connectionId: ConnectionId, updates: Partial<Connection>) => {
+      dispatch({ type: 'UPDATE_CONNECTION', connectionId, updates });
+    },
+    []
+  );
+
   const undo = useCallback(() => {
     dispatch({ type: 'UNDO' });
   }, []);
@@ -201,6 +215,7 @@ export function CircuitProvider({ children }: { children: React.ReactNode }) {
     updateComponent,
     addConnection,
     removeConnection,
+    updateConnection,
     loadCircuit,
     selectedComponents: state.selectedComponents,
     selectedConnections: state.selectedConnections,
@@ -210,7 +225,7 @@ export function CircuitProvider({ children }: { children: React.ReactNode }) {
     redo,
     canUndo: state.undoStack.length > 0,
     canRedo: state.redoStack.length > 0,
-  }), [state, addComponent, removeComponent, updateComponent, addConnection, removeConnection, loadCircuit, setSelection, clearSelection, undo, redo]);
+  }), [state, addComponent, removeComponent, updateComponent, addConnection, removeConnection, updateConnection, loadCircuit, setSelection, clearSelection, undo, redo]);
 
   return (
     <CircuitContext.Provider value={value}>{children}</CircuitContext.Provider>

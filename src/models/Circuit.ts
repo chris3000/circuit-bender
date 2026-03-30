@@ -135,6 +135,17 @@ export class Circuit {
     });
   }
 
+  updateConnection(connectionId: ConnectionId, updates: Partial<Connection>): Circuit {
+    const idx = this.connections.findIndex(c => c.id === connectionId);
+    if (idx < 0) return this;
+    const newConnections = [...this.connections];
+    newConnections[idx] = { ...newConnections[idx], ...updates };
+    return this.clone({
+      connections: newConnections,
+      metadata: this.updateMetadata(),
+    });
+  }
+
   // Getters
   getComponent(componentId: ComponentId): Component | undefined {
     return this.components.get(componentId);

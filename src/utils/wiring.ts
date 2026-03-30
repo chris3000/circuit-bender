@@ -91,3 +91,81 @@ export function generateOrthogonalPath(
   const midX = (x1 + x2) / 2;
   return `M ${x1},${y1} H ${midX} V ${y2} H ${x2}`;
 }
+
+/**
+ * Generates an orthogonal SVG path through waypoints.
+ */
+export function generateWaypointPath(
+  x1: number, y1: number,
+  x2: number, y2: number,
+  waypoints?: { x: number; y: number }[]
+): string {
+  if (!waypoints || waypoints.length === 0) {
+    return generateOrthogonalPath(x1, y1, x2, y2);
+  }
+
+  const points = [
+    { x: x1, y: y1 },
+    ...waypoints,
+    { x: x2, y: y2 },
+  ];
+
+  let path = `M ${points[0].x},${points[0].y}`;
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    if (prev.x !== curr.x) path += ` H ${curr.x}`;
+    if (prev.y !== curr.y) path += ` V ${curr.y}`;
+  }
+
+  return path;
+}
+
+/**
+ * Computes the minimum distance from a point to a line segment.
+ */
+export function pointToSegmentDistance(
+  px: number, py: number,
+  x1: number, y1: number,
+  x2: number, y2: number
+): number {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return Math.hypot(px - x1, py - y1);
+
+  let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+
+  const projX = x1 + t * dx;
+  const projY = y1 + t * dy;
+  return Math.hypot(px - projX, py - projY);
+}
+
+/**
+ * Get all line segments from an edge path (source -> waypoints -> target).
+ */
+export function getEdgeSegments(
+  sourceX: number, sourceY: number,
+  targetX: number, targetY: number,
+  waypoints?: { x: number; y: number }[]
+): Array<{ x1: number; y1: number; x2: number; y2: number }> {
+  const points = [
+    { x: sourceX, y: sourceY },
+    ...(waypoints || []),
+    { x: targetX, y: targetY },
+  ];
+
+  const segments: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i];
+    const b = points[i + 1];
+    if (a.x !== b.x && a.y !== b.y) {
+      segments.push({ x1: a.x, y1: a.y, x2: b.x, y2: a.y });
+      segments.push({ x1: b.x, y1: a.y, x2: b.x, y2: b.y });
+    } else {
+      segments.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+    }
+  }
+  return segments;
+}
