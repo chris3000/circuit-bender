@@ -14,6 +14,7 @@ import { BJTModel, BJT_2N3904_PARAMS } from '../models/BJTModel';
 import { OpAmpModel, OPAMP_LM741_PARAMS } from '../models/OpAmpModel';
 import { SchmittTriggerModel } from '../models/SchmittTriggerModel';
 import { SwitchModel } from '../models/SwitchModel';
+import { JunctionModel } from '../models/JunctionModel';
 
 function createRegistry(): ModelRegistry {
   const reg = new ModelRegistry();
@@ -29,6 +30,7 @@ function createRegistry(): ModelRegistry {
   reg.register('lm741', () => new OpAmpModel(OPAMP_LM741_PARAMS));
   reg.register('cd40106', () => new SchmittTriggerModel());
   reg.register('switch', () => new SwitchModel());
+  reg.register('junction', () => new JunctionModel());
   return reg;
 }
 

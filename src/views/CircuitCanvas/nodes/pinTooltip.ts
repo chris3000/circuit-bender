@@ -12,6 +12,7 @@ export function pinTooltip(componentType: string, label: string, pinType: string
     },
     power: { '+': 'Positive (+9V)', '\u2212': 'Ground (0V)' },
     ground: { GND: 'Ground (0V)' },
+    junction: { J: 'Wire junction' },
     'audio-output': { IN: 'Audio input' },
   };
 

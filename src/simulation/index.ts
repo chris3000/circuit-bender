@@ -13,3 +13,4 @@ export { BJTModel, BJT_2N3904_PARAMS } from './models/BJTModel';
 export { OpAmpModel, OPAMP_LM741_PARAMS } from './models/OpAmpModel';
 export { SchmittTriggerModel } from './models/SchmittTriggerModel';
 export { SwitchModel } from './models/SwitchModel';
+export { JunctionModel } from './models/JunctionModel';

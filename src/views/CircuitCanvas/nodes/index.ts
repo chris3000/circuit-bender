@@ -4,6 +4,7 @@ import { LEDNode } from './LEDNode';
 import { PotentiometerNode } from './PotentiometerNode';
 import { EditableNode } from './EditableNode';
 import { SwitchNode } from './SwitchNode';
+import { JunctionNode } from './JunctionNode';
 
 export const nodeTypes: NodeTypes = {
   resistor: EditableNode,
@@ -18,4 +19,5 @@ export const nodeTypes: NodeTypes = {
   '1n914': CircuitNode,
   '2n3904': CircuitNode,
   switch: SwitchNode,
+  junction: JunctionNode,
 };
