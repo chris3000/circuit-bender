@@ -18,7 +18,9 @@ const VALID_SUFFIXES = /^[pnumkKM]$/;
 export function parseValue(input: string): number {
   if (!input || input.trim().length === 0) return NaN;
 
-  const trimmed = input.trim();
+  // Strip trailing unit names (F, Ω, ohm, H, etc.)
+  const trimmed = input.trim().replace(/[FΩΗHhVvAa]+$/i, '').trim();
+  if (trimmed.length === 0) return NaN;
   const lastChar = trimmed[trimmed.length - 1];
 
   if (VALID_SUFFIXES.test(lastChar)) {
