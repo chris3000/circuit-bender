@@ -68,6 +68,77 @@ export const exampleCircuits: ExampleCircuit[] = [
     },
   },
   {
+    name: 'Oscillator + Op-Amp',
+    description: 'Simple oscillator through LM741 inverting amp',
+    build: () => {
+      const power = createComponentFromDefinition(getDefinition('power'), { x: 200, y: 80 });
+      const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 500 });
+      const r1 = createComponentFromDefinition(getDefinition('resistor'), { x: 320, y: 200 });
+      r1.parameters = { ...r1.parameters, resistance: 27000, value: '27k' };
+      const r2 = createComponentFromDefinition(getDefinition('resistor'), { x: 420, y: 200 });
+      r2.parameters = { ...r2.parameters, resistance: 2200, value: '2.2k' };
+      const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 350 });
+      const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 550, y: 280 });
+
+      // LM741 inverting amp: R_in=100k, R_fb=100k (unity gain), biased at 4.5V
+      const opamp = createComponentFromDefinition(getDefinition('lm741'), { x: 850, y: 300 });
+      const rIn = createComponentFromDefinition(getDefinition('resistor'), { x: 700, y: 280 });
+      rIn.parameters = { ...rIn.parameters, resistance: 100000, value: '100k' };
+      const rFb = createComponentFromDefinition(getDefinition('resistor'), { x: 850, y: 200 });
+      rFb.parameters = { ...rFb.parameters, resistance: 100000, value: '100k' };
+      const rBias1 = createComponentFromDefinition(getDefinition('resistor'), { x: 750, y: 380 });
+      rBias1.parameters = { ...rBias1.parameters, resistance: 100000, value: '100k' };
+      const rBias2 = createComponentFromDefinition(getDefinition('resistor'), { x: 750, y: 450 });
+      rBias2.parameters = { ...rBias2.parameters, resistance: 100000, value: '100k' };
+      const rOut = createComponentFromDefinition(getDefinition('resistor'), { x: 950, y: 300 });
+      rOut.parameters = { ...rOut.parameters, resistance: 1000, value: '1k' };
+      const cOut = createComponentFromDefinition(getDefinition('capacitor'), { x: 1020, y: 300 });
+      cOut.parameters = { ...cOut.parameters, capacitance: 1e-6, value: '1uF' };
+
+      const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 1100, y: 300 });
+
+      const components = [
+        power, ground, r1, r2, capacitor, ic,
+        opamp, rIn, rFb, rBias1, rBias2, rOut, cOut,
+        output,
+      ];
+
+      // LM741 DIP8: 0=NC, 1=IN-, 2=IN+, 3=V-, 4=NC, 5=OUT, 6=V+, 7=NC
+      const connections = [
+        // Power
+        connect(power, 0, ic, 12),
+        connect(ground, 0, ic, 13),
+        connect(power, 1, ground, 0),
+        // Oscillator (same as Simple Oscillator)
+        connect(r1, 0, ic, 0),
+        connect(r1, 1, r2, 0),
+        connect(r2, 1, ic, 6),
+        connect(capacitor, 0, ic, 0),
+        connect(capacitor, 1, ground, 0),
+        // Op-amp power
+        connect(power, 0, opamp, 6),      // V+ (pin 6)
+        connect(ground, 0, opamp, 3),     // V- (pin 3)
+        // Oscillator → R_in → IN-
+        connect(ic, 6, rIn, 0),
+        connect(rIn, 1, opamp, 1),        // IN- (pin 1)
+        // Feedback: OUT → R_fb → IN-
+        connect(opamp, 5, rFb, 0),        // OUT (pin 5)
+        connect(rFb, 1, opamp, 1),        // IN- (pin 1)
+        // Bias: +9V → R1 → IN+ → R2 → GND (4.5V midpoint)
+        connect(power, 0, rBias1, 0),
+        connect(rBias1, 1, opamp, 2),     // IN+ (pin 2)
+        connect(opamp, 2, rBias2, 0),
+        connect(rBias2, 1, ground, 0),
+        // Output: OUT → R_out → C_out → audio
+        connect(opamp, 5, rOut, 0),
+        connect(rOut, 1, cOut, 0),
+        connect(cOut, 1, output, 0),
+      ];
+
+      return { components, connections };
+    },
+  },
+  {
     name: 'Low Drone',
     description: 'CD40106 + 100kΩ + 100nF → ~130Hz bass tone',
     build: () => {
