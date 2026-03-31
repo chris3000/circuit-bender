@@ -33,7 +33,7 @@ function CircuitCanvasInner({
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
 
   const {
-    nodes, edges, onNodesChange, onEdgesChange, onConnect,
+    nodes, edges, onNodesChange, onEdgesChange, onConnect: onConnectSync,
     isValidConnection, onSelectionChange, onNodesDelete, onEdgesDelete,
   } = useCircuitSync(viewMode, ledStates, onPotChange, onAddProbe);
 
@@ -58,12 +58,26 @@ function CircuitCanvasInner({
     reactFlowInstance.current = instance;
   }, []);
 
+  // Track whether onConnect fired during this drag — if so, skip auto-junction
+  const connectSucceeded = useRef(false);
+
+  const onConnectStart = useCallback(() => {
+    connectSucceeded.current = false;
+  }, []);
+
+  const onConnect = useCallback((connection: Parameters<typeof onConnectSync>[0]) => {
+    connectSucceeded.current = true;
+    onConnectSync(connection);
+  }, [onConnectSync]);
+
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
     else if ((e.metaKey || e.ctrlKey) && (e.key === 'Z' || e.key === 'y')) { e.preventDefault(); redo(); }
   }, [undo, redo]);
 
   const onConnectEnd = useCallback((event: MouseEvent | TouchEvent) => {
+    // Skip auto-junction if the connection was successful (dropped on a valid pin)
+    if (connectSucceeded.current) return;
     if (!reactFlowInstance.current) return;
     const clientX = 'clientX' in event ? event.clientX : event.touches[0].clientX;
     const clientY = 'clientY' in event ? event.clientY : event.touches[0].clientY;
@@ -143,7 +157,7 @@ function CircuitCanvasInner({
         isValidConnection={isValidConnection}
         onInit={onInit}
         onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
-        onConnect={onConnect} onConnectEnd={onConnectEnd} onSelectionChange={onSelectionChange}
+        onConnect={onConnect} onConnectStart={onConnectStart} onConnectEnd={onConnectEnd} onSelectionChange={onSelectionChange}
         onNodesDelete={onNodesDelete} onEdgesDelete={onEdgesDelete}
         onDrop={onDrop} onDragOver={onDragOver}
         snapToGrid={true} snapGrid={[20, 20]}
