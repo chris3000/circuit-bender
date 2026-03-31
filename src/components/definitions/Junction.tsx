@@ -13,12 +13,12 @@ export const junctionDefinition: ComponentDefinition = {
   ],
   defaultParameters: {},
   schematic: {
-    symbol: { width: 20, height: 20, render: () => <circle cx="0" cy="0" r="5" fill="#333" /> },
-    dimensions: { width: 20, height: 20 },
+    symbol: { width: 12, height: 12, render: () => <circle cx="0" cy="0" r="5" fill="#333" /> },
+    dimensions: { width: 12, height: 12 },
   },
   board: {
-    symbol: { width: 20, height: 20, render: () => <circle cx="0" cy="0" r="5" fill="#c4a24e" /> },
-    dimensions: { width: 20, height: 20 },
+    symbol: { width: 12, height: 12, render: () => <circle cx="0" cy="0" r="5" fill="#c4a24e" /> },
+    dimensions: { width: 12, height: 12 },
   },
   simulate: (inputs) => ({
     pin_0: inputs.pin_0 || { voltage: 0, current: 0 },
