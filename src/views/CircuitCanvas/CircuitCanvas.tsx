@@ -127,7 +127,8 @@ function CircuitCanvasInner({
           // Remove original wire
           removeConnection(conn.id);
 
-          // Create two new wires through junction
+          // Create two new wires through junction.
+          // Junction only has a target Handle, so it must be in the 'to' position.
           addConnection({
             id: generateConnectionId(),
             from: conn.from,
@@ -136,8 +137,8 @@ function CircuitCanvasInner({
           });
           addConnection({
             id: generateConnectionId(),
-            from: { componentId: junction.id as ComponentId, pinId: junctionPinId as PinId },
-            to: conn.to,
+            from: conn.to,
+            to: { componentId: junction.id as ComponentId, pinId: junctionPinId as PinId },
             net: generateNetId(),
           });
 
