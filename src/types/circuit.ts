@@ -41,7 +41,6 @@ export interface Connection {
   from: { componentId: ComponentId; pinId: PinId };
   to: { componentId: ComponentId; pinId: PinId };
   net: NetId;
-  waypoints?: { x: number; y: number }[];
 }
 
 export interface CircuitMetadata {

@@ -98,7 +98,6 @@ export function useCircuitSync(
             fromComp?.type || '', fromPin?.type || '',
             toComp?.type || '', toPin?.type || '',
           ),
-          waypoints: conn.waypoints,
           connectionId: conn.id,
         },
       };
