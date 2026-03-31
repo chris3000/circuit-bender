@@ -181,9 +181,33 @@ export function useCircuitSync(
 
   const onNodesDelete = useCallback((deleted: Node[]) => {
     for (const node of deleted) {
+      // Smart junction delete: if a junction has exactly 2 wires, reconnect them
+      if (node.data?.component?.type === 'junction') {
+        const junctionId = node.id as ComponentId;
+        const conns = circuit.getConnections();
+        const junctionConns = conns.filter(
+          c => c.from.componentId === junctionId || c.to.componentId === junctionId
+        );
+        if (junctionConns.length === 2) {
+          // Find the two "other" endpoints (not the junction)
+          const endpoints = junctionConns.map(c =>
+            c.from.componentId === junctionId ? c.to : c.from
+          );
+          // Remove both wires and the junction, then reconnect
+          for (const c of junctionConns) removeConnection(c.id);
+          removeComponent(junctionId);
+          addConnection({
+            id: generateConnectionId(),
+            from: { componentId: endpoints[0].componentId, pinId: endpoints[0].pinId },
+            to: { componentId: endpoints[1].componentId, pinId: endpoints[1].pinId },
+            net: generateNetId(),
+          });
+          continue;
+        }
+      }
       removeComponent(node.id as ComponentId);
     }
-  }, [removeComponent]);
+  }, [removeComponent, removeConnection, addConnection, circuit]);
 
   const onEdgesDelete = useCallback((deleted: Edge[]) => {
     for (const edge of deleted) {
