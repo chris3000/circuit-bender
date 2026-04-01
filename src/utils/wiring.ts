@@ -188,16 +188,20 @@ export function generateSmartPath(
   const bothVertical = sd.dy !== 0 && td.dy !== 0;
 
   if (bothHorizontal) {
-    // Check if stubs overlap (pins face each other with room)
+    // Pins face each other with room → route through midpoint
     if ((sd.dx > 0 && s1x < t1x) || (sd.dx < 0 && s1x > t1x)) {
-      // Simple case: route through midpoint
       const midX = (s1x + t1x) / 2;
       points.push({ x: midX, y: s1y });
       points.push({ x: midX, y: t1y });
-    } else {
-      // Pins face same direction or past each other — go around
-      const detourY = Math.abs(sy - ty) < 20
-        ? Math.min(s1y, t1y) - 40
+    }
+    // Same direction, source stub is "behind" target stub → clean L-route
+    else if ((sd.dx < 0 && s1x < t1x) || (sd.dx > 0 && s1x > t1x)) {
+      points.push({ x: s1x, y: t1y });
+    }
+    // Same direction, stubs overlap → detour around
+    else {
+      const detourY = Math.abs(sy - ty) < 30
+        ? Math.min(s1y, t1y) - 50
         : (s1y + t1y) / 2;
       points.push({ x: s1x, y: detourY });
       points.push({ x: t1x, y: detourY });
@@ -207,16 +211,17 @@ export function generateSmartPath(
       const midY = (s1y + t1y) / 2;
       points.push({ x: s1x, y: midY });
       points.push({ x: t1x, y: midY });
+    } else if ((sd.dy < 0 && s1y < t1y) || (sd.dy > 0 && s1y > t1y)) {
+      points.push({ x: t1x, y: s1y });
     } else {
-      const detourX = Math.abs(sx - tx) < 20
-        ? Math.min(s1x, t1x) - 40
+      const detourX = Math.abs(sx - tx) < 30
+        ? Math.min(s1x, t1x) - 50
         : (s1x + t1x) / 2;
       points.push({ x: detourX, y: s1y });
       points.push({ x: detourX, y: t1y });
     }
   } else {
     // Mixed: one horizontal, one vertical — L-shaped route
-    // Route to the intersection of the two stub directions
     if (sd.dx !== 0) {
       // Source horizontal, target vertical
       points.push({ x: t1x, y: s1y });

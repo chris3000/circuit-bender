@@ -32,15 +32,17 @@ export const exampleCircuits: ExampleCircuit[] = [
     name: 'Simple Oscillator',
     description: 'CD40106 + 27kΩ + 2.2kΩ + 100nF → A4 (440Hz)',
     build: () => {
-      const power = createComponentFromDefinition(getDefinition('power'), { x: 200, y: 80 });
-      const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 500 });
-      const r1 = createComponentFromDefinition(getDefinition('resistor'), { x: 320, y: 200 });
-      r1.parameters = { ...r1.parameters, resistance: 27000, value: '27k' };
-      const r2 = createComponentFromDefinition(getDefinition('resistor'), { x: 420, y: 200 });
-      r2.parameters = { ...r2.parameters, resistance: 2200, value: '2.2k' };
-      const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 350 });
-      const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 550, y: 280 });
-      const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 700, y: 280 });
+      // Layout: power above IC, resistors above feeding back from output→input,
+      // capacitor below left, ground below, audio output right of IC
+      const power = createComponentFromDefinition(getDefinition('power'), { x: 520, y: 60 });
+      const ground = createComponentFromDefinition(getDefinition('ground'), { x: 300, y: 520 });
+      const r1 = createComponentFromDefinition(getDefinition('resistor'), { x: 340, y: 160 });
+      r1.parameters = { ...r1.parameters, resistance: 27000, value: '27kΩ' };
+      const r2 = createComponentFromDefinition(getDefinition('resistor'), { x: 480, y: 160 });
+      r2.parameters = { ...r2.parameters, resistance: 2200, value: '2.2kΩ' };
+      const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 300, y: 400 });
+      const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 560, y: 320 });
+      const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 740, y: 270 });
 
       const components = [power, ground, r1, r2, capacitor, ic, output];
       const connections = [
