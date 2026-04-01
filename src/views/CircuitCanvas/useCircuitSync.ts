@@ -99,6 +99,10 @@ export function useCircuitSync(
             toComp?.type || '', toPin?.type || '',
           ),
           connectionId: conn.id,
+          sourceComp: conn.from.componentId,
+          sourcePin: conn.from.pinId,
+          targetComp: conn.to.componentId,
+          targetPin: conn.to.pinId,
         },
       };
     });

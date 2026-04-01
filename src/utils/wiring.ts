@@ -78,18 +78,159 @@ export function validateConnection(
 
 /**
  * Generates an orthogonal (Manhattan-style) SVG path between two points.
- *
- * The path routes: horizontal to midpoint -> vertical -> horizontal to end.
- * This matches the PreviewWire routing for consistency.
+ * Simple midpoint routing — used as fallback.
  */
 export function generateOrthogonalPath(
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number
+  x1: number, y1: number,
+  x2: number, y2: number
 ): string {
   const midX = (x1 + x2) / 2;
   return `M ${x1},${y1} H ${midX} V ${y2} H ${x2}`;
+}
+
+const STUB = 16; // pin exit stub length
+const CORNER_R = 5; // corner radius
+
+type Dir = { dx: number; dy: number };
+
+function posToDir(pos: string): Dir {
+  switch (pos) {
+    case 'left': return { dx: -1, dy: 0 };
+    case 'right': return { dx: 1, dy: 0 };
+    case 'top': return { dx: 0, dy: -1 };
+    case 'bottom': return { dx: 0, dy: 1 };
+    default: return { dx: 1, dy: 0 };
+  }
+}
+
+/**
+ * Build an SVG path through orthogonal points with rounded corners.
+ * Consecutive duplicate points are skipped. Collinear segments are merged.
+ */
+function buildRoundedPath(raw: { x: number; y: number }[]): string {
+  // Deduplicate and remove collinear midpoints
+  const pts: { x: number; y: number }[] = [raw[0]];
+  for (let i = 1; i < raw.length; i++) {
+    const p = raw[i];
+    const last = pts[pts.length - 1];
+    if (Math.abs(p.x - last.x) < 0.5 && Math.abs(p.y - last.y) < 0.5) continue;
+    // Merge collinear
+    if (pts.length >= 2) {
+      const prev = pts[pts.length - 2];
+      const onSameH = Math.abs(prev.y - last.y) < 0.5 && Math.abs(last.y - p.y) < 0.5;
+      const onSameV = Math.abs(prev.x - last.x) < 0.5 && Math.abs(last.x - p.x) < 0.5;
+      if (onSameH || onSameV) { pts[pts.length - 1] = p; continue; }
+    }
+    pts.push(p);
+  }
+
+  if (pts.length < 2) return `M ${raw[0].x},${raw[0].y}`;
+  if (pts.length === 2) return `M ${pts[0].x},${pts[0].y} L ${pts[1].x},${pts[1].y}`;
+
+  let path = `M ${pts[0].x},${pts[0].y}`;
+
+  for (let i = 1; i < pts.length - 1; i++) {
+    const prev = pts[i - 1];
+    const curr = pts[i];
+    const next = pts[i + 1];
+
+    const dx1 = curr.x - prev.x;
+    const dy1 = curr.y - prev.y;
+    const len1 = Math.hypot(dx1, dy1);
+    const dx2 = next.x - curr.x;
+    const dy2 = next.y - curr.y;
+    const len2 = Math.hypot(dx2, dy2);
+
+    if (len1 < 0.5 || len2 < 0.5) { path += ` L ${curr.x},${curr.y}`; continue; }
+
+    const r = Math.min(CORNER_R, len1 / 2, len2 / 2);
+    const bx = curr.x - (dx1 / len1) * r;
+    const by = curr.y - (dy1 / len1) * r;
+    const ax = curr.x + (dx2 / len2) * r;
+    const ay = curr.y + (dy2 / len2) * r;
+
+    path += ` L ${bx},${by} Q ${curr.x},${curr.y} ${ax},${ay}`;
+  }
+
+  const last = pts[pts.length - 1];
+  path += ` L ${last.x},${last.y}`;
+  return path;
+}
+
+/**
+ * Smart orthogonal routing with pin-stub exits and rounded corners.
+ *
+ * 1. Exits the source pin in its facing direction (stub)
+ * 2. Routes orthogonally to the target's stub endpoint
+ * 3. Enters the target pin from its facing direction
+ * 4. All corners are rounded with CORNER_R radius
+ */
+export function generateSmartPath(
+  sx: number, sy: number, sPos: string,
+  tx: number, ty: number, tPos: string,
+): string {
+  const sd = posToDir(sPos);
+  const td = posToDir(tPos);
+
+  // Stub endpoints
+  const s1x = sx + sd.dx * STUB;
+  const s1y = sy + sd.dy * STUB;
+  const t1x = tx + td.dx * STUB;
+  const t1y = ty + td.dy * STUB;
+
+  const points: { x: number; y: number }[] = [{ x: sx, y: sy }];
+
+  // Add stub exit
+  points.push({ x: s1x, y: s1y });
+
+  // Route from stub to stub
+  const bothHorizontal = sd.dx !== 0 && td.dx !== 0;
+  const bothVertical = sd.dy !== 0 && td.dy !== 0;
+
+  if (bothHorizontal) {
+    // Check if stubs overlap (pins face each other with room)
+    if ((sd.dx > 0 && s1x < t1x) || (sd.dx < 0 && s1x > t1x)) {
+      // Simple case: route through midpoint
+      const midX = (s1x + t1x) / 2;
+      points.push({ x: midX, y: s1y });
+      points.push({ x: midX, y: t1y });
+    } else {
+      // Pins face same direction or past each other — go around
+      const detourY = Math.abs(sy - ty) < 20
+        ? Math.min(s1y, t1y) - 40
+        : (s1y + t1y) / 2;
+      points.push({ x: s1x, y: detourY });
+      points.push({ x: t1x, y: detourY });
+    }
+  } else if (bothVertical) {
+    if ((sd.dy > 0 && s1y < t1y) || (sd.dy < 0 && s1y > t1y)) {
+      const midY = (s1y + t1y) / 2;
+      points.push({ x: s1x, y: midY });
+      points.push({ x: t1x, y: midY });
+    } else {
+      const detourX = Math.abs(sx - tx) < 20
+        ? Math.min(s1x, t1x) - 40
+        : (s1x + t1x) / 2;
+      points.push({ x: detourX, y: s1y });
+      points.push({ x: detourX, y: t1y });
+    }
+  } else {
+    // Mixed: one horizontal, one vertical — L-shaped route
+    // Route to the intersection of the two stub directions
+    if (sd.dx !== 0) {
+      // Source horizontal, target vertical
+      points.push({ x: t1x, y: s1y });
+    } else {
+      // Source vertical, target horizontal
+      points.push({ x: s1x, y: t1y });
+    }
+  }
+
+  // Add stub entry
+  points.push({ x: t1x, y: t1y });
+  points.push({ x: tx, y: ty });
+
+  return buildRoundedPath(points);
 }
 
 /**
