@@ -30,9 +30,7 @@ export const SchematicEdge = memo(function SchematicEdge({
     const conn = circuit.getConnections().find(c => c.id === (data?.connectionId as string));
     if (!conn) return;
 
-    // Add junction, remove original wire, create two new wires through junction.
-    // Junction only has a target Handle, so it must be in the 'to' position
-    // for both wires — otherwise React Flow can't render the edge.
+    // Add junction, remove original wire, create two new wires through junction
     addComponent(junction);
     removeConnection(conn.id);
     addConnection({
@@ -43,8 +41,8 @@ export const SchematicEdge = memo(function SchematicEdge({
     });
     addConnection({
       id: generateConnectionId(),
-      from: conn.to,
-      to: { componentId: junction.id as ComponentId, pinId: junctionPinId as PinId },
+      from: { componentId: junction.id as ComponentId, pinId: junctionPinId as PinId },
+      to: conn.to,
       net: generateNetId(),
     });
   }, [data, circuit, addComponent, addConnection, removeConnection, screenToFlowPosition]);
