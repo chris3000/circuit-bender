@@ -32,20 +32,22 @@ export const exampleCircuits: ExampleCircuit[] = [
     name: 'Simple Oscillator',
     description: 'CD40106 + 27kΩ + 2.2kΩ + 100nF → A4 (440Hz)',
     build: () => {
-      // Layout: resistors above IC, cap vertical below-left, two grounds
-      const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 520, y: 420 });
-      const r1 = createComponentFromDefinition(getDefinition('resistor'), { x: 280, y: 300 });
+      // Layout: IC top-center, feedback R1-R2 bridge below with wide spacing,
+      // power/ground above IC, cap far-left below, audio right
+      const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 500, y: 260 });
+      // Feedback bridge below: R1 under input, R2 under output, widely spaced
+      const r1 = createComponentFromDefinition(getDefinition('resistor'), { x: 360, y: 400 });
       r1.parameters = { ...r1.parameters, resistance: 27000, value: '27kΩ' };
-      const r2 = createComponentFromDefinition(getDefinition('resistor'), { x: 400, y: 300 });
+      const r2 = createComponentFromDefinition(getDefinition('resistor'), { x: 540, y: 400 });
       r2.parameters = { ...r2.parameters, resistance: 2200, value: '2.2kΩ' };
-      // Capacitor rotated 90° (vertical) with pin 1 at top connecting to IC input
-      const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 250, y: 480 });
+      // Capacitor vertical, far left
+      const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 260, y: 340 });
       capacitor.rotation = 90;
-      const power = createComponentFromDefinition(getDefinition('power'), { x: 520, y: 140 });
-      // Two ground symbols: one below cap, one near IC VSS
-      const ground = createComponentFromDefinition(getDefinition('ground'), { x: 250, y: 580 });
-      const ground2 = createComponentFromDefinition(getDefinition('ground'), { x: 560, y: 140 });
-      const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 720, y: 370 });
+      // Power aligned above VDD (x=490), ground2 aligned above VSS (x=510)
+      const power = createComponentFromDefinition(getDefinition('power'), { x: 490, y: 60 });
+      const ground = createComponentFromDefinition(getDefinition('ground'), { x: 260, y: 440 });
+      const ground2 = createComponentFromDefinition(getDefinition('ground'), { x: 510, y: 130 });
+      const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 700, y: 210 });
 
       const components = [power, ground, ground2, r1, r2, capacitor, ic, output];
       const connections = [
