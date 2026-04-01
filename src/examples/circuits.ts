@@ -32,26 +32,29 @@ export const exampleCircuits: ExampleCircuit[] = [
     name: 'Simple Oscillator',
     description: 'CD40106 + 27kΩ + 2.2kΩ + 100nF → A4 (440Hz)',
     build: () => {
-      // Layout: resistors above IC pin level for clean L-shaped routing,
-      // IC center, power above, cap/ground below-left, audio out right
+      // Layout: resistors above IC, cap vertical below-left, two grounds
       const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 520, y: 420 });
       const r1 = createComponentFromDefinition(getDefinition('resistor'), { x: 280, y: 300 });
       r1.parameters = { ...r1.parameters, resistance: 27000, value: '27kΩ' };
       const r2 = createComponentFromDefinition(getDefinition('resistor'), { x: 400, y: 300 });
       r2.parameters = { ...r2.parameters, resistance: 2200, value: '2.2kΩ' };
-      const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 250, y: 500 });
+      // Capacitor rotated 90° (vertical) with pin 1 at top connecting to IC input
+      const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 250, y: 480 });
+      capacitor.rotation = 90;
       const power = createComponentFromDefinition(getDefinition('power'), { x: 520, y: 140 });
-      const ground = createComponentFromDefinition(getDefinition('ground'), { x: 250, y: 620 });
+      // Two ground symbols: one below cap, one near IC VSS
+      const ground = createComponentFromDefinition(getDefinition('ground'), { x: 250, y: 580 });
+      const ground2 = createComponentFromDefinition(getDefinition('ground'), { x: 560, y: 140 });
       const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 720, y: 370 });
 
-      const components = [power, ground, r1, r2, capacitor, ic, output];
+      const components = [power, ground, ground2, r1, r2, capacitor, ic, output];
       const connections = [
         // Power to IC VDD (pin 12)
         connect(power, 0, ic, 12),
-        // Ground to IC VSS (pin 13)
-        connect(ground, 0, ic, 13),
-        // Power ground pin to ground
-        connect(power, 1, ground, 0),
+        // Ground2 (near IC) to IC VSS (pin 13) — short wire
+        connect(ground2, 0, ic, 13),
+        // Power ground pin to ground2
+        connect(power, 1, ground2, 0),
         // R1 to IC input 1A (pin 0)
         connect(r1, 0, ic, 0),
         // R1 to R2 in series

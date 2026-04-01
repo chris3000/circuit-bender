@@ -29,7 +29,7 @@ interface CircuitCanvasProps {
 function CircuitCanvasInner({
   viewMode, onToggleView, ledStates, onPotChange, onAddProbe,
 }: CircuitCanvasProps) {
-  const { addComponent, addConnection, removeConnection, undo, redo, canUndo, canRedo, circuit } = useCircuit();
+  const { addComponent, addConnection, removeConnection, updateComponent, selectedComponents, undo, redo, canUndo, canRedo, circuit } = useCircuit();
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
 
   const {
@@ -73,7 +73,20 @@ function CircuitCanvasInner({
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
     else if ((e.metaKey || e.ctrlKey) && (e.key === 'Z' || e.key === 'y')) { e.preventDefault(); redo(); }
-  }, [undo, redo]);
+    else if (e.key === 'r' || e.key === 'R') {
+      // Rotate selected components 90° clockwise
+      if (selectedComponents.length > 0) {
+        e.preventDefault();
+        for (const compId of selectedComponents) {
+          const comp = circuit.getComponent(compId);
+          if (comp && comp.type !== 'cd40106') { // don't rotate large ICs
+            const newRotation = ((comp.rotation || 0) + 90) % 360;
+            updateComponent(compId, { rotation: newRotation });
+          }
+        }
+      }
+    }
+  }, [undo, redo, selectedComponents, circuit, updateComponent]);
 
   const onConnectEnd = useCallback((event: MouseEvent | TouchEvent) => {
     // Skip auto-junction if the connection was successful (dropped on a valid pin)
