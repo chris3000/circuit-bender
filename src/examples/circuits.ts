@@ -67,6 +67,8 @@ export const exampleCircuits: ExampleCircuit[] = [
         connect(capacitor, 0, ic, 0),
         // Capacitor pin 2 to ground
         connect(capacitor, 1, ground, 0),
+        // Connect both grounds to same net
+        connect(ground, 0, ground2, 0),
         // IC output 1Y to audio output
         connect(ic, 6, output, 0),
       ];
