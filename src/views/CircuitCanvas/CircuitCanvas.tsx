@@ -79,7 +79,7 @@ function CircuitCanvasInner({
         e.preventDefault();
         for (const compId of selectedComponents) {
           const comp = circuit.getComponent(compId);
-          if (comp && comp.type !== 'cd40106') { // don't rotate large ICs
+          if (comp && comp.type !== 'junction') { // junctions don't rotate
             const newRotation = ((comp.rotation || 0) + 90) % 360;
             updateComponent(compId, { rotation: newRotation });
           }

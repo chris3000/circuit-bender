@@ -4,6 +4,9 @@ import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
 import type { CircuitNodeData } from '../useCircuitSync';
 import { pinTooltip } from './pinTooltip';
 import { rotatePin, rotateDimensions } from './rotatePin';
+import { RotateButton } from './RotateButton';
+
+const NO_ROTATE = new Set(['junction']);
 
 function pinPositionToHandleStyle(
   pinX: number, pinY: number, w: number, h: number,
@@ -35,6 +38,9 @@ export const CircuitNode = memo(function CircuitNode({ data, selected }: NodePro
 
   return (
     <div style={{ width: dims.width, height: dims.height, position: 'relative', cursor: 'grab' }}>
+      {selected && !NO_ROTATE.has(component.type) && (
+        <RotateButton componentId={component.id} rotation={rotation} width={dims.width} height={dims.height} />
+      )}
       <svg
         width={dims.width} height={dims.height}
         viewBox={`${-dims.width / 2} ${-dims.height / 2} ${dims.width} ${dims.height}`}

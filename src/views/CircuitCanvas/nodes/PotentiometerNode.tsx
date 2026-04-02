@@ -5,12 +5,15 @@ import { useCircuit } from '@/context/CircuitContext';
 import { parseValue, formatValue } from '@/utils/parameterParser';
 import type { CircuitNodeData } from '../useCircuitSync';
 import { pinTooltip } from './pinTooltip';
+import { rotatePin, rotateDimensions } from './rotatePin';
+import { RotateButton } from './RotateButton';
 
 function pinPositionToHandleStyle(pinX: number, pinY: number, w: number, h: number): React.CSSProperties {
   return { position: 'absolute', left: `${pinX + w / 2}px`, top: `${pinY + h / 2}px`, transform: 'translate(-50%, -50%)' };
 }
-function getHandlePosition(pinX: number): Position {
-  return pinX < 0 ? Position.Left : pinX > 0 ? Position.Right : Position.Bottom;
+function getHandlePosition(pinX: number, pinY: number): Position {
+  if (Math.abs(pinX) >= Math.abs(pinY)) return pinX < 0 ? Position.Left : Position.Right;
+  return pinY < 0 ? Position.Top : Position.Bottom;
 }
 
 export const PotentiometerNode = memo(function PotentiometerNode({ data, selected }: NodeProps<CircuitNodeData>) {
@@ -54,15 +57,22 @@ export const PotentiometerNode = memo(function PotentiometerNode({ data, selecte
 
   if (!definition) return null;
   const symbol = definition[viewMode].symbol;
-  const dims = definition[viewMode].dimensions;
+  const rawDims = definition[viewMode].dimensions;
+  const rotation = component.rotation || 0;
+  const dims = rotateDimensions(rawDims.width, rawDims.height, rotation);
 
   return (
     <div style={{ width: dims.width, height: dims.height, position: 'relative', cursor: 'grab' }} onDoubleClick={handleDoubleClick}>
+      {selected && (
+        <RotateButton componentId={component.id} rotation={rotation} width={dims.width} height={dims.height} />
+      )}
       <svg width={dims.width} height={dims.height}
         viewBox={`${-dims.width / 2} ${-dims.height / 2} ${dims.width} ${dims.height}`}
         style={{ display: 'block', overflow: 'visible' }}>
         {selected && <rect x={-dims.width/2-3} y={-dims.height/2-3} width={dims.width+6} height={dims.height+6} fill="none" stroke="#FF2D55" strokeWidth="1.5" strokeDasharray="4 2" rx="4" />}
-        {symbol.render(component.parameters)}
+        <g transform={rotation ? `rotate(${rotation})` : undefined}>
+          {symbol.render(component.parameters)}
+        </g>
       </svg>
       {editing && (
         <input autoFocus defaultValue={String(component.parameters.value || '')}
@@ -75,8 +85,9 @@ export const PotentiometerNode = memo(function PotentiometerNode({ data, selecte
         <div onPointerDown={handleDialDrag} style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: 48, height: 48, borderRadius: '50%', cursor: 'grab' }} />
       )}
       {component.pins.flatMap((pin) => {
-        const handleStyle = { ...pinPositionToHandleStyle(pin.position.x, pin.position.y, dims.width, dims.height), width: 10, height: 10, borderRadius: '50%', background: viewMode === 'schematic' ? '#999' : '#c4a24e', border: viewMode === 'schematic' ? '2px solid #666' : '1px solid #8a7030' };
-        const pos = getHandlePosition(pin.position.x);
+        const rp = rotatePin(pin.position.x, pin.position.y, rotation);
+        const handleStyle = { ...pinPositionToHandleStyle(rp.x, rp.y, dims.width, dims.height), width: 10, height: 10, borderRadius: '50%', background: viewMode === 'schematic' ? '#999' : '#c4a24e', border: viewMode === 'schematic' ? '2px solid #666' : '1px solid #8a7030' };
+        const pos = getHandlePosition(rp.x, rp.y);
         return [
           <Handle key={`${pin.id}-src`} id={pin.id} type="source" position={pos} isConnectable={true} style={handleStyle} title={pinTooltip(component.type, pin.label, pin.type)} />,
           <Handle key={`${pin.id}-tgt`} id={pin.id} type="target" position={pos} isConnectable={true} style={{ ...handleStyle, opacity: 0, pointerEvents: 'none' }} />,

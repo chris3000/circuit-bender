@@ -5,6 +5,7 @@ import { useCircuit } from '@/context/CircuitContext';
 import { parseValue, formatValue } from '@/utils/parameterParser';
 import { pinTooltip } from './pinTooltip';
 import { rotatePin, rotateDimensions } from './rotatePin';
+import { RotateButton } from './RotateButton';
 import type { CircuitNodeData } from '../useCircuitSync';
 
 function pinPositionToHandleStyle(pinX: number, pinY: number, w: number, h: number): React.CSSProperties {
@@ -41,6 +42,9 @@ export const EditableNode = memo(function EditableNode({ data, selected }: NodeP
 
   return (
     <div style={{ width: dims.width, height: dims.height, position: 'relative', cursor: 'grab' }} onDoubleClick={handleDoubleClick}>
+      {selected && (
+        <RotateButton componentId={component.id} rotation={rotation} width={dims.width} height={dims.height} />
+      )}
       <svg width={dims.width} height={dims.height}
         viewBox={`${-dims.width / 2} ${-dims.height / 2} ${dims.width} ${dims.height}`}
         style={{ display: 'block', overflow: 'visible' }}>
