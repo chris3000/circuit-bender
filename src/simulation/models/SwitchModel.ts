@@ -6,6 +6,7 @@ const G_OPEN = 1e-9;     // 1G ohm when open
 
 export class SwitchModel implements ComponentModel {
   readonly type = 'switch';
+  readonly nonlinear = false;
   private n0 = -1;
   private n1 = -1;
   private closed = false;
@@ -19,11 +20,10 @@ export class SwitchModel implements ComponentModel {
     this.closed = (params.closed ?? 0) >= 1;
   }
 
-  stamp(G: Float64Array[], _b: Float64Array, _x: Float64Array, _dt: number): void {
+  stampMatrix(G: Float64Array[], _dt: number, _be: boolean): void {
     stampConductance(G, this.n0, this.n1, this.closed ? G_CLOSED : G_OPEN);
   }
 
-  postStep(_x: Float64Array, _dt: number): void {}
   convergenceError(_xOld: Float64Array, _xNew: Float64Array): number { return 0; }
   reset(): void {}
 

@@ -2,6 +2,7 @@ import type { ComponentModel } from './ComponentModel';
 
 export class PowerSourceModel implements ComponentModel {
   readonly type = 'power';
+  readonly nonlinear = false;
   private nPos = -1;
   private nNeg = -1;
   private br = -1;
@@ -17,8 +18,8 @@ export class PowerSourceModel implements ComponentModel {
     this.voltage = params.voltage ?? 9;
   }
 
-  stamp(G: Float64Array[], b: Float64Array, _x: Float64Array, _dt: number): void {
-    const { nPos, nNeg, br, voltage } = this;
+  stampMatrix(G: Float64Array[], _dt: number, _be: boolean): void {
+    const { nPos, nNeg, br } = this;
     // Stamp voltage source: G[br][nPos]=1, G[nPos][br]=1, G[br][nNeg]=-1, G[nNeg][br]=-1
     if (nPos >= 0) {
       G[br][nPos] += 1;
@@ -28,10 +29,16 @@ export class PowerSourceModel implements ComponentModel {
       G[br][nNeg] -= 1;
       G[nNeg][br] -= 1;
     }
-    b[br] += voltage;
   }
 
-  postStep(_x: Float64Array, _dt: number): void {}
+  stampRhs(b: Float64Array, _dt: number, _be: boolean): void {
+    b[this.br] += this.voltage;
+  }
+
+  updateParam(key: string, value: number): void {
+    if (key === 'voltage' && Number.isFinite(value)) this.voltage = value;
+  }
+
   convergenceError(_xOld: Float64Array, _xNew: Float64Array): number { return 0; }
   reset(): void {}
 }

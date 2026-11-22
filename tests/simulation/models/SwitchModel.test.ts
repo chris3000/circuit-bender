@@ -13,7 +13,7 @@ describe('SwitchModel', () => {
     m.init([0, 1], 0, 0, { closed: 1 });
     const G = [new Float64Array(2), new Float64Array(2)];
     const b = new Float64Array(2);
-    m.stamp(G, b, new Float64Array(2), 1 / 48000);
+    m.stampMatrix(G, 1 / 48000, false);
     expect(G[0][0]).toBeCloseTo(100, 0);
     expect(G[0][1]).toBeCloseTo(-100, 0);
   });
@@ -23,7 +23,7 @@ describe('SwitchModel', () => {
     m.init([0, 1], 0, 0, { closed: 0 });
     const G = [new Float64Array(2), new Float64Array(2)];
     const b = new Float64Array(2);
-    m.stamp(G, b, new Float64Array(2), 1 / 48000);
+    m.stampMatrix(G, 1 / 48000, false);
     expect(G[0][0]).toBeCloseTo(1e-9, 12);
   });
 
@@ -32,7 +32,7 @@ describe('SwitchModel', () => {
     m.init([0, 1], 0, 0, {});
     const G = [new Float64Array(2), new Float64Array(2)];
     const b = new Float64Array(2);
-    m.stamp(G, b, new Float64Array(2), 1 / 48000);
+    m.stampMatrix(G, 1 / 48000, false);
     expect(G[0][0]).toBeCloseTo(1e-9, 12);
   });
 

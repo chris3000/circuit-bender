@@ -4,11 +4,11 @@ import type { ComponentModel } from '@/simulation/models/ComponentModel';
 
 class StubModel implements ComponentModel {
   readonly type = 'stub';
+  readonly nonlinear = false;
   getInternalNodeCount() { return 0; }
   getBranchCount() { return 0; }
   init() {}
-  stamp() {}
-  postStep() {}
+  stampMatrix() {}
   convergenceError() { return 0; }
   reset() {}
 }

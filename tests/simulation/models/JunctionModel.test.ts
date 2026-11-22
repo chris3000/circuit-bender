@@ -13,7 +13,7 @@ describe('JunctionModel', () => {
     m.init([0], 0, 0, {});
     const G = [new Float64Array(1)];
     const b = new Float64Array(1);
-    m.stamp(G, b, new Float64Array(1), 1 / 48000);
+    m.stampMatrix(G, 1 / 48000, false);
     expect(G[0][0]).toBe(0);
     expect(b[0]).toBe(0);
   });

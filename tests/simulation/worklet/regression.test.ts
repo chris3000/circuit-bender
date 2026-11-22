@@ -75,9 +75,10 @@ describe('Regression: example circuits', () => {
     expect(hasNonZero).toBe(true);
   });
 
-  it('subcycling does not produce NaN', () => {
+  it('every oversampling factor produces finite output', () => {
+    for (const os of [1, 2, 8]) {
     const solver = new MNASolver(fullRegistry());
-    solver.setSubcycles(4);
+    solver.setOversampling(os);
     const icPins = Array.from({ length: 14 }, (_, i) => ({
       id: `p${i}`, type: i >= 12 ? 'power' : 'bidirectional',
     }));
@@ -109,5 +110,6 @@ describe('Regression: example circuits', () => {
       if (!isFinite(sample)) hasNaN = true;
     }
     expect(hasNaN).toBe(false);
+    }
   });
 });

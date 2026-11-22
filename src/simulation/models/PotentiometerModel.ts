@@ -3,6 +3,7 @@ import { stampConductance } from './stampUtils';
 
 export class PotentiometerModel implements ComponentModel {
   readonly type = 'potentiometer';
+  readonly nonlinear = false;
   private n0 = -1; // top
   private n1 = -1; // wiper
   private n2 = -1; // bottom
@@ -22,7 +23,7 @@ export class PotentiometerModel implements ComponentModel {
     this.gBottom = 1 / (maxR * (1 - pos));
   }
 
-  stamp(G: Float64Array[], _b: Float64Array, _x: Float64Array, _dt: number): void {
+  stampMatrix(G: Float64Array[], _dt: number, _be: boolean): void {
     if (this.n1 < 0) {
       // Wiper not connected — single conductance top to bottom
       stampConductance(G, this.n0, this.n2, this.gTop * this.gBottom / (this.gTop + this.gBottom));
@@ -32,7 +33,6 @@ export class PotentiometerModel implements ComponentModel {
     }
   }
 
-  postStep(_x: Float64Array, _dt: number): void {}
   convergenceError(_xOld: Float64Array, _xNew: Float64Array): number { return 0; }
   reset(): void {}
 

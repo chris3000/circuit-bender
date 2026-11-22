@@ -11,7 +11,7 @@ describe('PotentiometerModel', () => {
     const G = [new Float64Array(3), new Float64Array(3), new Float64Array(3)];
     const b = new Float64Array(3);
     const x = new Float64Array(3);
-    m.stamp(G, b, x, 1 / 48000);
+    m.stampMatrix(G, 1 / 48000, false);
     const gTop = 1 / (100000 * 0.3);
     const gBottom = 1 / (100000 * 0.7);
     expect(G[0][0]).toBeCloseTo(gTop, 8);
@@ -28,7 +28,8 @@ describe('PowerSourceModel', () => {
     const G = [new Float64Array(2), new Float64Array(2)];
     const b = new Float64Array(2);
     const x = new Float64Array(2);
-    m.stamp(G, b, x, 1 / 48000);
+    m.stampMatrix(G, 1 / 48000, false);
+    m.stampRhs(b, 1 / 48000, false);
     expect(G[1][0]).toBe(1);
     expect(G[0][1]).toBe(1);
     expect(b[1]).toBe(9);
@@ -47,19 +48,32 @@ describe('GroundModel', () => {
     m.init([-1], 0, 0, {});
     const G = [new Float64Array(1)];
     const b = new Float64Array(1);
-    m.stamp(G, b, new Float64Array(1), 1 / 48000);
+    m.stampMatrix(G, 1 / 48000, false);
     expect(G[0][0]).toBe(0);
     expect(b[0]).toBe(0);
   });
 });
 
 describe('AudioOutputModel', () => {
-  it('stamps nothing significant', () => {
+  it('loads its node with a high-impedance input to ground', () => {
     const m = new AudioOutputModel();
     m.init([0], 0, 0, {});
     const G = [new Float64Array(1)];
-    const b = new Float64Array(1);
-    m.stamp(G, b, new Float64Array(1), 1 / 48000);
-    expect(G[0][0]).toBe(0);
+    m.stampMatrix(G, 1 / 48000, false);
+    expect(G[0][0]).toBeCloseTo(1e-6, 12);
+    expect(m.getGain()).toBe(1);
+  });
+
+  it('takes its load and input trim from parameters', () => {
+    const m = new AudioOutputModel();
+    m.init([0], 0, 0, { loadResistance: 10000, gain: 4 });
+    const G = [new Float64Array(1)];
+    m.stampMatrix(G, 1 / 48000, false);
+    expect(G[0][0]).toBeCloseTo(1e-4, 12);
+    expect(m.getGain()).toBe(4);
+    m.updateParam('gain', 2);
+    expect(m.getGain()).toBe(2);
+    m.updateParam('gain', -1);        // nonsense is ignored
+    expect(m.getGain()).toBe(2);
   });
 });

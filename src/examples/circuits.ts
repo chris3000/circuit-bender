@@ -27,6 +27,9 @@ function connect(
   };
 }
 
+/** Input trim on the WSG's jack: its output is line level, a tenth of what a bare CMOS gate puts out. */
+const WSG_INPUT_TRIM = 8;
+
 export const exampleCircuits: ExampleCircuit[] = [
   {
     name: 'Simple Oscillator',
@@ -271,156 +274,207 @@ export const exampleCircuits: ExampleCircuit[] = [
   },
   {
     name: 'MFOS Weird Sound Generator',
-    description: 'Original Recipe — three cross-modulated CD40106 oscillators with LM741 output',
+    description: 'Original Recipe — Wacky gates Weird, Zany bends it, resonant Oddness filter',
     build: () => {
-      // MFOS WSG Voice A "Original Recipe" by Ray Wilson (Aug 2007)
-      // Faithful to the schematic: asymmetric cross-coupling via D1+S2+Q1,
-      // passive Oddness filter, LM741 inverting amp output stage.
+      // "Your First Wacky Electronic Noise Maker Thingy" (WSG Voice A, Original
+      // Recipe) by Ray Wilson / Music From Outer Space, Aug 2007. Reference
+      // designators and values follow the published schematic.
+      //
+      //   Wacky (U1-B)  square wave; through S2 + D1 it holds the Weird
+      //                 oscillator's input low on its low half-cycles (gating)
+      //   Zany  (U1-C)  slow square wave; through R18/R19/R33 it turns on Q1,
+      //                 which shorts out the Weird frequency pot
+      //   Weird (U1-A)  the voice: R7 + (R9 + R14, bypassed by Q1) and C5
+      //   Oddness       U2 with a bridged-T (C2, C3, R3 + R8) in its feedback:
+      //                 a resonant low-pass whose corner follows R3
+      //
+      // Pots are wired so that turning one up raises the pitch / amount / cutoff.
+      const at = (type: string, x: number, y: number, rotation = 0) => {
+        const c = createComponentFromDefinition(getDefinition(type), { x, y });
+        c.rotation = rotation;
+        return c;
+      };
+      const resistor = (x: number, y: number, resistance: number, value: string, rotation = 0) => {
+        const c = at('resistor', x, y, rotation);
+        c.parameters = { ...c.parameters, resistance, value };
+        return c;
+      };
+      const capacitor = (x: number, y: number, capacitance: number, value: string, rotation = 0) => {
+        const c = at('capacitor', x, y, rotation);
+        c.parameters = { ...c.parameters, capacitance, value };
+        return c;
+      };
+      const pot = (x: number, y: number, maxResistance: number, value: string, position: number, rotation = 0) => {
+        const c = at('potentiometer', x, y, rotation);
+        c.parameters = { ...c.parameters, maxResistance, value, position };
+        return c;
+      };
 
-      const power = createComponentFromDefinition(getDefinition('power'), { x: 100, y: 50 });
-      const ground = createComponentFromDefinition(getDefinition('ground'), { x: 100, y: 850 });
-      const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 550, y: 350 });
-      const opamp = createComponentFromDefinition(getDefinition('lm741'), { x: 950, y: 500 });
-      const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 1150, y: 500 });
+      const ground = (x: number, y: number) => at('ground', x, y);
 
-      // --- Wacky Oscillator (U1-B: input pin 1, output pin 7) ---
-      const potWacky = createComponentFromDefinition(getDefinition('potentiometer'), { x: 200, y: 150 });
-      potWacky.parameters = { ...potWacky.parameters, maxResistance: 1000000, value: '1M', position: 0.3 };
-      const r6 = createComponentFromDefinition(getDefinition('resistor'), { x: 350, y: 150 });
-      r6.parameters = { ...r6.parameters, resistance: 4700, value: '4.7k' };
-      const c4 = createComponentFromDefinition(getDefinition('capacitor'), { x: 280, y: 250 });
-      c4.parameters = { ...c4.parameters, capacitance: 22e-9, value: '22nF' };
+      // --- Supply ---
+      const power = at('power', 120, 150);
+      const c9 = capacitor(220, 150, 100e-9, '100nF', 90);  // bypass
+      const gPower = ground(170, 260);
 
-      // --- Weird Oscillator (U1-A: input pin 0, output pin 6) ---
-      const potWeird = createComponentFromDefinition(getDefinition('potentiometer'), { x: 200, y: 400 });
-      potWeird.parameters = { ...potWeird.parameters, maxResistance: 1000000, value: '1M', position: 0.5 };
-      const c5 = createComponentFromDefinition(getDefinition('capacitor'), { x: 280, y: 500 });
-      c5.parameters = { ...c5.parameters, capacitance: 22e-9, value: '22nF' };
+      const ic = at('cd40106', 520, 430);
+      const gIc = ground(620, 330);
 
-      // --- Zany Oscillator (U1-C: input pin 2, output pin 8) ---
-      const potZany = createComponentFromDefinition(getDefinition('potentiometer'), { x: 200, y: 650 });
-      potZany.parameters = { ...potZany.parameters, maxResistance: 1000000, value: '1M', position: 0.7 };
-      const r15 = createComponentFromDefinition(getDefinition('resistor'), { x: 350, y: 650 });
-      r15.parameters = { ...r15.parameters, resistance: 4700, value: '4.7k' };
-      const c7 = createComponentFromDefinition(getDefinition('capacitor'), { x: 280, y: 750 });
-      c7.parameters = { ...c7.parameters, capacitance: 1e-6, value: '1uF' };
+      // --- Wacky oscillator (U1-B), above the IC ---
+      const r6 = resistor(400, 230, 4700, '4.7k');
+      const r1 = pot(520, 230, 1e6, '1M', 0.35);            // Wacky Frequency
+      const c4 = capacitor(310, 320, 22e-9, '22nF', 90);
+      const gWacky = ground(310, 400);
 
-      // --- Cross-coupling: resistive ring ---
-      // NOTE: The MFOS schematic uses D1+S2+Q1 for Wacky→Weird coupling, but
-      // that path causes NR convergence issues in the current solver. Using
-      // resistive cross-coupling instead until solver convergence is improved.
-      const rCross1 = createComponentFromDefinition(getDefinition('resistor'), { x: 650, y: 200 });
-      rCross1.parameters = { ...rCross1.parameters, resistance: 100000, value: '100k' };
-      const rCross2 = createComponentFromDefinition(getDefinition('resistor'), { x: 650, y: 420 });
-      rCross2.parameters = { ...rCross2.parameters, resistance: 100000, value: '100k' };
-      const rCross3 = createComponentFromDefinition(getDefinition('resistor'), { x: 650, y: 650 });
-      rCross3.parameters = { ...rCross3.parameters, resistance: 100000, value: '100k' };
+      // --- Zany oscillator (U1-C), below the IC ---
+      const r15 = resistor(400, 630, 4700, '4.7k');
+      const r13 = pot(520, 630, 1e6, '1M', 0.6);            // Zany Frequency
+      const c7 = capacitor(310, 540, 1e-6, '1uF', 90);
+      const gZany = ground(310, 620);
 
-      // --- Oddness Filter ---
-      const r5 = createComponentFromDefinition(getDefinition('resistor'), { x: 750, y: 500 });
-      r5.parameters = { ...r5.parameters, resistance: 1000000, value: '1M' };
-      const potOddness = createComponentFromDefinition(getDefinition('potentiometer'), { x: 820, y: 400 });
-      potOddness.parameters = { ...potOddness.parameters, maxResistance: 1000000, value: '1M', position: 0.5 };
-      const c1 = createComponentFromDefinition(getDefinition('capacitor'), { x: 850, y: 500 });
-      c1.parameters = { ...c1.parameters, capacitance: 100e-9, value: '100nF' };
+      // --- Zany → Q1 base ---
+      const r18 = pot(700, 680, 100e3, '100k', 0.7);        // Zaniness Amount
+      const gZaniness = ground(640, 750);
+      const r19 = resistor(790, 620, 47e3, '47k');
+      const r33 = resistor(890, 620, 47e3, '47k');
 
-      // --- LM741 Output Stage ---
-      const r4 = createComponentFromDefinition(getDefinition('resistor'), { x: 900, y: 450 });
-      r4.parameters = { ...r4.parameters, resistance: 100000, value: '100k' };
-      const r11 = createComponentFromDefinition(getDefinition('resistor'), { x: 950, y: 420 });
-      r11.parameters = { ...r11.parameters, resistance: 470000, value: '470k' };
-      const r16 = createComponentFromDefinition(getDefinition('resistor'), { x: 900, y: 550 });
-      r16.parameters = { ...r16.parameters, resistance: 100000, value: '100k' };
-      const r17 = createComponentFromDefinition(getDefinition('resistor'), { x: 900, y: 620 });
-      r17.parameters = { ...r17.parameters, resistance: 100000, value: '100k' };
-      const r12 = createComponentFromDefinition(getDefinition('resistor'), { x: 1050, y: 500 });
-      r12.parameters = { ...r12.parameters, resistance: 1000, value: '1k' };
-      const c6 = createComponentFromDefinition(getDefinition('capacitor'), { x: 1100, y: 500 });
-      c6.parameters = { ...c6.parameters, capacitance: 1e-6, value: '1uF' };
+      // --- Wackiness gate ---
+      const s2 = at('switch', 700, 250);                    // Wackiness
+      s2.parameters = { ...s2.parameters, closed: 1 };
+      const d1 = at('1n914', 800, 250, 180);                // cathode towards the switch
 
-      // --- Bypass cap ---
-      const c9 = createComponentFromDefinition(getDefinition('capacitor'), { x: 200, y: 850 });
-      c9.parameters = { ...c9.parameters, capacitance: 100e-9, value: '100nF' };
+      // --- Weird oscillator (U1-A), right of the IC ---
+      const r7 = resistor(700, 380, 4700, '4.7k');
+      const q1 = at('2n3904', 810, 450);
+      const r9 = pot(930, 380, 1e6, '1M', 0.8);             // Weird Frequency
+      const r14 = resistor(930, 500, 4700, '4.7k');
+      const c5 = capacitor(700, 520, 22e-9, '22nF', 90);
+      const gWeird = ground(700, 600);
 
+      // --- Oddness filter and output (U2) ---
+      const r5 = resistor(1080, 300, 1e6, '1M');
+      const r10 = resistor(1160, 380, 1000, '1k', 90);
+      const gFilter = ground(1160, 470);
+      const c1 = capacitor(1230, 300, 100e-9, '100nF');
+      const r11 = resistor(1320, 300, 750e3, '750k');
+      const opamp = at('lm741', 1480, 320);
+      const gOpamp = ground(1420, 420);
+      const r4 = resistor(1480, 220, 10e6, '10M');
+      const c2 = capacitor(1430, 140, 470e-12, '470pF');
+      const c3 = capacitor(1530, 140, 470e-12, '470pF');
+      const r3 = pot(1480, 70, 1e6, '1M', 0.9, 180);        // Oddness Cut Off Frequency
+      const r8 = resistor(1360, 70, 1000, '1k');
+      const r16 = resistor(1250, 440, 100e3, '100k');
+      const r17 = resistor(1340, 520, 100e3, '100k', 90);
+      const c8 = capacitor(1260, 520, 220e-6, '220uF', 90);
+      const gBias = ground(1300, 620);
+      const r12 = resistor(1590, 329, 1000, '1k');
+      const c6 = capacitor(1680, 329, 1e-6, '1uF');
+      const output = at('audio-output', 1770, 349);
+      // The WSG puts out a few hundred millivolts (it is meant for an
+      // amplifier input), so turn the jack's input trim up to match
+      output.parameters = { ...output.parameters, gain: WSG_INPUT_TRIM };
+
+      // Pots first, in panel order (the tests address them by position)
       const components = [
-        power, ground, ic, opamp, output,
-        potWacky, r6, c4,
-        potWeird, c5,
-        potZany, r15, c7,
-        rCross1, rCross2, rCross3,
-        r5, potOddness, c1,
-        r4, r11, r16, r17, r12, c6,
-        c9,
+        r1, r13, r18, r9, r3,
+        power, c9, gPower, ic, gIc,
+        r6, c4, gWacky,
+        r15, c7, gZany,
+        gZaniness, r19, r33,
+        s2, d1,
+        r7, q1, r14, c5, gWeird,
+        r5, r10, gFilter, c1, r11, opamp, gOpamp, r4, c2, c3, r8, r16, r17, c8, gBias, r12, c6, output,
       ];
 
-      // LM741 DIP8 pins: 0=NC, 1=IN-, 2=IN+, 3=V-, 4=NC, 5=OUT, 6=V+, 7=NC
-      // CD40106 pin mapping: 0-5=inputs(1A-6A), 6-11=outputs(1Y-6Y), 12=VDD, 13=VSS
-      // 2N3904 pin mapping: 0=Base, 1=Collector, 2=Emitter
-      // 1N914 pin mapping: 0=Anode, 1=Cathode
+      // CD40106: 0-5 = inputs 1A-6A, 6-11 = outputs 1Y-6Y, 12 = VDD, 13 = VSS
+      const WEIRD_IN = 0, WACKY_IN = 1, ZANY_IN = 2;
+      const WEIRD_OUT = 6, WACKY_OUT = 7, ZANY_OUT = 8;
+      // LM741: 0 = IN-, 1 = IN+, 2 = V-, 3 = OUT, 4 = V+
+      // Potentiometer: 0 and 2 = ends, 1 = wiper.  2N3904: 0 = B, 1 = C, 2 = E.
+      // 1N914: 0 = anode, 1 = cathode.
+      // Ground symbols are all one node; each block uses the nearest one.
 
       const connections = [
         // === Power ===
-        connect(power, 0, ic, 12),       // +9V to CD40106 VDD
-        connect(power, 1, ground, 0),     // Power GND
-        connect(ground, 0, ic, 13),       // CD40106 VSS to GND
-        connect(power, 0, opamp, 4),      // +9V to LM741 V+
-        connect(ground, 0, opamp, 2),     // GND to LM741 V-
+        connect(power, 0, ic, 12),
+        connect(power, 1, gPower, 0),
+        connect(gIc, 0, ic, 13),
+        connect(power, 0, opamp, 4),
+        connect(gOpamp, 0, opamp, 2),
+        connect(power, 0, c9, 0),
+        connect(c9, 1, gPower, 0),
 
-        // === Wacky Oscillator (U1-B: input=pin1, output=pin7) ===
-        connect(potWacky, 0, ic, 1),      // Pot terminal to input
-        connect(potWacky, 1, ic, 7),      // Pot wiper to output (rheostat)
-        connect(r6, 0, ic, 1),            // R6 to input (min R, parallel with pot)
-        connect(r6, 1, ic, 7),            // R6 to output
-        connect(c4, 0, ic, 1),            // C4 to input
-        connect(c4, 1, ground, 0),        // C4 to GND
+        // === Wacky: output → R1 (rheostat) → R6 → input, C4 to ground ===
+        connect(ic, WACKY_OUT, r1, 2),
+        connect(r1, 0, r1, 1),
+        connect(r1, 0, r6, 1),
+        connect(r6, 0, ic, WACKY_IN),
+        connect(c4, 0, ic, WACKY_IN),
+        connect(c4, 1, gWacky, 0),
 
-        // === Weird Oscillator (U1-A: input=pin0, output=pin6) ===
-        connect(potWeird, 0, ic, 0),      // Pot terminal to input
-        connect(potWeird, 1, ic, 6),      // Pot wiper to output (rheostat)
-        connect(c5, 0, ic, 0),            // C5 to input
-        connect(c5, 1, ground, 0),        // C5 to GND
+        // === Zany: output → R13 (rheostat) → R15 → input, C7 to ground ===
+        connect(ic, ZANY_OUT, r13, 2),
+        connect(r13, 0, r13, 1),
+        connect(r13, 0, r15, 1),
+        connect(r15, 0, ic, ZANY_IN),
+        connect(c7, 0, ic, ZANY_IN),
+        connect(c7, 1, gZany, 0),
 
-        // === Zany Oscillator (U1-C: input=pin2, output=pin8) ===
-        connect(potZany, 0, ic, 2),       // Pot terminal to input
-        connect(potZany, 1, ic, 8),       // Pot wiper to output (rheostat)
-        connect(r15, 0, ic, 2),           // R15 to input (min R)
-        connect(r15, 1, ic, 8),           // R15 to output
-        connect(c7, 0, ic, 2),            // C7 to input
-        connect(c7, 1, ground, 0),        // C7 to GND
+        // === Zaniness: R18 divides the Zany output; wiper → R19 → R33 → Q1 base ===
+        connect(ic, ZANY_OUT, r18, 2),
+        connect(r18, 0, gZaniness, 0),
+        connect(r18, 1, r19, 0),
+        connect(r19, 1, r33, 0),
+        connect(r33, 1, q1, 0),
 
-        // === Cross-coupling: resistive ring ===
-        connect(ic, 8, rCross1, 0),       // Zany output → Wacky input
-        connect(rCross1, 1, ic, 1),
-        connect(ic, 7, rCross2, 0),       // Wacky output → Weird input
-        connect(rCross2, 1, ic, 0),
-        connect(ic, 6, rCross3, 0),       // Weird output → Zany input
-        connect(rCross3, 1, ic, 2),
+        // === Wackiness: Wacky output → S2 → D1 cathode; D1 anode on the Weird input ===
+        connect(ic, WACKY_OUT, s2, 0),
+        connect(s2, 1, d1, 1),
+        connect(d1, 0, ic, WEIRD_IN),
 
-        // === Oddness Filter ===
-        connect(ic, 6, r5, 0),            // Weird output → R5 (filter input)
-        connect(r5, 1, potOddness, 0),    // R5 → COF1 / Oddness pot
-        connect(potOddness, 1, ground, 0),// Oddness wiper → GND (variable shunt)
-        connect(r5, 1, c1, 0),            // COF1 → C1
-        connect(c1, 1, r4, 0),            // C1 → COF2 → R4 (op-amp input)
+        // === Weird: output → R7 → (R9 + R14, with Q1 across them) → input, C5 to ground ===
+        connect(ic, WEIRD_OUT, r7, 0),
+        connect(r7, 1, q1, 1),
+        connect(r7, 1, r9, 0),
+        connect(r9, 0, r9, 1),
+        connect(r9, 2, r14, 1),
+        connect(r14, 0, q1, 2),
+        connect(q1, 2, c5, 0),
+        connect(c5, 0, ic, WEIRD_IN),
+        connect(c5, 1, gWeird, 0),
 
-        // === LM741 Output Stage (0=IN-, 1=IN+, 2=V-, 3=OUT, 4=V+) ===
-        connect(r4, 1, opamp, 0),         // R4 → IN-
-        connect(opamp, 3, r11, 0),        // OUT → R11 (feedback)
-        connect(r11, 1, opamp, 0),        // R11 → IN-
-        connect(power, 0, r16, 0),        // +9V → R16
-        connect(r16, 1, opamp, 1),        // R16 → IN+ (bias)
-        connect(opamp, 1, r17, 0),        // IN+ → R17
-        connect(r17, 1, ground, 0),       // R17 → GND (bias divider = 4.5V)
-        connect(opamp, 3, r12, 0),        // OUT → R12 (output resistor)
-        connect(r12, 1, c6, 0),           // R12 → C6 (coupling cap)
-        connect(c6, 1, output, 0),        // C6 → audio output
+        // === Filter input: R5 / R10 cut the 9V square down to millivolts, C1 → R11 → IN- ===
+        connect(ic, WEIRD_OUT, r5, 0),
+        connect(r5, 1, r10, 0),
+        connect(r10, 1, gFilter, 0),
+        connect(r5, 1, c1, 0),
+        connect(c1, 1, r11, 0),
+        connect(r11, 1, opamp, 0),
 
-        // === Direct audio from Weird output (bypass op-amp for reliable audio) ===
-        connect(ic, 6, output, 0),
+        // === Feedback: R4, bridged by C2 – C3 with R3 + R8 from their junction to the bias rail ===
+        connect(opamp, 0, r4, 0),
+        connect(r4, 1, opamp, 3),
+        connect(opamp, 0, c2, 0),
+        connect(c2, 1, c3, 0),
+        connect(c3, 1, opamp, 3),
+        connect(c2, 1, r3, 0),
+        connect(r3, 0, r3, 1),
+        connect(r3, 2, r8, 1),
+        connect(r8, 0, opamp, 1),
 
-        // === Bypass ===
-        connect(power, 0, c9, 0),         // +9V → C9
-        connect(c9, 1, ground, 0),        // C9 → GND
+        // === Bias: half supply from R16 / R17, held steady by C8 ===
+        connect(power, 0, r16, 0),
+        connect(r16, 1, opamp, 1),
+        connect(r16, 1, r17, 0),
+        connect(r17, 1, gBias, 0),
+        connect(r16, 1, c8, 0),
+        connect(c8, 1, gBias, 0),
+
+        // === Output: R12 → C6 → jack ===
+        connect(opamp, 3, r12, 0),
+        connect(r12, 1, c6, 0),
+        connect(c6, 1, output, 0),
       ];
 
       return { components, connections };

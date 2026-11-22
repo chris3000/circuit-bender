@@ -16,7 +16,7 @@ export function AppContent() {
   const [activeView, setActiveView] = useState<ActiveView>('schematic');
   const [audioStarted, setAudioStarted] = useState(false);
   const [muted, setMuted] = useState(false);
-  const [volume, setVolume] = useState(1);
+  const [volume, setVolume] = useState(0.7);
 
   const audioEngineRef = useRef<AudioEngine | null>(null);
   const scopeCallbackRef = useRef<((samples: Float32Array, probeData?: Float32Array[]) => void) | null>(null);
@@ -49,9 +49,16 @@ export function AppContent() {
   }, []);
 
   useEffect(() => {
+    audioEngineRef.current?.setVolume(volume);
+    audioEngineRef.current?.setMuted(muted);
+  }, [volume, muted]);
+
+  useEffect(() => {
     if (audioEngineRef.current && audioStarted) {
+      // Only an actual change to the circuit restarts the simulation; knobs,
+      // switches and moving parts around do not
       const { components, connections } = serializeCircuit(circuit);
-      audioEngineRef.current.loadCircuit(components, connections);
+      audioEngineRef.current.updateCircuit(components, connections);
     }
   }, [circuit, audioStarted, serializeCircuit]);
 

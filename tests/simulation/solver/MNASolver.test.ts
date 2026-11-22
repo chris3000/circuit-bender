@@ -4,6 +4,7 @@ import { MNASolver } from '@/simulation/solver/MNASolver';
 import { ModelRegistry } from '@/simulation/models/ModelRegistry';
 import { ResistorModel } from '@/simulation/models/ResistorModel';
 import { CapacitorModel } from '@/simulation/models/CapacitorModel';
+import { PowerSourceModel } from '@/simulation/models/PowerSourceModel';
 import { DiodeModel, DIODE_1N914_PARAMS } from '@/simulation/models/DiodeModel';
 import { BJTModel, BJT_2N3904_PARAMS } from '@/simulation/models/BJTModel';
 import { OpAmpModel, OPAMP_LM741_PARAMS } from '@/simulation/models/OpAmpModel';
@@ -46,10 +47,39 @@ describe('MNASolver', () => {
     });
   });
 
-  describe('subcycling', () => {
-    it('accepts subcycle count', () => {
+  describe('oversampling', () => {
+    it('clamps the oversampling factor to 1–8', () => {
       const solver = new MNASolver(createRegistry());
-      solver.setSubcycles(4);
+      solver.setOversampling(2);
+      expect(solver.getOversampling()).toBe(2);
+      solver.setOversampling(100);
+      expect(solver.getOversampling()).toBe(8);
+      solver.setOversampling(0);
+      expect(solver.getOversampling()).toBe(1);
+    });
+  });
+
+  describe('ground symbols', () => {
+    it('are all the same node without being wired to each other', () => {
+      const reg = new ModelRegistry();
+      reg.register('resistor', () => new ResistorModel());
+      reg.register('power', () => new PowerSourceModel());
+      const solver = new MNASolver(reg);
+      const two = [{ id: 'p0', type: 'bidirectional' }, { id: 'p1', type: 'bidirectional' }];
+      solver.loadCircuit([
+        makeComp('pwr', 'power', [{ id: 'pos', type: 'power' }, { id: 'neg', type: 'ground' }], { voltage: 9 }),
+        makeComp('gndA', 'ground', [{ id: 'gnd', type: 'ground' }]),
+        makeComp('gndB', 'ground', [{ id: 'gnd', type: 'ground' }]),
+        makeComp('r1', 'resistor', two, { resistance: 1000 }),
+        makeComp('r2', 'resistor', two, { resistance: 2000 }),
+      ], [
+        makeConn('pwr', 'neg', 'gndA', 'gnd'),
+        makeConn('pwr', 'pos', 'r1', 'p0'),
+        makeConn('r1', 'p1', 'r2', 'p0'),
+        makeConn('r2', 'p1', 'gndB', 'gnd'),   // a different ground symbol
+      ]);
+      solver.step(1 / 48000);
+      expect(solver.getNodeVoltageByPin('r1', 'p1')).toBeCloseTo(6, 6);
     });
   });
 
@@ -58,6 +88,7 @@ describe('MNASolver', () => {
       const reg = new ModelRegistry();
       reg.register('resistor', () => new ResistorModel());
       reg.register('capacitor', () => new CapacitorModel());
+      reg.register('power', () => new PowerSourceModel());
       const solver = new MNASolver(reg);
 
       const R = 10000;
@@ -67,7 +98,9 @@ describe('MNASolver', () => {
       const dt = 1 / 48000;
 
       const components = [
-        makeComp('pwr', 'power', [{ id: 'pos', type: 'power' }, { id: 'neg', type: 'ground' }], { voltage: Vs }),
+        // The circuit starts at its DC operating point, so begin with the
+        // source at 0 V and step it up to get a charging curve
+        makeComp('pwr', 'power', [{ id: 'pos', type: 'power' }, { id: 'neg', type: 'ground' }], { voltage: 0 }),
         makeComp('gnd', 'ground', [{ id: 'gnd', type: 'ground' }]),
         makeComp('r', 'resistor', [{ id: 'p0', type: 'bidirectional' }, { id: 'p1', type: 'bidirectional' }], { resistance: R }),
         makeComp('c', 'capacitor', [{ id: 'p0', type: 'bidirectional' }, { id: 'p1', type: 'bidirectional' }], { capacitance: C }),
@@ -80,6 +113,7 @@ describe('MNASolver', () => {
       ];
 
       solver.loadCircuit(components, connections);
+      solver.updateParam('pwr', 'voltage', Vs);
 
       const steps = Math.ceil(2 * tau / dt);
       for (let i = 0; i < steps; i++) {

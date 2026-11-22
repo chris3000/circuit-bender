@@ -3,6 +3,7 @@ import { stampConductance } from './stampUtils';
 
 export class ResistorModel implements ComponentModel {
   readonly type = 'resistor';
+  readonly nonlinear = false;
   private n0 = -1;
   private n1 = -1;
   private conductance = 0;
@@ -16,11 +17,10 @@ export class ResistorModel implements ComponentModel {
     this.conductance = 1 / Math.max(params.resistance ?? 1000, 1);
   }
 
-  stamp(G: Float64Array[], _b: Float64Array, _x: Float64Array, _dt: number): void {
+  stampMatrix(G: Float64Array[], _dt: number, _be: boolean): void {
     stampConductance(G, this.n0, this.n1, this.conductance);
   }
 
-  postStep(_x: Float64Array, _dt: number): void {}
   convergenceError(_xOld: Float64Array, _xNew: Float64Array): number { return 0; }
   reset(): void {}
 }

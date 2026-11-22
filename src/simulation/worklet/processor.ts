@@ -55,18 +55,14 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
         const comp = this.components.find((c: SerializedComponent) => c.id === msg.componentId);
         if (comp) {
           comp.parameters[msg.key] = msg.value;
-          const model = this.solver.getModel(msg.componentId) as unknown;
-          if (model && typeof (model as { updateParam?: unknown }).updateParam === 'function') {
-            (model as { updateParam: (k: string, v: number) => void }).updateParam(
-              msg.key, Number(msg.value)
-            );
-          }
+          this.solver.updateParam(msg.componentId, msg.key, Number(msg.value));
         }
       } else if (msg.type === 'setProbes') {
         this.probes = msg.probes || [];
         this.probeSampleBuffers = this.probes.map(() => new Float32Array(128));
-      } else if (msg.type === 'setSubcycles') {
-        this.solver.setSubcycles(msg.count);
+        this.solver.setProbes(this.probes);
+      } else if (msg.type === 'setOversampling') {
+        this.solver.setOversampling(msg.count);
       } else if (msg.type === 'start') {
         this.running = true;
       } else if (msg.type === 'stop') {
@@ -86,8 +82,7 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
       if (this.running) {
         channel[i] = this.solver.step(dt);
         for (let p = 0; p < this.probes.length; p++) {
-          const probe = this.probes[p];
-          this.probeSampleBuffers[p][i] = this.solver.getNodeVoltageByPin(probe.componentId, probe.pinId);
+          this.probeSampleBuffers[p][i] = this.solver.getProbeSample(p);
         }
       } else {
         channel[i] = 0;

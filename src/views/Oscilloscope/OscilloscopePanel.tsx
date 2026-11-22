@@ -134,7 +134,8 @@ export default function OscilloscopePanel({ onRegisterSampleCallback, probes = [
 
           let voltage;
           if (isNormalized) {
-            voltage = (raw + 1) / 2 * vdd;
+            // Audio samples are AC-coupled, with a rail-to-rail swing at ±0.5
+            voltage = vCenter + raw * vdd;
           } else {
             voltage = raw;
           }

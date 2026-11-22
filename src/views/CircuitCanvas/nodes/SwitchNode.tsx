@@ -16,7 +16,7 @@ function getHandlePosition(pinX: number, pinY: number): Position {
 }
 
 export const SwitchNode = memo(function SwitchNode({ data, selected }: NodeProps<CircuitNodeData>) {
-  const { component, viewMode, onPotChange } = data;
+  const { component, viewMode } = data;
   const { updateComponent } = useCircuit();
   const definition = useMemo(() => ComponentRegistry.getInstance().get(component.type), [component.type]);
   const rotation = component.rotation || 0;
@@ -25,9 +25,10 @@ export const SwitchNode = memo(function SwitchNode({ data, selected }: NodeProps
     e.stopPropagation();
     const currentClosed = (component.parameters.closed as number) >= 1;
     const newClosed = currentClosed ? 0 : 1;
+    // The audio engine picks the change up from the circuit and sends it to
+    // the running simulation as a live parameter update
     updateComponent(component.id, { parameters: { ...component.parameters, closed: newClosed } });
-    if (onPotChange) onPotChange(component.id, newClosed);
-  }, [component, updateComponent, onPotChange]);
+  }, [component, updateComponent]);
 
   if (!definition) return null;
   const symbol = definition[viewMode].symbol;

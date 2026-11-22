@@ -15,7 +15,7 @@ describe('ResistorModel', () => {
     const G = [new Float64Array(2), new Float64Array(2)];
     const b = new Float64Array(2);
     const x = new Float64Array(2);
-    m.stamp(G, b, x, 1 / 48000);
+    m.stampMatrix(G, 1 / 48000, false);
     const g = 1 / 1000;
     expect(G[0][0]).toBeCloseTo(g, 10);
     expect(G[1][1]).toBeCloseTo(g, 10);
@@ -29,7 +29,7 @@ describe('ResistorModel', () => {
     const G = [new Float64Array(1)];
     const b = new Float64Array(1);
     const x = new Float64Array(1);
-    m.stamp(G, b, x, 1 / 48000);
+    m.stampMatrix(G, 1 / 48000, false);
     expect(G[0][0]).toBeCloseTo(1 / 500, 10);
   });
 
