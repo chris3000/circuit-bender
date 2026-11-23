@@ -75,9 +75,4 @@ export const groundDefinition: ComponentDefinition = {
     },
     dimensions: { width: 40, height: 40 },
   },
-  simulate: () => {
-    return {
-      pin_0: { voltage: 0, current: 0 },
-    };
-  },
 };

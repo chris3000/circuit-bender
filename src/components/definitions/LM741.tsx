@@ -119,21 +119,4 @@ export const lm741Definition: ComponentDefinition = {
     },
     dimensions: { width: 70, height: 90 },
   },
-  simulate: (inputs, _params) => {
-    const vPlus = inputs.pin_1?.voltage ?? 0;
-    const vMinus = inputs.pin_0?.voltage ?? 0;
-    const vSupplyPos = inputs.pin_4?.voltage ?? 0;
-    const vSupplyNeg = inputs.pin_2?.voltage ?? 0;
-
-    const rawOutput = (vPlus - vMinus) * 100000;
-    const clampedOutput = Math.max(vSupplyNeg, Math.min(vSupplyPos, rawOutput));
-
-    return {
-      pin_0: { voltage: inputs.pin_0?.voltage ?? 0, current: 0 },
-      pin_1: { voltage: inputs.pin_1?.voltage ?? 0, current: 0 },
-      pin_2: { voltage: inputs.pin_2?.voltage ?? 0, current: 0 },
-      pin_3: { voltage: clampedOutput, current: 0 },
-      pin_4: { voltage: inputs.pin_4?.voltage ?? 0, current: 0 },
-    };
-  },
 };

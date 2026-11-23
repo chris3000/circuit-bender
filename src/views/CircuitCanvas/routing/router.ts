@@ -75,7 +75,8 @@ const TOUCH = 600;
 const FOREIGN_PIN = 600;
 const BODY = 900;
 
-const FREE = 0, NEAR_BODY = 1, TEXT = 2, PART = 3;
+// What is at a grid point; 0 is free board
+const NEAR_BODY = 1, TEXT = 2, PART = 3;
 
 // Directions: 0 = +x, 1 = +y, 2 = −x, 3 = −y
 const DX = [1, 0, -1, 0];

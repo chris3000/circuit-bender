@@ -52,12 +52,4 @@ export const audioOutputJackDefinition: ComponentDefinition = {
     },
     dimensions: { width: 40, height: 40 },
   },
-  simulate: (inputs, _params) => {
-    // Pass-through: AudioBridge reads voltage externally
-    const pin0 = inputs.pin_0 || { voltage: 0, current: 0 };
-
-    return {
-      pin_0: { voltage: pin0.voltage, current: pin0.current },
-    };
-  },
 };

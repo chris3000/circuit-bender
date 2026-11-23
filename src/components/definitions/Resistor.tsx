@@ -77,20 +77,4 @@ export const resistorDefinition: ComponentDefinition = {
     dimensions: { width: 60, height: 20 },
     overhang: { bottom: 14 },
   },
-  simulate: (inputs, params) => {
-    const pin0 = inputs.pin_0 || { voltage: 0, current: 0 };
-    const pin1 = inputs.pin_1 || { voltage: 0, current: 0 };
-
-    const resistance = Math.max(params.resistance as number, 0.001); // Prevent divide by zero
-    const voltageDiff = pin0.voltage - pin1.voltage;
-    const current = voltageDiff / resistance;
-
-    // Clamp to reasonable range
-    const clampedCurrent = Math.max(-10, Math.min(10, current));
-
-    return {
-      pin_0: { voltage: pin0.voltage, current: -clampedCurrent },
-      pin_1: { voltage: pin1.voltage, current: clampedCurrent },
-    };
-  },
 };

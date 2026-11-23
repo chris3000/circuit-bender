@@ -79,15 +79,4 @@ export const capacitorDefinition: ComponentDefinition = {
     dimensions: { width: 50, height: 30 },
     overhang: { bottom: 8 },
   },
-  simulate: (inputs, _params) => {
-    // Simplified MVP model: acts as pass-through
-    // Real RC charging requires differential equations
-    const pin0 = inputs.pin_0 || { voltage: 0, current: 0 };
-    const pin1 = inputs.pin_1 || { voltage: 0, current: 0 };
-
-    return {
-      pin_0: { voltage: pin0.voltage, current: pin0.current },
-      pin_1: { voltage: pin1.voltage, current: pin1.current },
-    };
-  },
 };

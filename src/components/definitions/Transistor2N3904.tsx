@@ -69,24 +69,4 @@ export const transistor2N3904Definition: ComponentDefinition = {
     },
     dimensions: { width: 50, height: 50 },
   },
-  simulate: (inputs, params) => {
-    // Switch model for MVP — beta parameter reserved for future active-region modeling
-    const base = inputs.pin_0 || { voltage: 0, current: 0 };
-    const collector = inputs.pin_1 || { voltage: 0, current: 0 };
-    const emitter = inputs.pin_2 || { voltage: 0, current: 0 };
-
-    const vbe = base.voltage - emitter.voltage;
-    const vbeThreshold = (params.vbeThreshold as number) ?? 0.7;
-
-    // Switch model: if Vbe > threshold, transistor is in saturation
-    const collectorVoltage = vbe > vbeThreshold
-      ? emitter.voltage + 0.2
-      : collector.voltage;
-
-    return {
-      pin_0: { voltage: base.voltage, current: base.current },
-      pin_1: { voltage: collectorVoltage, current: collector.current },
-      pin_2: { voltage: emitter.voltage, current: emitter.current },
-    };
-  },
 };

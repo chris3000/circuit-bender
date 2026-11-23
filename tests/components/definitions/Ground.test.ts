@@ -20,15 +20,4 @@ describe('Ground Component', () => {
     const rendered = groundDefinition.schematic.symbol.render(params);
     expect(rendered).toBeDefined();
   });
-
-  it('should always output 0V', () => {
-    const inputs = {
-      pin_0: { voltage: 5, current: 0.1 },
-    };
-
-    const outputs = groundDefinition.simulate(inputs, {});
-
-    expect(outputs.pin_0.voltage).toBe(0);
-    expect(outputs.pin_0.current).toBe(0);
-  });
 });

@@ -3,6 +3,7 @@
  * communicates circuit topology to the AudioWorkletProcessor which
  * runs the simulation at audio sample rate.
  */
+import type { LoadReport } from './loadStatus';
 
 interface SerializedComponent {
   id: string;
@@ -16,6 +17,16 @@ interface SerializedConnection {
   from: { componentId: string; pinId: string };
   to: { componentId: string; pinId: string };
 }
+
+/** Chrome's count of the sound it could not play in time; not in every browser. */
+interface PlaybackStats { underrunDuration: number }
+
+/**
+ * Loading a circuit holds the audio thread up for a moment, which is a break
+ * in the sound but not a sign of anything: dropouts are not counted until
+ * this long after one.
+ */
+const SETTLING_MS = 2000;
 
 /**
  * Parameters that are controls rather than part of the circuit: changing one
@@ -52,6 +63,9 @@ export class AudioEngine {
   private liveValues = new Map<string, number | string | boolean>();
   private onSamplesCallback: ((samples: Float32Array, probeData?: Float32Array[]) => void) | null = null;
   private onLedStatesCallback: ((states: Record<string, boolean>) => void) | null = null;
+  private onLoadCallback: ((report: LoadReport) => void) | null = null;
+  private underrunSeen = 0;
+  private settledAt = 0;
 
   constructor() {
     this.context = new AudioContext();
@@ -96,8 +110,20 @@ export class AudioEngine {
         this.onSamplesCallback(event.data.samples, event.data.probeData);
       } else if (event.data.type === 'ledStates' && this.onLedStatesCallback) {
         this.onLedStatesCallback(event.data.states);
+      } else if (event.data.type === 'load') {
+        const dropout = this.dropoutSinceLastReport();
+        this.onLoadCallback?.({ load: event.data.load, dropout });
       }
     };
+  }
+
+  /** Seconds of sound the browser says it lost since this was last asked. */
+  private dropoutSinceLastReport(): number {
+    const lost = (this.context as AudioContext & { playbackStats?: PlaybackStats }).playbackStats?.underrunDuration;
+    if (typeof lost !== 'number') return 0;
+    const dropout = Math.max(0, lost - this.underrunSeen);
+    this.underrunSeen = lost;
+    return performance.now() < this.settledAt ? 0 : dropout;
   }
 
   async resume(): Promise<void> {
@@ -138,6 +164,7 @@ export class AudioEngine {
       components,
       connections,
     });
+    this.settledAt = performance.now() + SETTLING_MS;
     this.loadedStructure = structureKey(components, connections);
     this.liveValues.clear();
     for (const c of components) {
@@ -193,6 +220,14 @@ export class AudioEngine {
   /** Register callback for samples posted back from worklet */
   onSamples(callback: (samples: Float32Array, probeData?: Float32Array[]) => void): void {
     this.onSamplesCallback = callback;
+  }
+
+  /**
+   * Register callback for how hard the simulation is working: called about
+   * twice a second while it runs.
+   */
+  onLoad(callback: (report: LoadReport) => void): void {
+    this.onLoadCallback = callback;
   }
 
   /** Set probe targets in the worklet */

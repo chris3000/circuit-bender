@@ -15,7 +15,6 @@ import { audioOutputJackDefinition } from './components/definitions/AudioOutputJ
 import { ledDefinition } from './components/definitions/LED';
 import { switchDefinition } from './components/definitions/Switch';
 import { junctionDefinition } from './components/definitions/Junction';
-import { SimulationEngine } from './simulation/SimulationEngine';
 import 'reactflow/dist/style.css';
 import './styles/globals.css';
 
@@ -34,9 +33,6 @@ registry.register(audioOutputJackDefinition);
 registry.register(ledDefinition);
 registry.register(switchDefinition);
 registry.register(junctionDefinition);
-
-SimulationEngine.registerOutputType('audio-output');
-SimulationEngine.registerOutputType('led');
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <StrictMode>

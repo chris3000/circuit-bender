@@ -32,20 +32,4 @@ describe('Potentiometer Component', () => {
     const rendered = potentiometerDefinition.schematic.symbol.render(params);
     expect(rendered).toBeDefined();
   });
-
-  it('should simulate voltage divider at 50% = 4.5V from 9V-0V', () => {
-    const inputs = {
-      pin_0: { voltage: 9, current: 0 },
-      pin_1: { voltage: 0, current: 0 },
-      pin_2: { voltage: 0, current: 0 },
-    };
-
-    const outputs = potentiometerDefinition.simulate(inputs, {
-      maxResistance: 1000000,
-      position: 0.5,
-    });
-
-    // wiperVoltage = v1 + (v3 - v1) * position = 9 + (0 - 9) * 0.5 = 4.5V
-    expect(outputs.pin_1.voltage).toBeCloseTo(4.5, 5);
-  });
 });

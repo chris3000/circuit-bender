@@ -11,10 +11,8 @@ describe('Power Supply Component', () => {
     );
   });
 
-  it('should have 1 power pin', () => {
-    expect(powerSupplyDefinition.pins).toHaveLength(1);
-    expect(powerSupplyDefinition.pins[0].label).toBe('+');
-    expect(powerSupplyDefinition.pins[0].type).toBe('power');
+  it('has a positive and a negative terminal', () => {
+    expect(powerSupplyDefinition.pins.map((p) => [p.label, p.type])).toEqual([['+', 'power'], ['−', 'ground']]);
   });
 
   it('should have default voltage 9V', () => {
@@ -26,15 +24,5 @@ describe('Power Supply Component', () => {
     const params = powerSupplyDefinition.defaultParameters;
     const rendered = powerSupplyDefinition.schematic.symbol.render(params);
     expect(rendered).toBeDefined();
-  });
-
-  it('should output fixed 9V', () => {
-    const inputs = {
-      pin_0: { voltage: 0, current: 0 },
-    };
-
-    const outputs = powerSupplyDefinition.simulate(inputs, { voltage: 9 });
-
-    expect(outputs.pin_0.voltage).toBe(9);
   });
 });

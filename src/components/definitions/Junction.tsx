@@ -22,7 +22,4 @@ export const junctionDefinition: ComponentDefinition = {
     symbol: { width: 12, height: 12, render: solderBlob },
     dimensions: { width: 12, height: 12 },
   },
-  simulate: (inputs) => ({
-    pin_0: inputs.pin_0 || { voltage: 0, current: 0 },
-  }),
 };

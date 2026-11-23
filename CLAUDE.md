@@ -6,9 +6,12 @@ Browser-based circuit simulation for creative audio / circuit bending. Built wit
 
 ```bash
 npm run dev          # Start dev server at http://localhost:5173
-npx tsc --noEmit     # Type check (ignore SimulationEngine TS6133 warning — pre-existing)
+npm run typecheck    # Type check: clean, so any error is new
 npm test             # Run tests (tests/simulation/worklet/examples.test.ts runs the real example circuits)
+npm run build        # Type check + production build
 ```
+
+All three are clean and CI (`.github/workflows/ci.yml`, Node 24) runs them on every push to main and every pull request. Keep it that way: fix or delete a test that has gone stale rather than leaving it failing.
 
 ## Architecture
 
@@ -26,7 +29,7 @@ The simulation engine is a **Modified Nodal Analysis solver** running inside an 
 - `stampNonlinear` + `getNonlinearNodes` — x-dependent stamps (diodes, BJTs). Newton iteration is confined to the declared nodes. Stamp the full Jacobian, limit junction voltages against the previous *iteration*, and have `convergenceError` return 0 once the linearization predicts the device currents at the new solution (see `junctionUtils.ts`).
 - `findEvent` / `applyEvent` / `getDiscreteState` — discrete switching (Schmitt gate flips, clamps). Never switch state inside a stamp or `postStep`: report where in the step it happens and the solver moves to that instant. This is what gives edges sub-sample timing.
 
-**Timing and output:** the solver takes 2 steps per audio sample (`setOversampling`), cuts a step short at each event, and restarts with a short backward-Euler step afterwards (trapezoidal otherwise). `solver/OutputSampler.ts` turns the resulting piecewise-linear signal into band-limited audio at a fixed 4× resolution, independent of the step count. Budget (Chrome worklet): a single oscillator costs ~3% of one core, the WSG ~17%.
+**Timing and output:** the solver takes 2 steps per audio sample (`setOversampling`), cuts a step short at each event, and restarts with a short backward-Euler step afterwards (trapezoidal otherwise). `solver/OutputSampler.ts` turns the resulting piecewise-linear signal into band-limited audio at a fixed 4× resolution, independent of the step count. Budget: the header's load indicator shows it while playing. In headless Chrome on the development machine a single oscillator reads about 4% and the WSG about 30%; three WSGs side by side reach the limit.
 
 **Starting state:** a circuit starts at its DC operating point (`initializeState`: a backward-Euler solve with an infinite step, so capacitors are open circuits), not from 0 V. Tests that want a charging curve must step a source with `updateParam`.
 
@@ -38,7 +41,7 @@ The simulation engine is a **Modified Nodal Analysis solver** running inside an 
 
 ### Communication
 
-Main thread serializes circuit topology and posts it to the worklet. The worklet posts back audio samples, probe data, and LED states.
+Main thread serializes circuit topology and posts it to the worklet. The worklet posts back audio samples, probe data, LED states and, twice a second, its load.
 
 `AudioEngine.updateCircuit` decides what an edit needs: a changed circuit is reloaded (which restarts the simulation), a live control (`LIVE_PARAMETERS`: pot position, switch state, jack trim) is sent as `setParam`, and moving parts on the canvas sends nothing. Add new live controls to that table and give the model an `updateParam`.
 
@@ -76,6 +79,8 @@ To add a part: write its definition and register it in `main.tsx`; it appears on
 
 **Playing:** `utils/circuitChecks.ts` lists reasons a circuit will be silent; `PlayNotice` shows them (and a failed audio start) under the header.
 
+**Load:** while a circuit plays, `LoadIndicator` in the header shows how much of the time available the simulation needs, and `PlayNotice` says so when the sound breaks up. The worklet measures it (`worklet/RenderLoad.ts`: time spent computing over time played; a worklet only has a millisecond clock, so a reading is good to a few points), `AudioEngine.onLoad` adds the dropouts Chrome reports (`AudioContext.playbackStats`, not in every browser), and `audio/loadStatus.ts` grades the two as `ok` / `high` (70%) / `over` (95%, or repeated dropouts) without flickering. Loading a circuit breaks the sound for a moment; dropouts are not counted for two seconds after one.
+
 **Parts on the canvas:** all node types render through `nodes/NodeFrame.tsx`. A part can have a name (`Component.label`, e.g. the WSG's WACKY / ZANY pots): double-click it to rename, select an unnamed part to add one. Pots turn in both views (board: drag round the dial; schematic: drag the small knob up/down). Right-click a wire to probe it; drop a wire on a wire to join them with a junction.
 
 ## Key Files
@@ -85,6 +90,7 @@ To add a part: write its definition and register it in `main.tsx`; it appears on
 - `src/simulation/models/` — one model class per component type
 - `src/simulation/worklet/processor.ts` — AudioWorkletProcessor entry point
 - `src/audio/AudioEngine.ts` — AudioContext + worklet communication
+- `src/audio/loadStatus.ts`, `src/views/LoadIndicator.tsx` — whether the simulation is keeping up, and the header meter that shows it
 - `src/App.tsx` — Root component, audio/LED/probe wiring
 - `src/views/CircuitCanvas/CircuitCanvas.tsx` — React Flow circuit editor (schematic + board)
 - `src/views/CircuitCanvas/useCircuitSync.ts` — circuit ↔ React Flow nodes/edges, drags, wire routes
@@ -123,4 +129,5 @@ Checking the UI in a browser: the page must be in a visible tab. In a background
 - Colors: #222 (dark), #F5F5F5/#EBEBEB (light), #FF2D55 (accent)
 - Font: `'Courier New', Courier, monospace` everywhere
 - Border radius: 8-12px on interactive elements
-- Component simulate() functions use generic `pin_N` keys (mapped to actual pin IDs by the engine)
+- A part's definition (`src/components/definitions/`) is how it looks and where its pins are; how it behaves is its model in `src/simulation/models/`, registered in `worklet/processor.ts`
+- Tests get an in-memory `localStorage` from `tests/setup.ts`

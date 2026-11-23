@@ -55,38 +55,39 @@ describe('parseValue', () => {
 });
 
 describe('formatValue', () => {
+  // Values are written as they are shown, unit included
   describe('resistance formatting', () => {
     it('should format values in ohms', () => {
-      expect(formatValue(47, 'resistance')).toBe('47');
-      expect(formatValue(100, 'resistance')).toBe('100');
+      expect(formatValue(47, 'resistance')).toBe('47Ω');
+      expect(formatValue(100, 'resistance')).toBe('100Ω');
     });
 
     it('should format kilo-ohm values', () => {
-      expect(formatValue(1000, 'resistance')).toBe('1k');
-      expect(formatValue(4700, 'resistance')).toBe('4.7k');
-      expect(formatValue(10000, 'resistance')).toBe('10k');
+      expect(formatValue(1000, 'resistance')).toBe('1kΩ');
+      expect(formatValue(4700, 'resistance')).toBe('4.7kΩ');
+      expect(formatValue(10000, 'resistance')).toBe('10kΩ');
     });
 
     it('should format mega-ohm values', () => {
-      expect(formatValue(1000000, 'resistance')).toBe('1M');
-      expect(formatValue(4700000, 'resistance')).toBe('4.7M');
+      expect(formatValue(1000000, 'resistance')).toBe('1MΩ');
+      expect(formatValue(4700000, 'resistance')).toBe('4.7MΩ');
     });
   });
 
   describe('capacitance formatting', () => {
     it('should format nano-farad values', () => {
-      expect(formatValue(0.0000001, 'capacitance')).toBe('100n');
-      expect(formatValue(0.000000047, 'capacitance')).toBe('47n');
+      expect(formatValue(0.0000001, 'capacitance')).toBe('100nF');
+      expect(formatValue(0.000000047, 'capacitance')).toBe('47nF');
     });
 
     it('should format micro-farad values', () => {
-      expect(formatValue(0.000001, 'capacitance')).toBe('1u');
-      expect(formatValue(0.00001, 'capacitance')).toBe('10u');
+      expect(formatValue(0.000001, 'capacitance')).toBe('1uF');
+      expect(formatValue(0.00001, 'capacitance')).toBe('10uF');
     });
 
     it('should format pico-farad values', () => {
-      expect(formatValue(0.0000000001, 'capacitance')).toBe('100p');
-      expect(formatValue(0.000000000047, 'capacitance')).toBe('47p');
+      expect(formatValue(0.0000000001, 'capacitance')).toBe('100pF');
+      expect(formatValue(0.000000000047, 'capacitance')).toBe('47pF');
     });
   });
 });

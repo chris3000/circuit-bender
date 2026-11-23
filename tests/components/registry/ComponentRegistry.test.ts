@@ -26,7 +26,6 @@ describe('ComponentRegistry', () => {
       renderer: () => {},
       dimensions: { rows: 1, columns: 4 },
     },
-    simulate: () => ({}),
   };
 
   beforeEach(() => {

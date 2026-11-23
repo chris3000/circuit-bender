@@ -10,6 +10,8 @@ import CircuitCanvas from './views/CircuitCanvas/CircuitCanvas';
 import { ReplaceGuard } from './views/ReplaceGuard';
 import { CircuitTitle } from './views/CircuitTitle';
 import { PlayNotice } from './views/PlayNotice';
+import { LoadIndicator } from './views/LoadIndicator';
+import { LoadWatch, type LoadStatus, type OverloadCause } from './audio/loadStatus';
 import { readAutosave, writeAutosave } from './storage/autosave';
 import { playbackWarnings } from './utils/circuitChecks';
 import { CoverView } from './views/Cover/CoverView';
@@ -34,6 +36,15 @@ export function AppContent() {
     levelListeners.current.add(listener);
     return () => { levelListeners.current.delete(listener); };
   }, []);
+  // How hard the simulation is working: the header's meter listens for every
+  // reading, the app itself only for the sound starting or ceasing to break up
+  const loadWatch = useRef(new LoadWatch());
+  const loadListeners = useRef(new Set<(status: LoadStatus) => void>());
+  const loadSource = useCallback((listener: (status: LoadStatus) => void) => {
+    loadListeners.current.add(listener);
+    return () => { loadListeners.current.delete(listener); };
+  }, []);
+  const [overload, setOverload] = useState<OverloadCause | null>(null);
   const [ledStates, setLedStates] = useState<Record<string, boolean>>({});
   const [probes, setProbes] = useState<Array<{ componentId: string; pinId: string; label: string }>>([]);
   const [startError, setStartError] = useState<string | null>(null);
@@ -56,7 +67,7 @@ export function AppContent() {
 
   // While playing, say so if the circuit cannot make a sound
   const warnings = useMemo(() => (audioStarted ? playbackWarnings(circuit) : []), [audioStarted, circuit]);
-  const noticeKey = startError ?? warnings.join('|');
+  const noticeKey = startError ?? [overload ?? '', ...warnings].join('|');
   // A reason for not starting is out of date once the circuit has been edited
   useEffect(() => setStartError(null), [circuit]);
 
@@ -92,6 +103,11 @@ export function AppContent() {
       const same = ids.length === Object.keys(prev).length && ids.every((id) => prev[id] === states[id]);
       return same ? prev : states;
     }));
+    audioEngine.onLoad((report) => {
+      const status = loadWatch.current.add(report);
+      for (const listener of loadListeners.current) listener(status);
+      setOverload(status.cause);
+    });
     return () => { audioEngine.close(); };
   }, []);
 
@@ -153,6 +169,7 @@ export function AppContent() {
       await audioEngineRef.current.resume();
       const { components, connections } = serializeCircuit(circuit);
       audioEngineRef.current.loadCircuit(components, connections);
+      loadWatch.current.reset();
       audioEngineRef.current.startSimulation();
       setAudioStarted(true);
     } catch (err) {
@@ -166,6 +183,7 @@ export function AppContent() {
     audioEngineRef.current?.stopSimulation();
     audioEngineRef.current?.suspend();
     setAudioStarted(false);
+    setOverload(null);
   }, []);
 
   return (
@@ -177,6 +195,7 @@ export function AppContent() {
         <SaveLoadControls />
         <CircuitTitle />
         <div className="audio-controls" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+          {audioStarted && <LoadIndicator source={loadSource} />}
           {!audioStarted ? (
             <button className="play-btn" onClick={handleStartAudio}>&#9654;</button>
           ) : (
@@ -195,7 +214,7 @@ export function AppContent() {
         <ComponentDrawer />
         <div style={{ flex: 1, minWidth: 0, display: 'flex', position: 'relative' }}>
           {noticeKey !== dismissedNotice && (
-            <PlayNotice error={startError} warnings={warnings}
+            <PlayNotice error={startError} warnings={warnings} overload={overload}
               onDismiss={() => { setDismissedNotice(noticeKey); setStartError(null); }} />
           )}
           <CircuitCanvas

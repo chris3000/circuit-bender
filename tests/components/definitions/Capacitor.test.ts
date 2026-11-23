@@ -26,18 +26,4 @@ describe('Capacitor Component', () => {
     const rendered = capacitorDefinition.schematic.symbol.render(params);
     expect(rendered).toBeDefined();
   });
-
-  it('should simulate as pass-through (outputs equal inputs)', () => {
-    const inputs = {
-      pin_0: { voltage: 5, current: 0.01 },
-      pin_1: { voltage: 0, current: -0.01 },
-    };
-
-    const outputs = capacitorDefinition.simulate(inputs, { capacitance: 0.0000001 });
-
-    expect(outputs.pin_0.voltage).toBe(5);
-    expect(outputs.pin_0.current).toBe(0.01);
-    expect(outputs.pin_1.voltage).toBe(0);
-    expect(outputs.pin_1.current).toBe(-0.01);
-  });
 });

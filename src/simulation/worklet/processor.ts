@@ -15,6 +15,7 @@ import { OpAmpModel, OPAMP_LM741_PARAMS } from '../models/OpAmpModel';
 import { SchmittTriggerModel } from '../models/SchmittTriggerModel';
 import { SwitchModel } from '../models/SwitchModel';
 import { JunctionModel } from '../models/JunctionModel';
+import { RenderLoad } from './RenderLoad';
 
 function createRegistry(): ModelRegistry {
   const reg = new ModelRegistry();
@@ -41,6 +42,7 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
   private probes: Array<{ componentId: string; pinId: string }> = [];
   private probeSampleBuffers: Float32Array[] = [];
   private ledFrameCount = 0;
+  private load = new RenderLoad(sampleRate);
 
   constructor() {
     super();
@@ -51,6 +53,7 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
       if (msg.type === 'loadCircuit') {
         this.components = msg.components;
         this.solver.loadCircuit(msg.components, msg.connections);
+        this.load.reset();
       } else if (msg.type === 'setParam') {
         const comp = this.components.find((c: SerializedComponent) => c.id === msg.componentId);
         if (comp) {
@@ -65,6 +68,7 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
         this.solver.setOversampling(msg.count);
       } else if (msg.type === 'start') {
         this.running = true;
+        this.load.reset();
       } else if (msg.type === 'stop') {
         this.running = false;
         this.solver.resetState();
@@ -77,6 +81,7 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
     const channel = output[0];
     if (!channel) return true;
     const dt = 1 / sampleRate;
+    if (this.running) this.load.begin();
 
     for (let i = 0; i < channel.length; i++) {
       if (this.running) {
@@ -119,6 +124,10 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
           this.port.postMessage({ type: 'ledStates', states: ledStates });
         }
       }
+
+      // How much of the time there was to compute this sound it took
+      const load = this.load.end(channel.length);
+      if (load !== null) this.port.postMessage({ type: 'load', load });
     }
     return true;
   }

@@ -18,23 +18,4 @@ describe('Audio Output Jack Component', () => {
   it('should have empty default parameters', () => {
     expect(audioOutputJackDefinition.defaultParameters).toEqual({});
   });
-
-  it('should pass through input voltage unchanged', () => {
-    const inputs = {
-      pin_0: { voltage: 3.5, current: 0.01 },
-    };
-
-    const outputs = audioOutputJackDefinition.simulate(inputs, {});
-
-    expect(outputs.pin_0.voltage).toBe(3.5);
-    expect(outputs.pin_0.current).toBe(0.01);
-  });
-
-  it('should handle missing inputs gracefully', () => {
-    const inputs = {};
-    const outputs = audioOutputJackDefinition.simulate(inputs, {});
-
-    expect(outputs.pin_0).toBeDefined();
-    expect(outputs.pin_0.voltage).toBe(0);
-  });
 });

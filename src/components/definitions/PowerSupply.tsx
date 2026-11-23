@@ -73,12 +73,4 @@ export const powerSupplyDefinition: ComponentDefinition = {
     },
     dimensions: { width: 40, height: 60 },
   },
-  simulate: (_inputs, params) => {
-    const voltage = (params.voltage as number) ?? 9;
-
-    return {
-      pin_0: { voltage, current: 0 },
-      pin_1: { voltage: 0, current: 0 },
-    };
-  },
 };

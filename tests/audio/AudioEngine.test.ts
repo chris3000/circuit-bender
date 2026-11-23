@@ -29,6 +29,8 @@ const mockClose = vi.fn().mockResolvedValue(undefined);
 const mockAddModule = vi.fn().mockResolvedValue(undefined);
 
 let mockState: AudioContextState = 'suspended';
+/** What the browser says about lost sound; undefined in a browser that does not say. */
+let mockPlaybackStats: { underrunDuration: number } | undefined;
 
 const MockAudioContext = vi.fn().mockImplementation(() => ({
   get state() {
@@ -44,6 +46,9 @@ const MockAudioContext = vi.fn().mockImplementation(() => ({
     addModule: mockAddModule,
   },
   destination: {},
+  get playbackStats() {
+    return mockPlaybackStats;
+  },
 }));
 
 const MockAudioWorkletNode = vi.fn().mockImplementation(() => mockWorkletNode);
@@ -59,6 +64,7 @@ describe('AudioEngine', () => {
     vi.clearAllMocks();
     mockGainNode.gain.value = 1;
     mockState = 'suspended';
+    mockPlaybackStats = undefined;
     engine = new AudioEngine();
   });
 
@@ -237,6 +243,60 @@ describe('AudioEngine', () => {
       await engine.close();
       expect(mockDisconnect).toHaveBeenCalled();
       expect(mockClose).toHaveBeenCalled();
+    });
+  });
+  describe('load', () => {
+    /** What the worklet says, as the engine hears it. */
+    const fromWorklet = (data: unknown) =>
+      (mockWorkletNode.port as unknown as { onmessage: (event: { data: unknown }) => void }).onmessage({ data });
+    let clock: ReturnType<typeof vi.spyOn>;
+    let now = 0;
+
+    beforeEach(() => {
+      now = 10_000;
+      clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+    });
+    afterEach(() => clock.mockRestore());
+
+    it('passes on how hard the simulation is working', async () => {
+      const heard = vi.fn();
+      engine.onLoad(heard);
+      await engine.initialize();
+      fromWorklet({ type: 'load', load: 0.42 });
+      expect(heard).toHaveBeenCalledWith({ load: 0.42, dropout: 0 });
+    });
+
+    it('adds the sound the browser says was lost since the last report', async () => {
+      const heard = vi.fn();
+      engine.onLoad(heard);
+      await engine.initialize();
+      mockPlaybackStats = { underrunDuration: 0 };
+      fromWorklet({ type: 'load', load: 1.3 });
+      mockPlaybackStats = { underrunDuration: 0.25 };
+      fromWorklet({ type: 'load', load: 1.3 });
+      fromWorklet({ type: 'load', load: 1.3 });
+      mockPlaybackStats = { underrunDuration: 0.4 };
+      fromWorklet({ type: 'load', load: 1.3 });
+      expect(heard.mock.calls.map(([report]) => report.dropout)).toEqual([0, 0.25, 0, expect.closeTo(0.15, 6)]);
+    });
+
+    it('does not count the break in the sound that loading a circuit makes', async () => {
+      const heard = vi.fn();
+      engine.onLoad(heard);
+      await engine.initialize();
+      mockPlaybackStats = { underrunDuration: 1 };
+      engine.loadCircuit([], []);
+      now += 500;
+      mockPlaybackStats = { underrunDuration: 1.02 };
+      fromWorklet({ type: 'load', load: 0.2 });
+      expect(heard).toHaveBeenLastCalledWith({ load: 0.2, dropout: 0 });
+      // ...nor later, as if it had only just happened
+      now += 2000;
+      fromWorklet({ type: 'load', load: 0.2 });
+      expect(heard).toHaveBeenLastCalledWith({ load: 0.2, dropout: 0 });
+      mockPlaybackStats = { underrunDuration: 1.05 };
+      fromWorklet({ type: 'load', load: 0.2 });
+      expect(heard).toHaveBeenLastCalledWith({ load: 0.2, dropout: expect.closeTo(0.03, 6) });
     });
   });
 });

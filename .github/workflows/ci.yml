@@ -1,0 +1,35 @@
+name: CI
+
+# Every push to main and every pull request: the types, the tests and a
+# production build. The same three commands work locally.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same branch makes an older run pointless
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Types, tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Type check
+        run: npm run typecheck
+      - name: Tests
+        run: npm test -- --run
+      - name: Build
+        run: npm run build

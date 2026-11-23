@@ -85,13 +85,6 @@ export interface SVGSymbol {
   render: (params: ComponentParameters) => React.ReactNode;
 }
 
-export interface PinStates {
-  [pinId: string]: {
-    voltage: number;
-    current: number;
-  };
-}
-
 /** How far a symbol draws beyond its dimensions box (value text and the like), in px. */
 export interface SymbolOverhang {
   top?: number;
@@ -165,6 +158,5 @@ export interface ComponentDefinition {
   cover?: ComponentCover;
   schematic: ComponentView;
   board: ComponentView;
-  simulate: (inputs: PinStates, params: ComponentParameters) => PinStates;
   controlPanel?: (component: Component) => React.ReactNode;
 }

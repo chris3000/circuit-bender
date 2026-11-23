@@ -29,30 +29,4 @@ describe('CD40106 Component', () => {
     const rendered = cd40106Definition.schematic.symbol.render(params);
     expect(rendered).toBeDefined();
   });
-
-  it('should simulate Schmitt trigger: high input produces low output', () => {
-    const inputs = {
-      pin_0: { voltage: 5, current: 0 },   // Gate 1 input: high
-      pin_1: { voltage: 0, current: 0 },   // Gate 2 input: low
-      pin_2: { voltage: 0, current: 0 },
-      pin_3: { voltage: 0, current: 0 },
-      pin_4: { voltage: 0, current: 0 },
-      pin_5: { voltage: 0, current: 0 },
-      pin_6: { voltage: 0, current: 0 },   // Gate 1 output
-      pin_7: { voltage: 0, current: 0 },   // Gate 2 output
-      pin_8: { voltage: 0, current: 0 },
-      pin_9: { voltage: 0, current: 0 },
-      pin_10: { voltage: 0, current: 0 },
-      pin_11: { voltage: 0, current: 0 },
-      pin_12: { voltage: 5, current: 0 },  // VDD = 5V
-      pin_13: { voltage: 0, current: 0 },  // VSS = 0V
-    };
-
-    const outputs = cd40106Definition.simulate(inputs, cd40106Definition.defaultParameters);
-
-    // High input (5V) > high threshold (5 * 0.6 = 3V) => output LOW (0V)
-    expect(outputs.pin_6.voltage).toBe(0);
-    // Low input (0V) < high threshold => output HIGH (VDD = 5V)
-    expect(outputs.pin_7.voltage).toBe(5);
-  });
 });

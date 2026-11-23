@@ -61,21 +61,4 @@ export const diode1N914Definition: ComponentDefinition = {
     dimensions: { width: 40, height: 20 },
     overhang: { bottom: 10 },
   },
-  simulate: (inputs, params) => {
-    const anode = inputs.pin_0 || { voltage: 0, current: 0 };
-    const cathode = inputs.pin_1 || { voltage: 0, current: 0 };
-
-    const forwardVoltage = (params.forwardVoltage as number) || 0.7;
-    const vDiff = anode.voltage - cathode.voltage;
-
-    // Forward biased: cathode = anode - forwardVoltage
-    const cathodeVoltage = vDiff > forwardVoltage
-      ? anode.voltage - forwardVoltage
-      : cathode.voltage;
-
-    return {
-      pin_0: { voltage: anode.voltage, current: anode.current },
-      pin_1: { voltage: cathodeVoltage, current: cathode.current },
-    };
-  },
 };

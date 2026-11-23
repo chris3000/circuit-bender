@@ -45,8 +45,4 @@ export const switchDefinition: ComponentDefinition = {
     dimensions: { width: 50, height: 40 },
     overhang: { bottom: 8 },
   },
-  simulate: (inputs) => ({
-    pin_0: inputs.pin_0 || { voltage: 0, current: 0 },
-    pin_1: inputs.pin_1 || { voltage: 0, current: 0 },
-  }),
 };

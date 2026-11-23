@@ -94,18 +94,4 @@ export const potentiometerDefinition: ComponentDefinition = {
     },
     dimensions: { width: 70, height: 100 },
   },
-  simulate: (inputs, params) => {
-    const v1 = inputs.pin_0?.voltage ?? 0;
-    const v3 = inputs.pin_2?.voltage ?? 0;
-    const position = (params.position as number) ?? 0.5;
-
-    // Voltage divider: wiper voltage = v1 + (v3 - v1) * position
-    const wiperVoltage = v1 + (v3 - v1) * position;
-
-    return {
-      pin_0: { voltage: v1, current: 0 },
-      pin_1: { voltage: wiperVoltage, current: 0 },
-      pin_2: { voltage: v3, current: 0 },
-    };
-  },
 };
