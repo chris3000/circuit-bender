@@ -1,0 +1,117 @@
+/* The jumper and the ring round what the pointer is over, drawn over the canvas */
+.overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 6;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.bar {
+  position: absolute;
+  top: 52px;
+  left: 8px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 290px);
+  padding: 5px 6px 5px 12px;
+  border-radius: 10px;
+  border-left: 4px solid #FF2D55;
+  background: #222;
+  color: #F5F5F5;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.title {
+  color: #FF2D55;
+  font-weight: bold;
+  letter-spacing: 1.5px;
+}
+
+.kinds {
+  display: flex;
+  border-radius: 7px;
+  overflow: hidden;
+  background: #3A3A3A;
+  flex: none;
+}
+
+.kind {
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  color: #AAA;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.kind:hover {
+  color: #fff;
+}
+
+.kindActive {
+  background: #FF2D55;
+  color: #fff;
+}
+
+.status {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live {
+  color: #FF2D55;
+  font-weight: bold;
+}
+
+.keep {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  color: #AAA;
+  font-size: 10px;
+}
+
+.keepButton {
+  padding: 4px 8px;
+  border: 1px solid #666;
+  border-radius: 7px;
+  background: transparent;
+  color: #F5F5F5;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.keepButton:hover {
+  border-color: #FF2D55;
+  color: #FF2D55;
+}
+
+.close {
+  flex: none;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  color: #999;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.close:hover {
+  color: #fff;
+}

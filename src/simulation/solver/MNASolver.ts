@@ -45,12 +45,14 @@ const RESTART_FRACTION = 1 / 1024;
  * boundaries instead, which bounds the work per sample.
  */
 const MAX_LOCATED_EVENTS_PER_SAMPLE = 16;
-const MAX_CACHE_ENTRIES = 256;
+const MAX_CACHE_ENTRIES = 1024;
 /** Passes allowed for gates and clamps to settle while finding the DC operating point. */
 const DC_EVENT_PASSES = 24;
 /** Corner of the output DC blocker (the AC coupling of whatever the jack feeds). */
 const DC_BLOCK_HZ = 10;
-const CACHE_BUDGET_DOUBLES = 2_000_000;
+const CACHE_BUDGET_DOUBLES = 4_000_000;
+/** Resistance of a bend held between two points when none is given: a jumper wire. */
+const BEND_OHMS = 1;
 
 /**
  * Inverse system matrices for one discrete state of the circuit (which gates
@@ -59,7 +61,10 @@ const CACHE_BUDGET_DOUBLES = 2_000_000;
  * one matrix–vector product and no factorization at all.
  */
 interface MatrixEntry {
-  state: Int32Array;
+  /** Each event model's discrete state: whole numbers, which may be wider than 32 bits. */
+  state: Float64Array;
+  /** Hash of `state`, so a lookup compares one number per entry before it compares states. */
+  hash: number;
   /** [trapezoidal @ h, backward Euler @ restart step], stored column-major. */
   inv: [Float64Array, Float64Array];
   /** Each inverse restricted to the nonlinear nodes (k×k), for the reduced Newton solve. */
@@ -126,14 +131,19 @@ export class MNASolver {
   private maxCacheEntries = MAX_CACHE_ENTRIES;
   private entry: MatrixEntry | null = null;
   private stateDirty = true;
-  private curState = new Int32Array(0);
+  private curState = new Float64Array(0);
   private useCounter = 0;
 
   // Built-in voltage source branches (for power components without registered models)
   private builtinVSources: Array<{ posNode: number; negNode: number; voltage: number; branchIdx: number }> = [];
 
   // Audio output + probes
-  private audioOutputNode = -1;
+  /**
+   * Where the sound is taken from: the voltage from one node to another, for
+   * each part that is heard (a jack, a speaker). They are added together.
+   * `trim` is a level control of that part's own.
+   */
+  private audioTaps: Array<{ positive: number; negative: number; trim: { getGain(): number } | null }> = [];
   private sampler = new OutputSampler(Math.max(MIN_OUTPUT_CELLS, DEFAULT_OVERSAMPLING));
   private probeNodes: number[] = [];
   private probePins: Array<{ componentId: string; pinId: string }> = [];
@@ -143,8 +153,16 @@ export class MNASolver {
   private dcBlockPrev = 0;
   private dcBlockOut = 0;
   private dcBlockAlpha = 0.999;
-  /** Input trim of the audio jack (recording level only). */
-  private audioModel: { getGain(): number } | null = null;
+  /**
+   * Input trim of the (first) audio jack: the recording level of the whole
+   * mix, applied after the DC blocker so that turning it cannot click.
+   */
+  private audioTrim: { getGain(): number } | null = null;
+
+  // A bend: a jumper held between two nodes of the running circuit
+  private bend: { a: number; b: number; g: number } | null = null;
+  /** Nets that are only an unused pin of a chip: they have no node, and nothing can be bent to them. */
+  private floatingNets = new Set<number>();
 
   constructor(registry: ModelRegistry) {
     this.registry = registry;
@@ -175,8 +193,9 @@ export class MNASolver {
     this.pinToNet.clear();
     this.netToNode.clear();
     this.builtinVSources = [];
-    this.audioOutputNode = -1;
-    this.audioModel = null;
+    this.audioTaps = [];
+    this.audioTrim = null;
+    this.bend = null; // a jumper does not survive the circuit being rebuilt
 
     // --- Union-Find for net building ---
     const parent = new Map<string, string>();
@@ -289,6 +308,8 @@ export class MNASolver {
       }
     }
 
+    this.floatingNets = unusedNets;
+
     // --- Assign MNA node indices (ground net -> -1) ---
     const allNets = new Set(this.pinToNet.values());
     let nodeIdx = 0;
@@ -368,20 +389,21 @@ export class MNASolver {
       }
     }
 
-    // --- Identify audio output node ---
+    // --- Where the sound is taken from ---
     for (const comp of components) {
-      if (comp.type === 'audio-output') {
-        const net = this.pinToNet.get(`${comp.id}::${comp.pins[0].id}`);
-        if (net !== undefined) {
-          const node = this.netToNode.get(net);
-          if (node !== undefined && node >= 0) {
-            this.audioOutputNode = node;
-          }
-        }
-        const model = this.models.get(comp.id) as Partial<{ getGain(): number }> | undefined;
-        this.audioModel = model && typeof model.getGain === 'function' ? model as { getGain(): number } : null;
-        break;
+      const model = this.models.get(comp.id) as Partial<{
+        audioTap(): { positive: number; negative: number };
+        getGain(): number;
+      }> | undefined;
+      if (!model || typeof model.audioTap !== 'function') continue;
+      const { positive, negative } = model.audioTap();
+      if (positive < 0 && negative < 0) continue; // both ends on ground: silent
+      let trim = typeof model.getGain === 'function' ? model as { getGain(): number } : null;
+      if (trim && !this.audioTrim) {
+        this.audioTrim = trim; // applied to the mix, after the DC blocker
+        trim = null;
       }
+      this.audioTaps.push({ positive, negative, trim });
     }
 
     // --- Flat model lists for the hot loops ---
@@ -433,7 +455,7 @@ export class MNASolver {
     this.xIter = new Float64Array(n);
     this.xIterNext = new Float64Array(n);
 
-    this.curState = new Int32Array(this.eventModels.length);
+    this.curState = new Float64Array(this.eventModels.length);
     this.cache = [];
     this.maxCacheEntries = Math.max(4, Math.min(MAX_CACHE_ENTRIES,
       Math.floor(CACHE_BUDGET_DOUBLES / Math.max(1, 2 * n * n))));
@@ -495,8 +517,7 @@ export class MNASolver {
     this.xNew.set(this.x);
     this.invalidateMatrices();
 
-    const a = this.audioOutputNode;
-    this.audioPrev = a >= 0 ? this.x[a] : 0;
+    this.audioPrev = this.audioLevel(this.x);
     this.dcBlockPrev = this.audioPrev;
     this.dcBlockOut = 0;
     for (let i = 0; i < this.probeNodes.length; i++) {
@@ -516,6 +537,44 @@ export class MNASolver {
     if (!model || typeof model.updateParam !== 'function') return;
     model.updateParam(key, value);
     this.invalidateMatrices();
+  }
+
+  /**
+   * Hold a jumper between two pins of the running circuit, or let go of it
+   * (pass null). It is a resistor like any other, stamped into the same
+   * matrix; what is different is that it can be moved from net to net
+   * without the circuit starting again, so a bend can be heard as it is made.
+   *
+   * Returns whether anything is now connected: not when either pin is
+   * unknown, both are on the same net, or one is an unused pin of a chip
+   * (which has no node to connect to).
+   */
+  setBend(
+    from: { componentId: string; pinId: string } | null,
+    to: { componentId: string; pinId: string } | null,
+    ohms = BEND_OHMS,
+  ): boolean {
+    let next: { a: number; b: number; g: number } | null = null;
+    if (from && to) {
+      const a = this.nodeOfPin(from), b = this.nodeOfPin(to);
+      if (a !== undefined && b !== undefined && a !== b) {
+        next = { a, b, g: 1 / Math.max(Number.isFinite(ohms) ? ohms : BEND_OHMS, 0.01) };
+      }
+    }
+    const same = next === this.bend
+      || (next !== null && this.bend !== null && next.a === this.bend.a && next.b === this.bend.b && next.g === this.bend.g);
+    if (!same) {
+      this.bend = next;
+      this.invalidateMatrices();
+    }
+    return next !== null;
+  }
+
+  /** The node a pin is on (-1 for ground); undefined if it is unknown or has none. */
+  private nodeOfPin(pin: { componentId: string; pinId: string }): number | undefined {
+    const net = this.pinToNet.get(`${pin.componentId}::${pin.pinId}`);
+    if (net === undefined || this.floatingNets.has(net)) return undefined;
+    return this.netToNode.get(net);
   }
 
   /** Forget cached factorizations (a parameter changed) and restart integration cleanly. */
@@ -660,10 +719,21 @@ export class MNASolver {
     this.xNew = t;
   }
 
+  /** The sound at solution `x`, in volts: every tap added together. */
+  private audioLevel(x: Float64Array): number {
+    const taps = this.audioTaps;
+    let level = 0;
+    for (let i = 0; i < taps.length; i++) {
+      const { positive, negative, trim } = taps[i];
+      const v = (positive >= 0 ? x[positive] : 0) - (negative >= 0 ? x[negative] : 0);
+      level += trim ? trim.getGain() * v : v;
+    }
+    return level;
+  }
+
   /** Hand the segment from the previous emitted point to `xEnd` to the output sampler. */
   private emitSegment(du: number, xEnd: Float64Array): void {
-    const a = this.audioOutputNode;
-    const a1 = a >= 0 ? xEnd[a] : 0;
+    const a1 = this.audioLevel(xEnd);
     const probes = this.probeNodes;
     for (let i = 0; i < probes.length; i++) {
       const node = probes[i];
@@ -828,6 +898,16 @@ export class MNASolver {
       }
     }
 
+    if (this.bend) {
+      const { a, b, g } = this.bend;
+      if (a >= 0) G[a][a] += g;
+      if (b >= 0) G[b][b] += g;
+      if (a >= 0 && b >= 0) {
+        G[a][b] -= g;
+        G[b][a] -= g;
+      }
+    }
+
     // Gmin on the diagonal keeps floating nodes from making the system singular
     for (let i = 0; i < n; i++) G[i][i] += GMIN;
 
@@ -849,17 +929,24 @@ export class MNASolver {
 
     const eventModels = this.eventModels;
     const cur = this.curState;
-    for (let i = 0; i < eventModels.length; i++) cur[i] = eventModels[i].getDiscreteState!();
+    let hash = 0;
+    for (let i = 0; i < eventModels.length; i++) {
+      const state = eventModels[i].getDiscreteState!();
+      cur[i] = state;
+      hash = (Math.imul(hash, 31) + (state | 0) + ((state / 4294967296) | 0)) | 0;
+    }
 
     const stamp = ++this.useCounter;
     let found: MatrixEntry | null = null;
     let oldest: MatrixEntry | null = null;
     for (const e of this.cache) {
-      let same = true;
-      for (let i = 0; i < cur.length; i++) {
-        if (e.state[i] !== cur[i]) { same = false; break; }
+      if (e.hash === hash) {
+        let same = true;
+        for (let i = 0; i < cur.length; i++) {
+          if (e.state[i] !== cur[i]) { same = false; break; }
+        }
+        if (same) { found = e; break; }
       }
-      if (same) { found = e; break; }
       if (!oldest || e.lastUsed < oldest.lastUsed) oldest = e;
     }
 
@@ -868,7 +955,8 @@ export class MNASolver {
         const nn = this.size * this.size;
         const kk = this.nlNodes.length * this.nlNodes.length;
         found = {
-          state: new Int32Array(cur.length),
+          state: new Float64Array(cur.length),
+          hash: 0,
           inv: [new Float64Array(nn), new Float64Array(nn)],
           K: [new Float64Array(kk), new Float64Array(kk)],
           valid: [false, false],
@@ -881,6 +969,7 @@ export class MNASolver {
         found.valid[1] = false;
       }
       found.state.set(cur);
+      found.hash = hash;
     }
 
     found.lastUsed = stamp;
@@ -894,7 +983,7 @@ export class MNASolver {
   // ---------------------------------------------------------------------------
 
   private finishAudioSample(raw: number): number {
-    if (this.audioOutputNode < 0) return 0;
+    if (this.audioTaps.length === 0) return 0;
 
     // DC blocker: y[n] = x[n] - x[n-1] + alpha * y[n-1]
     const filtered = raw - this.dcBlockPrev + this.dcBlockAlpha * this.dcBlockOut;
@@ -906,7 +995,7 @@ export class MNASolver {
     // which would otherwise put the aliasing straight back. The jack's input
     // trim brings quieter (line-level) circuits up to a comparable level.
     const v = this.supplyVoltage || 9;
-    const gain = this.audioModel ? this.audioModel.getGain() : 1;
+    const gain = this.audioTrim ? this.audioTrim.getGain() : 1;
     return Math.max(-1, Math.min(1, gain * filtered / v));
   }
 

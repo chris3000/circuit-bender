@@ -2,13 +2,14 @@ import type { ComponentDefinition } from '@/types/circuit';
 import { generatePinId } from '@/utils/ids';
 import { jackArt } from '@/components/art/partArt';
 import { jackBoard } from '@/components/art/boardArt';
+import { audioDestination } from '@/utils/audioOut';
 
 export const audioOutputJackDefinition: ComponentDefinition = {
   type: 'audio-output',
   metadata: {
-    name: 'Audio Output Jack',
+    name: 'Audio Out',
     category: 'power',
-    description: '3.5mm audio output jack - connects to AudioBridge',
+    description: 'Listens to the circuit without loading it and plays it through the speaker',
   },
   pins: [
     {
@@ -19,8 +20,12 @@ export const audioOutputJackDefinition: ComponentDefinition = {
     },
   ],
   defaultParameters: {},
-  shelf: { title: 'Audio out', caption: 'To speakers', keywords: ['jack', 'speaker', 'sound', 'line', 'socket', 'output'], art: jackArt },
-  cover: { control: 'jack', name: 'OUT' },
+  shelf: { title: 'Audio out', caption: 'Hear it here', keywords: ['jack', 'speaker', 'sound', 'line', 'socket', 'output', 'listen'], art: jackArt },
+  // A socket with a speaker behind it: the speaker plays unless the signal is sent on somewhere else
+  cover: [
+    { control: 'speaker', name: 'OUT', when: (p) => audioDestination(p) === 'speaker' },
+    { control: 'jack', name: 'OUT', when: (p) => audioDestination(p) === 'line' },
+  ],
   schematic: {
     symbol: {
       width: 40,

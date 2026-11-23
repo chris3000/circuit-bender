@@ -2,6 +2,7 @@ import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
 import { createComponentFromDefinition } from '@/utils/componentFactory';
 import { generateConnectionId, generateNetId } from '@/utils/ids';
 import type { Component, Connection } from '@/types/circuit';
+import { formatValue } from '@/utils/parameterParser';
 
 export interface ExampleCircuit {
   name: string;
@@ -37,6 +38,30 @@ function namedSwitch(name: string, x: number, y: number, closed: boolean): Compo
   part.parameters = { ...part.parameters, closed: closed ? 1 : 0 };
   return part;
 }
+
+/** A part of the given kind at (x, y), turned and named if asked. */
+function place(type: string, x: number, y: number, options: { rotation?: number; label?: string; parameters?: Component['parameters'] } = {}): Component {
+  const part = createComponentFromDefinition(getDefinition(type), { x, y }, options.parameters);
+  if (options.rotation) part.rotation = options.rotation;
+  if (options.label) part.label = options.label;
+  return part;
+}
+
+const resistor = (ohms: number, x: number, y: number, rotation = 0) =>
+  place('resistor', x, y, { rotation, parameters: { resistance: ohms, value: formatValue(ohms, 'resistance') } });
+const capacitor = (farads: number, x: number, y: number, rotation = 0) =>
+  place('capacitor', x, y, { rotation, parameters: { capacitance: farads, value: formatValue(farads, 'capacitance') } });
+const pot = (name: string, ohms: number, position: number, x: number, y: number) =>
+  place('potentiometer', x, y, { label: name, parameters: { maxResistance: ohms, value: formatValue(ohms, 'resistance'), position } });
+const ground = (x: number, y: number) => place('ground', x, y);
+
+/** Pins of the chips by name, in the order their definitions (and models) have them. */
+const NE555 = { TRIG: 0, THRES: 1, RESET: 2, CTRL: 3, DISCH: 4, OUT: 5, VCC: 6, GND: 7 };
+const CD40106 = { A1: 0, A2: 1, Y1: 6, Y2: 7, VDD: 12, VSS: 13 };
+const CD4093 = { A1: 0, B1: 1, Y1: 8, VDD: 12, VSS: 13 };
+const CD4040 = { CLK: 0, RST: 1, Q1: 2, Q2: 3, Q3: 4, Q4: 5, VDD: 14, VSS: 15 };
+const CD4017 = { CLK: 0, INH: 1, RST: 2, Q0: 3, Q4: 7, VDD: 14, VSS: 15 };
+const LM386 = { IN_MINUS: 0, IN_PLUS: 1, GND: 2, OUT: 3, VS: 4 };
 
 /** Input trim on the WSG's jack: its output is line level, a tenth of what a bare CMOS gate puts out. */
 const WSG_INPUT_TRIM = 8;
@@ -324,6 +349,284 @@ export const exampleCircuits: ExampleCircuit[] = [
         connect(ic, 6, output, 0),
       ];
 
+      return { components, connections };
+    },
+  },
+  {
+    name: 'Atari Punk Console',
+    description: 'Two 555 timers into a speaker: PITCH sets the first, WIDTH how many of its cycles the second swallows. DEEP drops it down',
+    build: () => {
+      const power = place('power', 100, 240);
+      const gPower = ground(100, 340);
+
+      // First 555, astable: 1k and 10k + PITCH charge the 10nF, 10k + PITCH empty it
+      const r1 = resistor(1e3, 240, 170);
+      const r2 = resistor(10e3, 240, 250);
+      const pitch = pot('PITCH', 500e3, 0.5, 240, 340);
+      const c1 = capacitor(10e-9, 330, 420, 90);
+      const g1 = ground(330, 500);
+      const u1 = place('ne555', 440, 280);
+      const gU1 = ground(520, 180);
+
+      // Second 555, one-shot: fired by the first, it stays high for as long as 10k + WIDTH take to charge 22nF
+      const r3 = resistor(10e3, 570, 380);
+      const width = pot('WIDTH', 500e3, 0.5, 570, 480);
+      const c2 = capacitor(22e-9, 650, 560, 90);
+      const g2 = ground(650, 640);
+      const u2 = place('ne555', 720, 280);
+      const gU2 = ground(800, 180);
+      // DEEP: 100nF beside the 22nF makes each pulse five times longer
+      const deep = namedSwitch('DEEP', 740, 480, false);
+      const c3 = capacitor(100e-9, 810, 560, 90);
+      const g3 = ground(810, 640);
+
+      // A 555 is strong enough to drive a speaker through a capacitor
+      const cOut = capacitor(100e-6, 850, 270);
+      const speaker = place('speaker', 960, 280);
+      const gOut = ground(930, 370);
+
+      const components = [power, gPower, r1, r2, pitch, c1, g1, u1, gU1, r3, width, c2, g2, u2, gU2, deep, c3, g3, cOut, speaker, gOut];
+      const connections = [
+        connect(power, 1, gPower, 0),
+        connect(power, 0, u1, NE555.VCC),
+        connect(u1, NE555.VCC, u2, NE555.VCC),
+        connect(u1, NE555.GND, gU1, 0),
+        connect(u2, NE555.GND, gU2, 0),
+        // Astable: VCC → 1k → DISCH → 10k → PITCH → THRES + TRIG → 10nF → ground
+        connect(power, 0, r1, 0),
+        connect(r1, 1, u1, NE555.DISCH),
+        connect(r2, 1, u1, NE555.DISCH),
+        connect(r2, 0, pitch, 2),   // the far end, so that turning PITCH up takes resistance out
+        connect(pitch, 1, u1, NE555.THRES),
+        connect(u1, NE555.THRES, u1, NE555.TRIG),
+        connect(c1, 0, u1, NE555.TRIG),
+        connect(c1, 1, g1, 0),
+        // The first fires the second
+        connect(u1, NE555.OUT, u2, NE555.TRIG),
+        // One-shot: VCC → 10k → WIDTH → THRES + DISCH → 22nF → ground
+        connect(u2, NE555.VCC, r3, 0),
+        connect(r3, 1, width, 0),
+        connect(width, 1, u2, NE555.THRES),
+        connect(u2, NE555.THRES, u2, NE555.DISCH),
+        connect(c2, 0, u2, NE555.THRES),
+        connect(c2, 1, g2, 0),
+        // DEEP: THRES → switch → 100nF → ground
+        connect(deep, 0, u2, NE555.THRES),
+        connect(deep, 1, c3, 0),
+        connect(c3, 1, g3, 0),
+        // Out through 100µF to the speaker
+        connect(u2, NE555.OUT, cOut, 0),
+        connect(cOut, 1, speaker, 0),
+        connect(speaker, 1, gOut, 0),
+      ];
+      return { components, connections };
+    },
+  },
+  {
+    name: 'Light Theremin',
+    description: 'A CD4093 gate that sings while it is let: LIGHT on the photocell sets the pitch, TOUCH bends it, PLAY sounds it. DRONE holds it on',
+    build: () => {
+      const power = place('power', 100, 200);
+      const gPower = ground(100, 300);
+      const chip = place('cd4093', 480, 320);
+      const gChip = ground(560, 170);
+
+      // Gate 1 runs only while its other input is high: PLAY, or DRONE to leave it on
+      const play = place('pushbutton', 260, 190, { label: 'PLAY' });
+      const drone = namedSwitch('DRONE', 260, 110, true);
+      const rDown = resistor(100e3, 360, 330, 90);
+      const gDown = ground(360, 430);
+
+      // Its pitch: 4.7k and the photocell from output to input, 47nF to ground. A finger across the cell bends it
+      const rMin = resistor(4.7e3, 560, 520);
+      const cell = place('ldr', 430, 520, { label: 'LIGHT' });
+      const touch = place('body-contact', 430, 600, { label: 'TOUCH' });
+      const cTime = capacitor(47e-9, 280, 560, 90);
+      const gTime = ground(280, 640);
+
+      const output = place('audio-output', 680, 290);
+
+      const components = [power, gPower, chip, gChip, play, drone, rDown, gDown, rMin, cell, touch, cTime, gTime, output];
+      const connections = [
+        connect(power, 1, gPower, 0),
+        connect(power, 0, chip, CD4093.VDD),
+        connect(chip, CD4093.VSS, gChip, 0),
+        // Enable: VDD → PLAY (and DRONE beside it) → input A, held low by 100k when neither is on
+        connect(power, 0, play, 0),
+        connect(play, 1, chip, CD4093.A1),
+        connect(drone, 0, play, 0),
+        connect(drone, 1, play, 1),
+        connect(rDown, 0, chip, CD4093.A1),
+        connect(rDown, 1, gDown, 0),
+        // Oscillator: output → 4.7k → photocell → input B → 47nF → ground
+        connect(chip, CD4093.Y1, rMin, 1),
+        connect(rMin, 0, cell, 1),
+        connect(cell, 0, chip, CD4093.B1),
+        connect(touch, 0, cell, 0),
+        connect(touch, 1, cell, 1),
+        connect(cTime, 0, chip, CD4093.B1),
+        connect(cTime, 1, gTime, 0),
+        connect(chip, CD4093.Y1, output, 0),
+      ];
+      return { components, connections };
+    },
+  },
+  {
+    name: 'Octave Organ',
+    description: 'A CD4040 divides one oscillator into octaves; two of them go through an LM386 to a speaker. BASS adds the octave below',
+    build: () => {
+      const power = place('power', 100, 200);
+      const gPower = ground(100, 300);
+
+      // The oscillator everything is counted down from: 4.7k + PITCH and 10nF, about 2.4kHz half way
+      const osc = place('cd40106', 300, 300);
+      const gOsc = ground(380, 170);
+      const rMin = resistor(4.7e3, 230, 450);
+      const pitch = pot('PITCH', 100e3, 0.5, 340, 450);
+      const cTime = capacitor(10e-9, 170, 360, 90);
+      const gTime = ground(130, 450);
+
+      const divider = place('cd4040', 540, 340);
+      const gDivider = ground(620, 150);
+
+      // Q2 and Q3 (a quarter and an eighth of the oscillator) mixed down to a quarter of a volt
+      const rQ2 = resistor(100e3, 700, 220);
+      const rQ3 = resistor(100e3, 700, 280);
+      // BASS: Q4, an octave lower again and twice as strong
+      const bass = namedSwitch('BASS', 660, 350, false);
+      const rQ4 = resistor(47e3, 760, 350);
+      const rMix = resistor(1e3, 840, 390, 90);
+      const gMix = ground(840, 480);
+
+      const cIn = capacitor(100e-9, 900, 280);
+      const amp = place('lm386', 1000, 271);
+      const gAmp = ground(940, 380);
+      const cOut = capacitor(220e-6, 1090, 280);
+      const speaker = place('speaker', 1200, 290);
+      const gOut = ground(1170, 380);
+
+      const components = [
+        power, gPower, osc, gOsc, rMin, pitch, cTime, gTime, divider, gDivider,
+        rQ2, rQ3, bass, rQ4, rMix, gMix, cIn, amp, gAmp, cOut, speaker, gOut,
+      ];
+      const connections = [
+        connect(power, 1, gPower, 0),
+        connect(power, 0, osc, CD40106.VDD),
+        connect(osc, CD40106.VDD, divider, CD4040.VDD),
+        connect(divider, CD4040.VDD, amp, LM386.VS),
+        connect(osc, CD40106.VSS, gOsc, 0),
+        connect(divider, CD4040.VSS, gDivider, 0),
+        // Oscillator: input → 4.7k → PITCH → output, 10nF from input to ground
+        connect(rMin, 0, osc, CD40106.A1),
+        connect(rMin, 1, pitch, 2),   // the far end, so that turning PITCH up takes resistance out
+        connect(pitch, 1, osc, CD40106.Y1),
+        connect(cTime, 0, osc, CD40106.A1),
+        connect(cTime, 1, gTime, 0),
+        connect(osc, CD40106.Y1, divider, CD4040.CLK),
+        // The mix: each octave through its resistor to 1k
+        connect(divider, CD4040.Q2, rQ2, 0),
+        connect(divider, CD4040.Q3, rQ3, 0),
+        connect(divider, CD4040.Q4, bass, 0),
+        connect(bass, 1, rQ4, 0),
+        connect(rQ2, 1, rMix, 0),
+        connect(rQ3, 1, rMix, 0),
+        connect(rQ4, 1, rMix, 0),
+        connect(rMix, 1, gMix, 0),
+        // Amplifier: 100nF in, 220µF out to the speaker
+        connect(rMix, 0, cIn, 0),
+        connect(cIn, 1, amp, LM386.IN_PLUS),
+        connect(amp, LM386.IN_MINUS, gAmp, 0),
+        connect(amp, LM386.GND, gAmp, 0),
+        connect(amp, LM386.OUT, cOut, 0),
+        connect(cOut, 1, speaker, 0),
+        connect(speaker, 1, gOut, 0),
+      ];
+      return { components, connections };
+    },
+  },
+  {
+    name: 'Step Sequencer',
+    description: 'A CD4017 steps a 555 through four notes at the pace TEMPO sets. SHORT loops those four; without it there are six more steps of the top note',
+    build: () => {
+      const power = place('power', 100, 200);
+      const gPower = ground(100, 300);
+
+      // The clock: 47k + TEMPO and 1µF, a few steps a second
+      const clock = place('cd40106', 300, 300);
+      const gClock = ground(380, 170);
+      const rClock = resistor(47e3, 320, 450);
+      const tempo = pot('TEMPO', 500e3, 0.5, 210, 450);
+      const cClock = capacitor(1e-6, 150, 380, 90);
+      const gClockCap = ground(110, 460);
+
+      const counter = place('cd4017', 520, 330);
+      const gCounter = ground(600, 150);
+      // SHORT: the fifth step resets the count, so it goes round the first four
+      const short = namedSwitch('SHORT', 660, 520, true);
+      const rReset = resistor(100e3, 440, 430, 90);
+      const gReset = ground(440, 530);
+
+      // Each of the first four outputs reaches the 555's control pin through a resistor. The one that is
+      // high pulls the pin up and the rest pull it down: the smaller its resistor, the higher the pin,
+      // the longer each cycle, the lower the note
+      const steps = [4.7e3, 10e3, 6.8e3, 15e3].map((ohms, i) => resistor(ohms, 700, 200 + i * 50));
+      // A light on the first step
+      const rLed = resistor(2.2e3, 760, 440);
+      const led = place('led', 860, 440, { label: 'STEP' });
+      const gLed = ground(920, 500);
+
+      // The voice: a 555 with 47k, 4.7k and 100nF
+      const voice = place('ne555', 1000, 300);
+      const gVoice = ground(1080, 190);
+      const rA = resistor(47e3, 900, 150);
+      const rB = resistor(4.7e3, 900, 560, 90);
+      const cVoice = capacitor(100e-9, 980, 500, 90);
+      const gVoiceCap = ground(980, 580);
+      const output = place('audio-output', 1110, 310);
+
+      const components = [
+        power, gPower, clock, gClock, rClock, tempo, cClock, gClockCap, counter, gCounter, short, rReset, gReset,
+        ...steps, rLed, led, gLed, voice, gVoice, rA, rB, cVoice, gVoiceCap, output,
+      ];
+      const connections = [
+        connect(power, 1, gPower, 0),
+        connect(power, 0, clock, CD40106.VDD),
+        connect(clock, CD40106.VDD, counter, CD4017.VDD),
+        connect(counter, CD4017.VDD, rA, 0),
+        connect(rA, 0, voice, NE555.VCC),
+        connect(clock, CD40106.VSS, gClock, 0),
+        connect(counter, CD4017.VSS, gCounter, 0),
+        connect(voice, NE555.GND, gVoice, 0),
+        // Clock: input → TEMPO → 47k → output, 1µF from input to ground
+        connect(tempo, 1, clock, CD40106.A1),
+        connect(tempo, 2, rClock, 0),
+        connect(rClock, 1, clock, CD40106.Y1),
+        connect(cClock, 0, clock, CD40106.A1),
+        connect(cClock, 1, gClockCap, 0),
+        connect(clock, CD40106.Y1, counter, CD4017.CLK),
+        // SHORT: Q4 → switch → RESET, which 100k otherwise holds low
+        connect(counter, CD4017.Q4, short, 1),
+        connect(short, 0, counter, CD4017.RST),
+        connect(rReset, 0, counter, CD4017.RST),
+        connect(rReset, 1, gReset, 0),
+        // Steps: Q0–Q3 → resistor → the 555's control pin
+        ...steps.flatMap((step, i) => [
+          connect(counter, CD4017.Q0 + i, step, 0),
+          connect(step, 1, voice, NE555.CTRL),
+        ]),
+        // The light on step one
+        connect(counter, CD4017.Q0, rLed, 0),
+        connect(rLed, 1, led, 0),
+        connect(led, 1, gLed, 0),
+        // Voice: VCC → 47k → DISCH → 4.7k → THRES + TRIG → 100nF → ground
+        connect(rA, 1, voice, NE555.DISCH),
+        connect(rB, 0, voice, NE555.DISCH),
+        connect(rB, 1, voice, NE555.THRES),
+        connect(voice, NE555.THRES, voice, NE555.TRIG),
+        connect(cVoice, 0, voice, NE555.TRIG),
+        connect(cVoice, 1, gVoiceCap, 0),
+        connect(voice, NE555.OUT, output, 0),
+      ];
       return { components, connections };
     },
   },

@@ -43,11 +43,31 @@ beforeAll(() => {
 });
 
 describe('what is on the cover', () => {
-  it('is the knobs, switches, lights, supply and sockets, and nothing else', () => {
+  it('is the knobs, switches, buttons, touch plates, lights, supply and speakers, and nothing else', () => {
     const layout = coverLayout(ALL_PARTS.map((d) => part(d.type)));
     expect(layout.items.map((i) => `${i.component.type}:${i.control}`).sort()).toEqual([
-      'audio-output:jack', 'led:lamp', 'potentiometer:knob', 'power:pilot', 'switch:toggle',
+      'audio-output:speaker', 'body-contact:pad', 'ldr:knob', 'led:lamp', 'potentiometer:knob',
+      'power:knob', 'power:pilot', 'pushbutton:button', 'speaker:speaker', 'switch:toggle',
     ]);
+    expect(new Set(layout.items.map((i) => i.id)).size).toBe(layout.items.length);
+  });
+
+  it('shows the audio output as a speaker, or as a socket once its signal goes somewhere else', () => {
+    const out = part('audio-output');
+    expect(coverLayout([out]).items.map((i) => i.control)).toEqual(['speaker']);
+    out.parameters = { ...out.parameters, destination: 'line' };
+    expect(coverLayout([out]).items.map((i) => i.control)).toEqual(['jack']);
+    expect(coverLayout([out]).items[0].name).toBe('OUT');
+  });
+
+  it('gives the supply a starve knob that keeps its own name', () => {
+    const layout = coverLayout([part('power', 'Battery'), part('potentiometer', 'Pitch')]);
+    expect(layout.items.map((i) => [i.control, i.name, i.named])).toEqual([
+      ['knob', 'Pitch', true], ['knob', 'STARVE', true], ['pilot', 'Battery', true],
+    ]);
+    expect(layout.items[1].cover).toMatchObject({ parameter: 'starve', fixedName: true });
+    const two = coverLayout([part('power'), part('power')]);
+    expect(names(two.items)).toEqual(['STARVE 1', 'STARVE 2', 'POWER 1', 'POWER 2']);
   });
 
   it('comes from the definitions, not from a list of known parts', () => {
@@ -69,31 +89,32 @@ describe('what is on the cover', () => {
   it('prints the supply voltage by the pilot light', () => {
     const supply = part('power');
     supply.parameters = { ...supply.parameters, voltage: 12 };
-    expect(coverLayout([supply]).items[0]).toMatchObject({ control: 'pilot', name: 'POWER', detail: '12V DC' });
+    expect(coverLayout([supply]).items.find((i) => i.control === 'pilot')).toMatchObject({ name: 'POWER', detail: '12V DC' });
   });
 
   it('knows inputs from outputs', () => {
-    expect(['knob', 'toggle', 'lamp', 'pilot', 'jack'].filter((c) => isCoverInput(c as CoverItem['control']))).toEqual(['knob', 'toggle']);
+    expect(['knob', 'toggle', 'button', 'pad', 'lamp', 'pilot', 'jack', 'speaker'].filter((c) => isCoverInput(c as CoverItem['control'])))
+      .toEqual(['knob', 'toggle', 'button', 'pad']);
   });
 });
 
 describe('laying the cover out', () => {
   it('puts knobs across the top, switches bottom left and outputs bottom right', () => {
-    const layout = expectTidy(parts('audio-output', 'led', 'switch', 'potentiometer', 'power', 'potentiometer', 'switch'));
+    const layout = expectTidy(parts('audio-output', 'led', 'body-contact', 'switch', 'potentiometer', 'pushbutton', 'power', 'potentiometer', 'switch'));
     const of = (control: string) => layout.items.filter((i) => i.control === control);
     const knobRow = of('knob')[0].y;
     expect(of('knob').every((k) => k.y === knobRow)).toBe(true);
     const lower = of('toggle')[0].y;
     expect(lower).toBe(knobRow + PANEL.knob.height);
     expect(layout.items.filter((i) => i.control !== 'knob').every((i) => i.y === lower)).toBe(true);
-    // Switches from the left margin, then lights, pilot light and socket ending at the right margin
+    // Switches, buttons and touch plates from the left margin, then lights, pilot light and speaker ending at the right margin
     const row = layout.items.filter((i) => i.control !== 'knob').sort((a, b) => a.x - b.x);
-    expect(row.map((i) => i.control)).toEqual(['toggle', 'toggle', 'lamp', 'pilot', 'jack']);
+    expect(row.map((i) => i.control)).toEqual(['toggle', 'toggle', 'button', 'pad', 'lamp', 'pilot', 'speaker']);
     expect(row[0].x).toBe(layout.face.left + PANEL.margin);
-    expect(row[4].x + row[4].width).toBeCloseTo(layout.face.right - PANEL.margin, 5);
+    expect(row[6].x + row[6].width).toBeCloseTo(layout.face.right - PANEL.margin, 5);
     expect(layout.divider).toBe(lower);
-    expect(layout.split!.x).toBeGreaterThan(row[1].x + row[1].width);
-    expect(layout.split!.x).toBeLessThan(row[2].x);
+    expect(layout.split!.x).toBeGreaterThan(row[3].x + row[3].width);
+    expect(layout.split!.x).toBeLessThan(row[4].x);
   });
 
   it('keeps parts of a kind in the order they are in the circuit', () => {
@@ -127,7 +148,8 @@ describe('laying the cover out', () => {
   });
 
   it('stays tidy however much is on it', () => {
-    expectTidy(parts(...Array(23).fill('potentiometer'), ...Array(17).fill('switch'), ...Array(9).fill('led'), 'power', 'audio-output', 'audio-output'));
+    expectTidy(parts(...Array(23).fill('potentiometer'), ...Array(17).fill('switch'), ...Array(5).fill('pushbutton'), ...Array(4).fill('body-contact'),
+      ...Array(9).fill('led'), 'power', 'audio-output', 'audio-output', 'speaker', 'ldr'));
     const wide = expectTidy(parts(...Array(40).fill('switch')));
     expect(wide.width).toBeLessThanOrEqual(PANEL.maxContent + 2 * (PANEL.margin + PANEL.cheek));
   });
@@ -152,12 +174,12 @@ describe('laying the cover out', () => {
     const layout = expectTidy(exampleCircuits.find((e) => e.name === name)!.build().components);
     expect(layout.items.filter((i) => isCoverInput(i.control)).length).toBeGreaterThanOrEqual(1);
     expect(layout.items.filter((i) => !isCoverInput(i.control)).length).toBeGreaterThanOrEqual(1);
-    expect(layout.items.every((i) => i.control === 'pilot' || i.control === 'jack' || i.control === 'lamp' || i.named)).toBe(true);
+    expect(layout.items.every((i) => i.control === 'pilot' || i.control === 'speaker' || i.control === 'lamp' || i.named)).toBe(true);
   });
 
   it('lays the Weird Sound Generator out as its panel', () => {
     const layout = coverLayout(exampleCircuits.find((e) => e.name.includes('Weird'))!.build().components);
-    expect(names(layout.items)).toEqual(['WACKY', 'ZANY', 'ZANINESS', 'WEIRD', 'ODDNESS', 'WACKINESS', 'POWER', 'OUT']);
+    expect(names(layout.items)).toEqual(['WACKY', 'ZANY', 'ZANINESS', 'WEIRD', 'ODDNESS', 'STARVE', 'WACKINESS', 'POWER', 'OUT']);
   });
 });
 

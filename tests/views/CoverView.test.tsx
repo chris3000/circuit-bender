@@ -40,6 +40,10 @@ const partOf = (type: string, label?: string) =>
   circuit.getComponents().find((c) => c.type === type && (label === undefined || c.label === label))!;
 const knob = (name: string) => screen.getByRole('slider', { name });
 const toggle = (name: string) => screen.getByRole('switch', { name });
+/** The thing that is held down called `name` (its engraving is a button too: the one that renames it). */
+const press = (name: string) => screen.getAllByRole('button', { name }).find((b) => b.hasAttribute('aria-pressed'))!;
+/** The place on the panel of the knob called `name`. */
+const cell = (name: string) => knob(name).closest('[data-part]') as HTMLElement;
 
 describe('the cover', () => {
   beforeEach(() => {
@@ -50,10 +54,12 @@ describe('the cover', () => {
 
   it('shows every input and output of the circuit, by name', () => {
     show('MFOS Weird Sound Generator');
-    expect(screen.getAllByRole('slider').map((k) => k.getAttribute('aria-label'))).toEqual(['WACKY', 'ZANY', 'ZANINESS', 'WEIRD', 'ODDNESS']);
+    expect(screen.getAllByRole('slider').map((k) => k.getAttribute('aria-label'))).toEqual(['WACKY', 'ZANY', 'ZANINESS', 'WEIRD', 'ODDNESS', 'STARVE']);
     expect(screen.getAllByRole('switch').map((s) => s.getAttribute('aria-label'))).toEqual(['WACKINESS']);
     expect(screen.getAllByTestId('cover-pilot')).toHaveLength(1);
-    expect(screen.getAllByTestId('cover-jack')).toHaveLength(1);
+    // The output plays through a speaker; the socket is for when its signal can go somewhere else
+    expect(screen.getAllByTestId('cover-speaker')).toHaveLength(1);
+    expect(screen.queryByTestId('cover-jack')).toBeNull();
     expect(screen.getByTestId('cover-title')).toHaveTextContent('MFOS WEIRD SOUND GENERATOR');
     expect(screen.getByText('9V DC')).toBeInTheDocument();
     expect(screen.getByText('44 PARTS INSIDE')).toBeInTheDocument();
@@ -83,6 +89,84 @@ describe('the cover', () => {
     fireEvent.click(screen.getByLabelText('Undo'));
     expect(partOf('switch').parameters.closed).toBe(1);
     expect(screen.getByLabelText('Undo')).toBeDisabled();
+  });
+
+  it('holds a push button down for as long as it is pressed, with nothing to undo', () => {
+    show('Light Theremin');
+    const button = press('PLAY');
+    expect(button).toHaveAttribute('aria-pressed', 'false');
+    expect(partOf('pushbutton').parameters.closed ?? 0).toBe(0);
+
+    fireEvent.pointerDown(button, { button: 0 });
+    expect(partOf('pushbutton').parameters.closed).toBe(1);
+    expect(press('PLAY')).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.pointerUp(window);
+    expect(partOf('pushbutton').parameters.closed).toBe(0);
+    expect(press('PLAY')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByLabelText('Undo')).toBeDisabled();
+  });
+
+  it('holds a button from the keyboard with Enter, and lets go when the key does or the focus leaves', () => {
+    show('Light Theremin');
+    const button = press('PLAY');
+    fireEvent.keyDown(button, { key: 'Enter' });
+    expect(partOf('pushbutton').parameters.closed).toBe(1);
+    fireEvent.keyDown(button, { key: 'Enter', repeat: true });
+    fireEvent.keyUp(button, { key: 'Enter' });
+    expect(partOf('pushbutton').parameters.closed).toBe(0);
+
+    fireEvent.keyDown(button, { key: 'Enter' });
+    fireEvent.blur(button);
+    expect(partOf('pushbutton').parameters.closed).toBe(0);
+    // Space is play and stop, here as everywhere
+    fireEvent.keyDown(button, { key: ' ' });
+    expect(partOf('pushbutton').parameters.closed).toBe(0);
+  });
+
+  it('ignores the other mouse buttons on a push button', () => {
+    show('Light Theremin');
+    fireEvent.pointerDown(press('PLAY'), { button: 2 });
+    expect(partOf('pushbutton').parameters.closed ?? 0).toBe(0);
+  });
+
+  it('presses the touch plates harder the higher up they are held, and lets go', () => {
+    show('Light Theremin');
+    const plates = press('TOUCH');
+    plates.getBoundingClientRect = () => ({ left: 0, right: 80, top: 100, bottom: 200, width: 80, height: 100, x: 0, y: 100, toJSON: () => ({}) });
+    expect(screen.queryByTestId('cover-pad-finger')).toBeNull();
+
+    fireEvent.pointerDown(plates, { button: 0, clientY: 180 });
+    expect(partOf('body-contact').parameters.touch).toBe(0.2);
+    expect(screen.getByTestId('cover-pad-finger')).toBeInTheDocument();
+    expect(screen.getByTestId('cover-pad')).toHaveTextContent('20%');
+
+    fireEvent.pointerMove(window, { clientY: 110 });
+    expect(partOf('body-contact').parameters.touch).toBe(0.9);
+    fireEvent.pointerMove(window, { clientY: 400 }); // slid off the bottom: still the lightest touch
+    expect(partOf('body-contact').parameters.touch).toBe(0.05);
+
+    fireEvent.pointerUp(window);
+    expect(partOf('body-contact').parameters.touch).toBe(0);
+    expect(screen.getByTestId('cover-pad')).toHaveTextContent('TOUCH');
+    expect(screen.getByLabelText('Undo')).toBeDisabled();
+  });
+
+  it('lets go of what is held when the cover goes away', () => {
+    const { rerender } = show('Light Theremin');
+    fireEvent.pointerDown(press('PLAY'), { button: 0 });
+    expect(partOf('pushbutton').parameters.closed).toBe(1);
+    // Another view takes its place while the button is down
+    rerender(<CircuitProvider initial={null}><Spy /></CircuitProvider>);
+    expect(partOf('pushbutton').parameters.closed).toBe(0);
+  });
+
+  it('shows a bare speaker as a speaker, and the starve knob after the circuit\'s own', () => {
+    show('Atari Punk Console');
+    expect(screen.getAllByRole('slider').map((k) => k.getAttribute('aria-label'))).toEqual(['PITCH', 'WIDTH', 'STARVE']);
+    expect(screen.getAllByTestId('cover-speaker')).toHaveLength(1);
+    expect(screen.getByTestId('cover-speaker')).toHaveTextContent('SPEAKER');
+    expect(screen.queryByTestId('cover-jack')).toBeNull();
   });
 
   it('turns a knob with the arrow keys', () => {
@@ -129,7 +213,7 @@ describe('the cover', () => {
     expect(partOf('potentiometer').parameters.position).toBe(0);
     fireEvent.pointerUp(window);
     expect(screen.queryByText('0%')).toBeNull();
-    expect(within(screen.getByTestId('cover-knob')).getByRole('button', { name: 'PITCH' })).toBeInTheDocument();
+    expect(within(cell('PITCH')).getByRole('button', { name: 'PITCH' })).toBeInTheDocument();
     expect(partOf('potentiometer').parameters).toMatchObject({ maxResistance: 100000, value: '100k' });
     fireEvent.pointerMove(window, { clientX: 10, clientY: 0 }); // let go: no longer turning
     expect(partOf('potentiometer').parameters.position).toBe(0);
@@ -140,7 +224,7 @@ describe('the cover', () => {
 
   it('draws the pointer at the knob position', () => {
     show('Pitch Control');
-    const pointer = () => within(screen.getByTestId('cover-knob')).getByTestId('cover-knob-pointer').getAttribute('transform');
+    const pointer = () => within(cell('PITCH')).getByTestId('cover-knob-pointer').getAttribute('transform');
     expect(pointer()).toBe('rotate(-90)'); // half way: straight up
     fireEvent.keyDown(knob('PITCH'), { key: 'Home' });
     expect(pointer()).toBe('rotate(-225)');

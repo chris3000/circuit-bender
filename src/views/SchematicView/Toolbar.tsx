@@ -9,6 +9,9 @@ interface ToolbarProps {
   canRedo?: boolean;
   activeView?: ActiveView;
   onSelectView?: (view: ActiveView) => void;
+  /** The bend tool: whether it is on, and how to turn it on and off. Left out where there is nothing to bend (the cover). */
+  bending?: boolean;
+  onToggleBend?: () => void;
   zoom?: number;
   onZoomIn?: () => void;
   onZoomOut?: () => void;
@@ -21,6 +24,8 @@ export const Toolbar = React.memo(function Toolbar({
   canRedo = false,
   activeView,
   onSelectView,
+  bending = false,
+  onToggleBend,
   zoom,
   onZoomIn,
   onZoomOut,
@@ -71,6 +76,26 @@ export const Toolbar = React.memo(function Toolbar({
               </button>
             ))}
           </div>
+        </>
+      )}
+
+      {onToggleBend && (
+        <>
+          <div className={styles.divider} />
+          <button
+            className={`${styles.bendButton} ${bending ? styles.bendButtonActive : ''}`}
+            data-testid="bend-toggle"
+            aria-pressed={bending}
+            title="Bend: hold a jumper between two points of the circuit while it plays (B)"
+            onClick={onToggleBend}
+          >
+            <svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true">
+              <path d="M2,3 Q8,14 14,3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              <circle cx="2" cy="3" r="1.8" fill="currentColor" />
+              <circle cx="14" cy="3" r="1.8" fill="currentColor" />
+            </svg>
+            BEND
+          </button>
         </>
       )}
 

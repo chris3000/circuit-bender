@@ -3,12 +3,15 @@ import { generatePinId } from '@/utils/ids';
 import { batteryArt } from '@/components/art/partArt';
 import { batteryBoard } from '@/components/art/boardArt';
 
+/** Room to the right of the symbol for the small starve knob and its label. */
+const STARVE_KNOB_ROOM = { right: 20 };
+
 export const powerSupplyDefinition: ComponentDefinition = {
   type: 'power',
   metadata: {
     name: 'Power Supply',
     category: 'power',
-    description: 'DC voltage source (default +9V)',
+    description: 'DC voltage source (default +9V), with a starve knob that chokes it',
   },
   pins: [
     {
@@ -27,10 +30,16 @@ export const powerSupplyDefinition: ComponentDefinition = {
   defaultParameters: {
     voltage: 9,
     value: '+9V',
+    starve: 0,
   },
-  shelf: { title: 'Power', caption: '+9 V supply', keywords: ['battery', 'vcc', 'vdd', '9v', 'dc', 'source'], art: batteryArt },
+  shelf: { title: 'Power', caption: '+9 V supply', keywords: ['battery', 'vcc', 'vdd', '9v', 'dc', 'source', 'starve', 'sag'], art: batteryArt },
   // The pilot light: on while the circuit is running
-  cover: { control: 'pilot', name: 'POWER', detail: (p) => `${p.voltage}V DC` },
+  control: { kind: 'dial', parameter: 'starve', name: 'Starve', at: { x: 28, y: -4 }, print: 'STARVE', rest: 0 },
+  cover: [
+    { control: 'pilot', name: 'POWER', detail: (p) => `${p.voltage}V DC` },
+    // Voltage starve: a resistance in series with the supply, from none to 1 MΩ
+    { control: 'knob', parameter: 'starve', name: 'STARVE', fixedName: true },
+  ],
   schematic: {
     symbol: {
       width: 40,
@@ -63,7 +72,7 @@ export const powerSupplyDefinition: ComponentDefinition = {
       },
     },
     dimensions: { width: 40, height: 60 },
-    overhang: { left: 16 },
+    overhang: { left: 16, ...STARVE_KNOB_ROOM },
   },
   board: {
     symbol: {
@@ -72,5 +81,6 @@ export const powerSupplyDefinition: ComponentDefinition = {
       render: batteryBoard,
     },
     dimensions: { width: 40, height: 60 },
+    overhang: STARVE_KNOB_ROOM,
   },
 };

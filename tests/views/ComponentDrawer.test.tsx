@@ -45,7 +45,7 @@ describe('the parts shelf', () => {
     expect(shown.filter((k) => k.startsWith('resistor@'))).toHaveLength(12);
     expect(shown.filter((k) => k.startsWith('capacitor@'))).toHaveLength(12);
     expect(shown.filter((k) => k.startsWith('potentiometer@'))).toHaveLength(8);
-    expect(screen.getByText('140')).toBeInTheDocument(); // everything in stock
+    expect(screen.getByText('149')).toBeInTheDocument(); // everything in stock
   });
 
   it('names each part and says what it is', () => {
@@ -113,11 +113,11 @@ describe('the parts shelf', () => {
     it('narrows the shelf to what was typed', () => {
       render(<ComponentDrawer />);
       search('schmitt');
-      expect(tiles()).toEqual(['cd40106']);
-      expect(screen.getByRole('status')).toHaveTextContent('1 match');
-      search('chip');
-      expect(tiles()).toEqual(['cd40106', 'lm741']);
+      expect(tiles()).toEqual(['cd40106', 'cd4093']);
       expect(screen.getByRole('status')).toHaveTextContent('2 matches');
+      search('opamp');
+      expect(tiles()).toEqual(['lm741']);
+      expect(screen.getByRole('status')).toHaveTextContent('1 match');
     });
 
     it('finds values that are not among the common ones', () => {

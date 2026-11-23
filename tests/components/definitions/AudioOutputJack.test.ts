@@ -4,7 +4,7 @@ import { audioOutputJackDefinition } from '@/components/definitions/AudioOutputJ
 describe('Audio Output Jack Component', () => {
   it('should have correct metadata', () => {
     expect(audioOutputJackDefinition.type).toBe('audio-output');
-    expect(audioOutputJackDefinition.metadata.name).toBe('Audio Output Jack');
+    expect(audioOutputJackDefinition.metadata.name).toBe('Audio Out');
     expect(audioOutputJackDefinition.metadata.category).toBe('power');
   });
 

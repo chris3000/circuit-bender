@@ -2,38 +2,9 @@
 
 import { MNASolver } from '../solver/MNASolver';
 import type { SerializedComponent } from '../solver/MNASolver';
-import { ModelRegistry } from '../models/ModelRegistry';
-import { ResistorModel } from '../models/ResistorModel';
-import { CapacitorModel } from '../models/CapacitorModel';
-import { PotentiometerModel } from '../models/PotentiometerModel';
-import { PowerSourceModel } from '../models/PowerSourceModel';
-import { GroundModel } from '../models/GroundModel';
-import { AudioOutputModel } from '../models/AudioOutputModel';
-import { DiodeModel, DIODE_1N914_PARAMS, DIODE_LED_RED_PARAMS } from '../models/DiodeModel';
-import { BJTModel, BJT_2N3904_PARAMS } from '../models/BJTModel';
-import { OpAmpModel, OPAMP_LM741_PARAMS } from '../models/OpAmpModel';
-import { SchmittTriggerModel } from '../models/SchmittTriggerModel';
-import { SwitchModel } from '../models/SwitchModel';
-import { JunctionModel } from '../models/JunctionModel';
+import { createStandardModels } from '../models/standardModels';
+import type { DiodeModel } from '../models/DiodeModel';
 import { RenderLoad } from './RenderLoad';
-
-function createRegistry(): ModelRegistry {
-  const reg = new ModelRegistry();
-  reg.register('resistor', () => new ResistorModel());
-  reg.register('capacitor', () => new CapacitorModel());
-  reg.register('potentiometer', () => new PotentiometerModel());
-  reg.register('power', () => new PowerSourceModel());
-  reg.register('ground', () => new GroundModel());
-  reg.register('audio-output', () => new AudioOutputModel());
-  reg.register('1n914', () => new DiodeModel(DIODE_1N914_PARAMS));
-  reg.register('led', () => new DiodeModel(DIODE_LED_RED_PARAMS));
-  reg.register('2n3904', () => new BJTModel(BJT_2N3904_PARAMS));
-  reg.register('lm741', () => new OpAmpModel(OPAMP_LM741_PARAMS));
-  reg.register('cd40106', () => new SchmittTriggerModel());
-  reg.register('switch', () => new SwitchModel());
-  reg.register('junction', () => new JunctionModel());
-  return reg;
-}
 
 class CircuitSimulationProcessor extends AudioWorkletProcessor {
   private solver: MNASolver;
@@ -46,7 +17,7 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
 
   constructor() {
     super();
-    this.solver = new MNASolver(createRegistry());
+    this.solver = new MNASolver(createStandardModels());
 
     this.port.onmessage = (event: MessageEvent) => {
       const msg = event.data;
@@ -60,6 +31,10 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
           comp.parameters[msg.key] = msg.value;
           this.solver.updateParam(msg.componentId, msg.key, Number(msg.value));
         }
+      } else if (msg.type === 'setBend') {
+        // A jumper held between two points of the playing circuit, or let go (null)
+        if (msg.bend) this.solver.setBend(msg.bend.from, msg.bend.to, msg.bend.ohms);
+        else this.solver.setBend(null, null);
       } else if (msg.type === 'setProbes') {
         this.probes = msg.probes || [];
         this.probeSampleBuffers = this.probes.map(() => new Float32Array(128));

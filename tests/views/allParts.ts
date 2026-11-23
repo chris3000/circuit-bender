@@ -12,11 +12,22 @@ import { audioOutputJackDefinition } from '@/components/definitions/AudioOutputJ
 import { ledDefinition } from '@/components/definitions/LED';
 import { switchDefinition } from '@/components/definitions/Switch';
 import { junctionDefinition } from '@/components/definitions/Junction';
+import { ne555Definition } from '@/components/definitions/NE555';
+import { cd4093Definition } from '@/components/definitions/CD4093';
+import { cd4040Definition } from '@/components/definitions/CD4040';
+import { cd4017Definition } from '@/components/definitions/CD4017';
+import { lm386Definition } from '@/components/definitions/LM386';
+import { ldrDefinition } from '@/components/definitions/LightDependentResistor';
+import { speakerDefinition } from '@/components/definitions/Speaker';
+import { pushButtonDefinition } from '@/components/definitions/PushButton';
+import { bodyContactDefinition } from '@/components/definitions/BodyContact';
 
 /** In the order main.tsx registers them. */
 export const ALL_PARTS: ComponentDefinition[] = [
   resistorDefinition, capacitorDefinition, cd40106Definition, lm741Definition, potentiometerDefinition,
   powerSupplyDefinition, groundDefinition, transistor2N3904Definition, diode1N914Definition,
   audioOutputJackDefinition, ledDefinition, switchDefinition, junctionDefinition,
+  ne555Definition, cd4093Definition, cd4040Definition, cd4017Definition, lm386Definition,
+  ldrDefinition, speakerDefinition, pushButtonDefinition, bodyContactDefinition,
 ];
 

@@ -7,7 +7,7 @@ describe('Power Supply Component', () => {
     expect(powerSupplyDefinition.metadata.name).toBe('Power Supply');
     expect(powerSupplyDefinition.metadata.category).toBe('power');
     expect(powerSupplyDefinition.metadata.description).toBe(
-      'DC voltage source (default +9V)'
+      'DC voltage source (default +9V), with a starve knob that chokes it'
     );
   });
 

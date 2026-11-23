@@ -23,6 +23,7 @@ import { readPartDrag } from '@/views/ComponentDrawer/dragData';
 import { Inspector } from '@/views/Inspector/Inspector';
 import { EmptyState } from './EmptyState';
 import type { ActiveView } from '@/views/viewModes';
+import { BendTool, type Bend } from './BendTool';
 
 const DELETE_KEYS = ['Backspace', 'Delete'];
 
@@ -38,10 +39,14 @@ interface CircuitCanvasProps {
   hidden?: boolean;
   ledStates: Record<string, boolean>;
   onAddProbe?: (componentId: string, pinId: string, label: string) => void;
+  /** Whether the circuit is running. */
+  playing?: boolean;
+  /** Hold a jumper between two points of the running circuit, or let go of it (null). */
+  onBend?: (bend: Bend | null) => void;
 }
 
 function CircuitCanvasInner({
-  viewMode, activeView, onSelectView, hidden = false, ledStates, onAddProbe,
+  viewMode, activeView, onSelectView, hidden = false, ledStates, onAddProbe, playing = false, onBend,
 }: CircuitCanvasProps) {
   const { addComponent, addConnection, removeConnection, updateComponent, selectedComponents, undo, redo, canUndo, canRedo, circuit } = useCircuit();
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
@@ -52,6 +57,14 @@ function CircuitCanvasInner({
   } = useCircuitSync(viewMode, ledStates);
   const routesRef = useRef(routes);
   routesRef.current = routes;
+
+  // The bend tool: while it is on, parts stay put and pins do not start wires,
+  // so that pressing on them can pick up a jumper instead
+  const surface = useRef<HTMLDivElement>(null);
+  const [bendMode, setBendMode] = useState(false);
+  const bending = bendMode && !hidden && Boolean(onBend);
+  const toggleBend = useCallback(() => setBendMode((on) => !on), []);
+  const stopBending = useCallback(() => setBendMode(false), []);
 
   const onDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -120,6 +133,7 @@ function CircuitCanvasInner({
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
     else if ((e.metaKey || e.ctrlKey) && (e.key === 'Z' || e.key === 'y')) { e.preventDefault(); redo(); }
+    else if ((e.key === 'b' || e.key === 'B') && !e.metaKey && !e.ctrlKey && !e.altKey && onBend) { e.preventDefault(); setBendMode((on) => !on); }
     else if (e.key === 'r' || e.key === 'R') {
       // Rotate selected components 90° clockwise
       if (selectedComponents.length > 0) {
@@ -133,7 +147,7 @@ function CircuitCanvasInner({
         }
       }
     }
-  }, [undo, redo, selectedComponents, circuit, updateComponent]);
+  }, [undo, redo, selectedComponents, circuit, updateComponent, onBend]);
 
   const onConnectEnd = useCallback((event: MouseEvent | TouchEvent) => {
     // Dropped on a pin: the connection is already made
@@ -186,8 +200,12 @@ function CircuitCanvasInner({
 
   return (
     <div style={{ flex: 1, width: '100%', height: '100%', position: 'relative', visibility: hidden ? 'hidden' : undefined }}
-      aria-hidden={hidden || undefined} onKeyDown={onKeyDown} tabIndex={0}>
-      <Toolbar onUndo={undo} onRedo={redo} canUndo={canUndo} canRedo={canRedo} activeView={activeView} onSelectView={onSelectView} />
+      aria-hidden={hidden || undefined} onKeyDown={onKeyDown} tabIndex={0} ref={surface} data-bending={bending || undefined}>
+      <Toolbar onUndo={undo} onRedo={redo} canUndo={canUndo} canRedo={canRedo} activeView={activeView} onSelectView={onSelectView}
+        bending={bending} onToggleBend={onBend ? toggleBend : undefined} />
+      {bending && onBend && (
+        <BendTool surface={surface} viewMode={viewMode} routes={routes} playing={playing} onBend={onBend} onClose={stopBending} />
+      )}
       <Inspector viewMode={viewMode} onDeleteComponents={deleteComponents} onAddProbe={onAddProbe} />
       {nodes.length === 0 && circuit.getComponents().length === 0 && <EmptyState viewMode={viewMode} />}
       <WireRoutesContext.Provider value={routes}>
@@ -203,10 +221,13 @@ function CircuitCanvasInner({
         onConnect={onConnect} onConnectStart={onConnectStart} onConnectEnd={onConnectEnd} onSelectionChange={onSelectionChange}
         onNodesDelete={onNodesDelete} onEdgesDelete={onEdgesDelete}
         onDrop={onDrop} onDragOver={onDragOver}
+        nodesDraggable={!bending} nodesConnectable={!bending} elementsSelectable={!bending}
         snapToGrid={true} snapGrid={[20, 20]}
         nodeOrigin={[0.5, 0.5]}
         // React Flow listens for these on the whole page: not while the canvas is out of sight
         deleteKeyCode={hidden ? null : DELETE_KEYS}
+        // Space plays and stops; the canvas already pans with a plain drag
+        panActivationKeyCode={null}
         style={{ background: viewMode === 'schematic' ? '#ffffff' : '#1a6b3c' }}
       >
         <Background

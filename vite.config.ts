@@ -70,6 +70,14 @@ function audioWorkletPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [react(), audioWorkletPlugin()],
+  build: {
+    rollupOptions: {
+      output: {
+        // The libraries change far less often than the app: in a file of their own they stay cached
+        manualChunks: (id) => (id.includes('node_modules') ? 'vendor' : undefined),
+      },
+    },
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

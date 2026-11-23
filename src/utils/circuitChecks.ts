@@ -12,9 +12,10 @@ export function playbackWarnings(circuit: Circuit): string[] {
   if (!components.some((c) => c.type === 'power')) {
     warnings.push('No power supply, so nothing will run. Add a +9V supply.');
   }
-  const jacks = components.filter((c) => c.type === 'audio-output');
+  // What can be heard: the audio output, or a speaker
+  const jacks = components.filter((c) => c.type === 'audio-output' || c.type === 'speaker');
   if (jacks.length === 0) {
-    warnings.push('No audio output, so you will not hear anything. Add an Audio Out jack.');
+    warnings.push('No audio output, so you will not hear anything. Add an Audio Out or a speaker.');
   } else {
     const connections = circuit.getConnections();
     const wired = jacks.some((jack) =>

@@ -21,7 +21,8 @@ const find = (query: string) => keys(searchCatalog(catalog, query));
 describe('the catalog', () => {
   it('has one item for a part with nothing to choose and one per stocked value for the rest', () => {
     expect(keys(catalog).filter((k) => !k.includes('@')).sort()).toEqual(
-      ['1n914', '2n3904', 'audio-output', 'cd40106', 'ground', 'junction', 'led', 'lm741', 'power', 'switch']);
+      ['1n914', '2n3904', 'audio-output', 'body-contact', 'cd40106', 'cd4017', 'cd4040', 'cd4093', 'ground', 'junction',
+        'ldr', 'led', 'lm386', 'lm741', 'ne555', 'power', 'pushbutton', 'speaker', 'switch']);
     expect(catalog.filter((i) => i.definition === resistorDefinition)).toHaveLength(73);
     expect(catalog.filter((i) => i.definition === capacitorDefinition)).toHaveLength(49);
     expect(catalog.filter((i) => i.definition === potentiometerDefinition)).toHaveLength(8);
@@ -72,14 +73,14 @@ describe('the shelf layout', () => {
 
   it('starts with what every circuit needs', () => {
     expect(sections.map((s) => s.category)).toEqual(['power', 'passive', 'ic', 'active', 'control']);
-    expect(keys(sections[0].blocks[0].items)).toEqual(['power', 'ground', 'audio-output']);
+    expect(keys(sections[0].blocks[0].items)).toEqual(['power', 'ground', 'audio-output', 'speaker']);
   });
 
   it('keeps the values of a part together and stand-alone parts in runs', () => {
     const passive = sections.find((s) => s.category === 'passive')!;
     expect(passive.blocks.map((b) => (b.kind === 'values' ? b.definition.type : keys(b.items).join())))
-      .toEqual(['resistor', 'capacitor', 'junction']);
-    expect(passive.count).toBe(73 + 49 + 1);
+      .toEqual(['resistor', 'capacitor', 'junction,ldr']);
+    expect(passive.count).toBe(73 + 49 + 2);
     const control = sections.find((s) => s.category === 'control')!;
     expect(control.blocks.map((b) => b.kind)).toEqual(['values', 'parts']);
   });
@@ -93,13 +94,20 @@ describe('searching', () => {
   it('finds a part by name, number, what it is, or what people call it', () => {
     expect(find('cd40106')).toEqual(['cd40106']);
     expect(find('40106')).toEqual(['cd40106']);
-    expect(find('schmitt')).toEqual(['cd40106']);
+    expect(find('schmitt')).toEqual(['cd40106', 'cd4093']);
     expect(find('op amp')).toEqual(['lm741']);
     expect(find('opamp')).toEqual(['lm741']);
-    expect(find('chip')).toEqual(['cd40106', 'lm741']);
+    expect(find('chip')).toEqual(['cd40106', 'lm741', 'ne555', 'cd4093', 'cd4040', 'cd4017', 'lm386']);
     expect(find('gnd')).toEqual(['ground']);
     expect(find('battery')).toEqual(['power']);
-    expect(find('speaker')).toEqual(['audio-output']);
+    expect(find('speaker')).toEqual(['audio-output', 'lm386', 'speaker']);
+    expect(find('555')).toEqual(['ne555']);
+    expect(find('divider')).toEqual(['cd4040', 'cd4017']);
+    expect(find('nand')).toEqual(['cd4093']);
+    expect(find('button')).toEqual(['pushbutton']);
+    expect(find('touch')).toEqual(['body-contact']);
+    expect(find('photocell')).toEqual(['ldr']);
+    expect(find('starve')).toEqual(['power']);
     expect(find('npn')).toEqual(['2n3904']);
     expect(find('2n3904')).toEqual(['2n3904']);
     expect(find('1n914')).toEqual(['1n914']);
@@ -112,9 +120,9 @@ describe('searching', () => {
   });
 
   it('finds every value of a part by its name', () => {
-    // every resistor, and then the pots, which are "variable resistors"
+    // every resistor, and then the pots, which are "variable resistors", and the light-dependent one
     expect(find('resistor').slice(0, 73).every((k) => k.startsWith('resistor@'))).toBe(true);
-    expect(find('resistor')).toHaveLength(73 + 8);
+    expect(find('resistor')).toHaveLength(73 + 8 + 1);
     expect(find('pot')).toHaveLength(8);
     expect(find('cap')).toHaveLength(49);
   });

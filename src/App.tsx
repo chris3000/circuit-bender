@@ -16,7 +16,9 @@ import { readAutosave, writeAutosave } from './storage/autosave';
 import { playbackWarnings } from './utils/circuitChecks';
 import { CoverView } from './views/Cover/CoverView';
 import { nextView, type ActiveView } from './views/viewModes';
+import { isPlayShortcut } from './utils/keyboard';
 import type { Circuit } from './models/Circuit';
+import type { Bend } from './views/CircuitCanvas/BendTool';
 
 export function AppContent() {
   const { circuit, isDirty } = useCircuit();
@@ -139,6 +141,11 @@ export function AppContent() {
     });
   }, []);
 
+  // A jumper held on the canvas goes straight to the running simulation: it is not part of the circuit
+  const handleBend = useCallback((bend: Bend | null) => {
+    audioEngineRef.current?.setBend(bend);
+  }, []);
+
   const handleRemoveProbe = useCallback((index: number) => {
     setProbes(prev => prev.filter((_, i) => i !== index));
   }, []);
@@ -186,6 +193,39 @@ export function AppContent() {
     setOverload(null);
   }, []);
 
+  // Space plays and stops, wherever the mouse last clicked, unless it is
+  // being typed. Heard before anything else on the page (capture), so panels
+  // that keep their keys to themselves do not swallow it.
+  const togglePlay = useRef<() => void>(handleStartAudio);
+  togglePlay.current = audioStarted ? handleStopAudio : handleStartAudio;
+  useEffect(() => {
+    let taken = false;
+    const down = (e: KeyboardEvent) => {
+      if (e.key !== ' ') return;
+      if (e.repeat) { if (taken) e.preventDefault(); return; }
+      taken = isPlayShortcut(e);
+      if (!taken) return;
+      // Nothing else is to act on it: no page scroll, no press of a button
+      // that kept the focus after a click
+      e.preventDefault();
+      e.stopPropagation();
+      togglePlay.current();
+    };
+    // A button is pressed when Space comes back up: that has to be stopped too
+    const up = (e: KeyboardEvent) => {
+      if (e.key !== ' ' || !taken) return;
+      taken = false;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    window.addEventListener('keydown', down, true);
+    window.addEventListener('keyup', up, true);
+    return () => {
+      window.removeEventListener('keydown', down, true);
+      window.removeEventListener('keyup', up, true);
+    };
+  }, []);
+
   return (
     <div className="app">
       <header className="app-header">
@@ -197,9 +237,9 @@ export function AppContent() {
         <div className="audio-controls" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
           {audioStarted && <LoadIndicator source={loadSource} />}
           {!audioStarted ? (
-            <button className="play-btn" onClick={handleStartAudio}>&#9654;</button>
+            <button className="play-btn" onClick={handleStartAudio} aria-label="Play" title="Play (Space)">&#9654;</button>
           ) : (
-            <button className="play-btn" onClick={handleStopAudio}>&#9632;</button>
+            <button className="play-btn" onClick={handleStopAudio} aria-label="Stop" title="Stop (Space)">&#9632;</button>
           )}
           <span style={{ color: '#666', fontSize: '9px' }}>VOL</span>
           <input type="range" min="0" max="1" step="0.01" value={volume}
@@ -224,6 +264,8 @@ export function AppContent() {
             hidden={activeView === 'cover'}
             ledStates={ledStates}
             onAddProbe={handleAddProbe}
+            playing={audioStarted}
+            onBend={handleBend}
           />
           {activeView === 'cover' && (
             <CoverView activeView={activeView} onSelectView={setActiveView}

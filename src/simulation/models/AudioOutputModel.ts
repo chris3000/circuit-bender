@@ -41,6 +41,11 @@ export class AudioOutputModel implements ComponentModel {
 
   getGain(): number { return this.gain; }
 
+  /** What is heard: the voltage at the jack, from ground. */
+  audioTap(): { positive: number; negative: number } {
+    return { positive: this.node, negative: -1 };
+  }
+
   convergenceError(_xOld: Float64Array, _xNew: Float64Array): number { return 0; }
   reset(): void {}
 }

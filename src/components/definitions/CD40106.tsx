@@ -101,6 +101,7 @@ export const cd40106Definition: ComponentDefinition = {
     },
   ],
   defaultParameters: {},
+  floatingPins: true,
   shelf: { caption: 'Schmitt ×6', keywords: ['40106', 'hex', 'cmos', 'chip', 'ic', 'oscillator', 'logic'], art: chipArt(14, 'CD40106') },
   schematic: {
     symbol: {

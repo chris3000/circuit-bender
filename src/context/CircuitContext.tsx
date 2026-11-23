@@ -31,6 +31,8 @@ interface CircuitContextType {
   updateComponent: (componentId: ComponentId, updates: Partial<Component>, options?: UpdateOptions) => void;
   /** Move several parts as one undo step. */
   moveComponents: (moves: ComponentMove[]) => void;
+  /** Parts and the wires that go with them, as one undo step. */
+  addParts: (components: Component[], connections: Connection[]) => void;
   addConnection: (connection: Connection) => void;
   removeConnection: (connectionId: ConnectionId) => void;
   updateConnection: (connectionId: ConnectionId, updates: Partial<Connection>) => void;
@@ -69,6 +71,7 @@ type CircuitAction =
   | { type: 'REMOVE_COMPONENT'; componentId: ComponentId }
   | { type: 'UPDATE_COMPONENT'; componentId: ComponentId; updates: Partial<Component>; record: boolean }
   | { type: 'MOVE_COMPONENTS'; moves: ComponentMove[] }
+  | { type: 'ADD_PARTS'; components: Component[]; connections: Connection[] }
   | { type: 'ADD_CONNECTION'; connection: Connection }
   | { type: 'REMOVE_CONNECTION'; connectionId: ConnectionId }
   | { type: 'UPDATE_CONNECTION'; connectionId: ConnectionId; updates: Partial<Connection> }
@@ -131,6 +134,13 @@ function circuitReducer(state: CircuitState, action: CircuitAction): CircuitStat
         redoStack: [],
         circuit,
       };
+    }
+    case 'ADD_PARTS': {
+      let circuit = state.circuit;
+      for (const component of action.components) circuit = circuit.addComponent(component);
+      for (const connection of action.connections) circuit = circuit.addConnection(connection);
+      if (circuit === state.circuit) return state;
+      return { ...state, undoStack: pushUndoStack(state.undoStack, state.circuit), redoStack: [], circuit };
     }
     case 'ADD_CONNECTION':
       return {
@@ -266,6 +276,10 @@ export function CircuitProvider({ children, initial }: { children: React.ReactNo
     dispatch({ type: 'MOVE_COMPONENTS', moves });
   }, []);
 
+  const addParts = useCallback((components: Component[], connections: Connection[]) => {
+    dispatch({ type: 'ADD_PARTS', components, connections });
+  }, []);
+
   const addConnection = useCallback((connection: Connection) => {
     dispatch({ type: 'ADD_CONNECTION', connection });
   }, []);
@@ -315,6 +329,7 @@ export function CircuitProvider({ children, initial }: { children: React.ReactNo
     removeComponent,
     updateComponent,
     moveComponents,
+    addParts,
     addConnection,
     removeConnection,
     updateConnection,
@@ -330,7 +345,7 @@ export function CircuitProvider({ children, initial }: { children: React.ReactNo
     redo,
     canUndo: state.undoStack.length > 0,
     canRedo: state.redoStack.length > 0,
-  }), [state, addComponent, removeComponent, updateComponent, moveComponents, addConnection, removeConnection, updateConnection, setWireColor, loadCircuit, markSaved, setSelection, clearSelection, undo, redo]);
+  }), [state, addComponent, removeComponent, updateComponent, moveComponents, addParts, addConnection, removeConnection, updateConnection, setWireColor, loadCircuit, markSaved, setSelection, clearSelection, undo, redo]);
 
   return (
     <CircuitContext.Provider value={value}>{children}</CircuitContext.Provider>

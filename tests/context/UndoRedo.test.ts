@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import React from 'react';
 import { CircuitProvider, useCircuit } from '@/context/CircuitContext';
-import type { Component, ComponentId } from '@/types/circuit';
+import type { Component, ComponentId, ConnectionId, NetId, PinId } from '@/types/circuit';
 
 function makeComponent(id: string): Component {
   return {
@@ -23,6 +23,7 @@ function UndoRedoTestHarness() {
   const {
     circuit,
     addComponent,
+    addParts,
     removeComponent,
     undo,
     redo,
@@ -42,6 +43,18 @@ function UndoRedoTestHarness() {
       'data-testid': 'add2',
       onClick: () => addComponent(makeComponent('comp-2')),
     }, 'Add2'),
+    React.createElement('div', { 'data-testid': 'wires' }, circuit.getConnections().length),
+    React.createElement('button', {
+      'data-testid': 'addParts',
+      onClick: () => addParts(
+        [makeComponent('part-a'), makeComponent('part-b')],
+        [{
+          id: 'conn-1' as ConnectionId, net: 'net-1' as NetId,
+          from: { componentId: 'part-a' as ComponentId, pinId: 'p1' as PinId },
+          to: { componentId: 'part-b' as ComponentId, pinId: 'p1' as PinId },
+        }],
+      ),
+    }, 'AddParts'),
     React.createElement('button', {
       'data-testid': 'remove',
       onClick: () => removeComponent('comp-1' as ComponentId),
@@ -160,5 +173,22 @@ describe('Undo/Redo Stack Cap', () => {
 
     // canUndo should now be false — stack was capped at 50
     expect(contextRef!.canUndo).toBe(false);
+  });
+
+  it('adds several parts and their wires as one step', () => {
+    renderHarness();
+    act(() => { screen.getByTestId('add').click(); });
+
+    act(() => { screen.getByTestId('addParts').click(); });
+    expect(screen.getByTestId('count')).toHaveTextContent('3');
+    expect(screen.getByTestId('wires')).toHaveTextContent('1');
+
+    act(() => { screen.getByTestId('undo').click(); });
+    expect(screen.getByTestId('count')).toHaveTextContent('1');
+    expect(screen.getByTestId('wires')).toHaveTextContent('0');
+
+    act(() => { screen.getByTestId('redo').click(); });
+    expect(screen.getByTestId('count')).toHaveTextContent('3');
+    expect(screen.getByTestId('wires')).toHaveTextContent('1');
   });
 });

@@ -19,6 +19,7 @@ import { ledDefinition } from '@/components/definitions/LED';
 import { switchDefinition } from '@/components/definitions/Switch';
 import { junctionDefinition } from '@/components/definitions/Junction';
 import { exampleCircuits } from '@/examples/circuits';
+import { ALL_PARTS } from '../allParts';
 import { createComponentFromDefinition } from '@/utils/componentFactory';
 import type { Component, Connection } from '@/types/circuit';
 import {
@@ -31,11 +32,7 @@ import { computeWireRoutes } from '@/views/CircuitCanvas/routing/useWireRoutes';
 
 beforeAll(() => {
   const registry = ComponentRegistry.getInstance();
-  for (const def of [resistorDefinition, capacitorDefinition, cd40106Definition, lm741Definition,
-    potentiometerDefinition, powerSupplyDefinition, groundDefinition, transistor2N3904Definition,
-    diode1N914Definition, audioOutputJackDefinition, ledDefinition, switchDefinition, junctionDefinition]) {
-    registry.register(def);
-  }
+  for (const def of ALL_PARTS) registry.register(def);
 });
 
 interface Segment { a: Point; b: Point }

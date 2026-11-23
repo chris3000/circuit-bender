@@ -4,7 +4,7 @@ import { Toolbar } from '@/views/SchematicView/Toolbar';
 import type { ActiveView } from '@/views/viewModes';
 import { coverLayout, isCoverInput, PANEL, type CoverItem } from './coverLayout';
 import { PanelArt } from './PanelArt';
-import { Jack, Knob, Lamp, Pilot, Toggle, type LevelSource, type SetParameters } from './CoverControls';
+import { Jack, Knob, Lamp, Pilot, PushButton, Speaker, Toggle, TouchPad, type LevelSource, type SetParameters } from './CoverControls';
 import styles from './Cover.module.css';
 
 interface CoverViewProps {
@@ -46,7 +46,7 @@ const count = (n: number, one: string, many = `${one}S`) => `${n} ${n === 1 ? on
 
 /**
  * The cover: the front panel of the circuit as a finished instrument, with
- * every input (knobs, switches) and output (lights, the audio socket) on it
+ * every input (knobs, switches, buttons, touch plates) and output (lights, the speaker) on it
  * and nothing else. It is the same circuit as the other two views, so a knob
  * turned here is turned there, and plays through the same simulation.
  */
@@ -83,18 +83,21 @@ export function CoverView({ activeView, onSelectView, ledStates, playing, levels
             {layout.items.map((item) => {
               const shared = { item, onRename: rename };
               switch (item.control) {
-                case 'knob': return <Knob key={item.component.id} {...shared} onChange={setParameters} />;
-                case 'toggle': return <Toggle key={item.component.id} {...shared} onChange={setParameters} />;
-                case 'lamp': return <Lamp key={item.component.id} {...shared} lit={ledStates[item.component.id] ?? false} />;
-                case 'pilot': return <Pilot key={item.component.id} {...shared} lit={playing} />;
-                default: return <Jack key={item.component.id} {...shared} levels={levels} />;
+                case 'knob': return <Knob key={item.id} {...shared} onChange={setParameters} />;
+                case 'toggle': return <Toggle key={item.id} {...shared} onChange={setParameters} />;
+                case 'button': return <PushButton key={item.id} {...shared} onChange={setParameters} />;
+                case 'pad': return <TouchPad key={item.id} {...shared} onChange={setParameters} />;
+                case 'lamp': return <Lamp key={item.id} {...shared} lit={ledStates[item.component.id] ?? false} />;
+                case 'pilot': return <Pilot key={item.id} {...shared} lit={playing} />;
+                case 'speaker': return <Speaker key={item.id} {...shared} levels={levels} />;
+                default: return <Jack key={item.id} {...shared} levels={levels} />;
               }
             })}
             {layout.items.length === 0 && (
               <div className={styles.empty} data-testid="cover-empty"
                 style={{ left: layout.face.left + PANEL.margin, right: layout.width - layout.face.right + PANEL.margin, top: PANEL.header + 28 }}>
                 <strong>NOTHING ON THE COVER YET</strong>
-                Knobs, switches, LEDs and the audio jack show up here once they are in the circuit.
+                Knobs, switches, buttons, LEDs and the audio output show up here once they are in the circuit.
               </div>
             )}
           </div>
@@ -102,7 +105,7 @@ export function CoverView({ activeView, onSelectView, ledStates, playing, levels
       </div>
       {inputs > 0 && (
         <div className={styles.hint}>
-          Drag round a knob to turn it, click a switch to flip it, click a name to change it.
+          Drag round a knob to turn it, click a switch to flip it, hold a button or a touch plate, click a name to change it.
         </div>
       )}
     </div>

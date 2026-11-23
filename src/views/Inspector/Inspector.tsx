@@ -158,6 +158,7 @@ function PartFields({ part }: { part: Component }) {
 
   // The number the part is known by, if it has one (a resistor's resistance)
   const valueField = definition?.value;
+  const control = definition?.control;
 
   return (
     <>
@@ -212,24 +213,60 @@ function PartFields({ part }: { part: Component }) {
           onChange={(v, record) => setParameters({ gain: v }, record)} />
       )}
 
+      {part.type === 'lm386' && (
+        <SliderField label="Gain" min={20} max={200} step={1}
+          value={Math.max(20, Math.min(200, Number(part.parameters.gain) || 20))}
+          format={(v) => `×${v}`}
+          onChange={(v, record) => setParameters({ gain: v }, record)} />
+      )}
+
       {part.type === 'switch' && (
-        <div className={styles.field}>
-          <div className={styles.label}>Switch</div>
-          <div className={styles.row} role="group" aria-label="Switch position">
-            {[{ text: 'Off', closed: 0 }, { text: 'On', closed: 1 }].map((option) => {
-              const active = (Number(part.parameters.closed) >= 1 ? 1 : 0) === option.closed;
-              return (
-                <button key={option.text} aria-pressed={active}
-                  className={`${styles.button} ${active ? styles.pressed : ''}`}
-                  onClick={() => { if (!active) setParameters({ closed: option.closed }); }}>
-                  {option.text}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <TwoWay label="Switch" group="Switch position" off="Off" on="On"
+          value={Number(part.parameters.closed) >= 1} onChange={(on) => setParameters({ closed: on ? 1 : 0 })} />
+      )}
+
+      {/* The control the part has on the canvas, whatever it is: here it stays where it is put */}
+      {control?.kind === 'dial' && (
+        <SliderField label={control.name} min={0} max={1} step={0.01}
+          value={Math.max(0, Math.min(1, Number(part.parameters[control.parameter] ?? control.rest ?? 0)))}
+          format={(v) => `${Math.round(v * 100)}%`}
+          onChange={(v, record) => setParameters({ [control.parameter]: v }, record)} />
+      )}
+      {control?.kind === 'hold' && (control.held ?? 1) < 1 && (
+        <SliderField label={control.name} min={0} max={1} step={0.01}
+          value={Math.max(0, Math.min(1, Number(part.parameters[control.parameter] ?? 0)))}
+          format={(v) => (v > 0 ? `${Math.round(v * 100)}%` : 'off')}
+          onChange={(v, record) => setParameters({ [control.parameter]: v }, record)} />
+      )}
+      {control?.kind === 'hold' && (control.held ?? 1) >= 1 && (
+        <TwoWay label={control.name} group={`${control.name} position`} off="Up" on="Held down"
+          value={Number(part.parameters[control.parameter]) >= 1}
+          onChange={(on) => setParameters({ [control.parameter]: on ? 1 : 0 })} />
       )}
     </>
+  );
+}
+
+/** A pair of buttons for something that is one way or the other. */
+function TwoWay({ label, group, off, on, value, onChange }: {
+  label: string; group: string; off: string; on: string; value: boolean; onChange: (on: boolean) => void;
+}) {
+  return (
+    <div className={styles.field}>
+      <div className={styles.label}>{label}</div>
+      <div className={styles.row} role="group" aria-label={group}>
+        {[{ text: off, state: false }, { text: on, state: true }].map((option) => {
+          const active = value === option.state;
+          return (
+            <button key={option.text} aria-pressed={active}
+              className={`${styles.button} ${active ? styles.pressed : ''}`}
+              onClick={() => { if (!active) onChange(option.state); }}>
+              {option.text}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

@@ -148,6 +148,39 @@ button.name:focus-visible {
   outline: none;
 }
 
+/* A button to hold, and the plates to touch */
+.press,
+.plates {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+  touch-action: none;
+}
+
+.press {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+}
+
+.plates {
+  border-radius: 9px;
+}
+
+.press:focus-visible,
+.plates:focus-visible {
+  box-shadow: 0 0 0 2px #FF2D55;
+}
+
+.fixed {
+  cursor: default;
+}
+
 .light {
   position: absolute;
   left: 50%;

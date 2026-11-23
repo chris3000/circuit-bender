@@ -1,7 +1,8 @@
 /**
- * The things on the cover: a knob to turn, a switch to flip, a light, the
- * pilot light and the output socket with its level meter. Each fills the cell
- * the layout gave it and has its name engraved underneath.
+ * The things on the cover: a knob to turn, a switch to flip, a button to
+ * hold, plates to touch, a light, the pilot light, and the output — a socket
+ * or a speaker — with its level meter. Each fills the cell the layout gave it
+ * and has its name engraved underneath.
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { KNOB_MIN_ANGLE, KNOB_SWEEP, knobPositionAt } from '@/components/art/knob';
@@ -46,6 +47,8 @@ function Cell({ item, onRename, readout, children }: CellProps) {
           onBlur={(e) => commit(e.target.value)} />
       ) : readout ? (
         <div className={`${styles.name} ${styles.readout}`}>{readout}</div>
+      ) : item.cover.fixedName ? (
+        <div className={`${styles.name} ${styles.fixed}`}>{item.name}</div>
       ) : (
         <button type="button" className={`${styles.name} ${item.named ? '' : styles.standIn}`}
           title={item.named ? 'Click to rename' : 'Click to give it a name'} onClick={() => setEditing(true)}>
@@ -203,6 +206,113 @@ export function Toggle({ item, onRename, onChange }: ControlProps & { onChange: 
   );
 }
 
+// --- Push button and touch plates: on only while they are held ---
+
+/**
+ * Holding something down. `press(value)` sets the parameter, `release()`
+ * puts it back to 0; neither is an undo step, and it is let go if the pointer
+ * is lost or the control goes away while held.
+ */
+function useHold(item: CoverItem, key: string, onChange: SetParameters) {
+  // Read when the pointer moves, not when the control was drawn: the hold outlives many redraws
+  const latest = useRef({ item, onChange });
+  latest.current = { item, onChange };
+  const set = useCallback((value: number) => {
+    const { item: now, onChange: change } = latest.current;
+    if (Number(now.component.parameters[key] ?? 0) === value) return;
+    change(now, { ...now.component.parameters, [key]: value }, { record: false });
+  }, [key]);
+  const release = useCallback(() => set(0), [set]);
+  // Let go if the control goes away while it is held (the view changed under the finger)
+  useEffect(() => release, [release]);
+  /** Call from pointerdown: follows the pointer until it is let go. */
+  const follow = useCallback((e: React.PointerEvent<HTMLElement>, valueAt: (clientY: number, target: DOMRect) => number) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.currentTarget.focus();
+    const rect = e.currentTarget.getBoundingClientRect();
+    set(valueAt(e.clientY, rect));
+    const onMove = (move: PointerEvent) => set(valueAt(move.clientY, rect));
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      release();
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  }, [set, release]);
+  /** Enter holds it from the keyboard (Space plays and stops). */
+  const keys = (value: number) => ({
+    onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' && !e.repeat) { e.preventDefault(); set(value); } },
+    onKeyUp: (e: React.KeyboardEvent) => { if (e.key === 'Enter') release(); },
+    onBlur: release,
+  });
+  return { follow, keys };
+}
+
+export function PushButton({ item, onRename, onChange }: ControlProps & { onChange: SetParameters }) {
+  const key = item.cover.parameter ?? 'closed';
+  const held = Number(item.component.parameters[key] ?? 0) >= 1;
+  const { follow, keys } = useHold(item, key, onChange);
+  return (
+    <Cell item={item} onRename={onRename}>
+      <Art item={item} centre={ROW_CENTRE}>
+        <circle cx="1.5" cy="2.5" r="21" fill="#000" opacity="0.35" />
+        <circle r="21" fill={METAL} stroke={METAL_DARK} strokeWidth="1" />
+        <path d="M -16.4 -6.4 A 17.6 17.6 0 0 1 -6.4 -16.4" fill="none" stroke={METAL_LIGHT} strokeWidth="1.6" strokeLinecap="round" />
+        <circle r="16" fill="#3A3A3A" />
+        {/* The cap sinks into its collar while it is held */}
+        {!held && <circle cx="1" cy="2" r="14" fill="#000" opacity="0.4" />}
+        <circle r={held ? 13 : 14} fill={held ? '#B0152F' : PINK} data-testid="cover-button-cap" />
+        {!held && <path d="M -9.6 -4.2 A 10.5 10.5 0 0 1 -4.2 -9.6" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" opacity="0.75" />}
+      </Art>
+      <button type="button" className={styles.press} aria-pressed={held} aria-label={item.name}
+        title={`${item.name}: hold to press`} style={{ top: ROW_CENTRE }}
+        onPointerDown={(e) => follow(e, () => 1)} {...keys(1)} />
+    </Cell>
+  );
+}
+
+/** How hard a keyboard touches. */
+const KEY_TOUCH = 0.6;
+const PAD = { width: 68, height: 64 };
+
+/** Two plates to put a finger across. The higher up they are pressed, the firmer the touch. */
+export function TouchPad({ item, onRename, onChange }: ControlProps & { onChange: SetParameters }) {
+  const key = item.cover.parameter ?? 'touch';
+  const touch = Math.max(0, Math.min(1, Number(item.component.parameters[key] ?? 0)));
+  const { follow, keys } = useHold(item, key, onChange);
+  // From the lightest touch at the bottom edge to the firmest at the top
+  const pressure = (clientY: number, rect: DOMRect) =>
+    Math.round(Math.max(0.05, Math.min(1, (rect.bottom - clientY) / rect.height)) * 100) / 100;
+  const top = -PAD.height / 2;
+  return (
+    <Cell item={item} onRename={onRename} readout={touch > 0 ? `${Math.round(touch * 100)}%` : undefined}>
+      <Art item={item} centre={ROW_CENTRE}>
+        <rect x={-PAD.width / 2 - 4 + 1.5} y={top - 4 + 2.5} width={PAD.width + 8} height={PAD.height + 8} rx="9" fill="#000" opacity="0.35" />
+        <rect x={-PAD.width / 2 - 4} y={top - 4} width={PAD.width + 8} height={PAD.height + 8} rx="9" fill="#141414" stroke="#4A4A4A" strokeWidth="1" />
+        {[-PAD.width / 2, 3].map((x) => (
+          <g key={x}>
+            <rect x={x} y={top} width={PAD.width / 2 - 3} height={PAD.height} rx="5" fill="#C9A85A" stroke="#93783A" strokeWidth="1" />
+            <rect x={x + 4} y={top + 4} width={PAD.width / 2 - 11} height="2.4" rx="1.2" fill="#fff" opacity="0.5" />
+            <rect x={x + 3} y={top + PAD.height - 8} width={PAD.width / 2 - 9} height="3.4" rx="1.7" fill="#000" opacity="0.14" />
+          </g>
+        ))}
+        {touch > 0 && (
+          <ellipse data-testid="cover-pad-finger" cx="0" cy={top + PAD.height * (1 - touch) * 0.8 + PAD.height * 0.1} rx="19" ry="12"
+            fill={PINK} opacity={0.35 + 0.5 * touch} />
+        )}
+      </Art>
+      <button type="button" className={styles.plates} aria-pressed={touch > 0} aria-label={item.name}
+        title={`${item.name}: press and hold. Higher up is a firmer touch.`}
+        style={{ top: ROW_CENTRE, width: PAD.width + 8, height: PAD.height + 8 }}
+        onPointerDown={(e) => follow(e, pressure)} {...keys(KEY_TOUCH)} />
+    </Cell>
+  );
+}
+
 // --- Lights ---
 
 /** A jewel in a chrome bezel. */
@@ -271,11 +381,11 @@ export function segmentsLit(level: number): number {
 }
 const SEGMENT_OFF = '#3D3D3D';
 
-export function Jack({ item, onRename, levels }: ControlProps & { levels?: LevelSource }) {
+/** The row of lights above an output. It follows the sound without re-rendering anything. */
+function Meter({ levels }: { levels?: LevelSource }) {
   const meter = useRef<SVGGElement>(null);
 
-  // The meter follows the sound without re-rendering anything: peaks arrive
-  // many times a second, and it falls back on its own between them
+  // Peaks arrive many times a second, and the meter falls back on its own between them
   useEffect(() => {
     if (!levels) return;
     let level = 0, shown = -1, frame = 0;
@@ -302,13 +412,20 @@ export function Jack({ item, onRename, levels }: ControlProps & { levels?: Level
 
   const span = SEGMENTS * 8 + (SEGMENTS - 1) * 3;
   return (
+    <g ref={meter} data-testid="cover-meter" data-lit="0">
+      {Array.from({ length: SEGMENTS }, (_, i) => (
+        <rect key={i} x={-span / 2 + i * 11} y="-50" width="8" height="6" rx="1.5" fill={SEGMENT_OFF} />
+      ))}
+    </g>
+  );
+}
+
+/** The output as a socket: the signal goes on somewhere else. */
+export function Jack({ item, onRename, levels }: ControlProps & { levels?: LevelSource }) {
+  return (
     <Cell item={item} onRename={onRename}>
       <Art item={item} centre={ROW_CENTRE}>
-        <g ref={meter} data-testid="cover-meter" data-lit="0">
-          {Array.from({ length: SEGMENTS }, (_, i) => (
-            <rect key={i} x={-span / 2 + i * 11} y="-50" width="8" height="6" rx="1.5" fill={SEGMENT_OFF} />
-          ))}
-        </g>
+        <Meter levels={levels} />
         <g transform="translate(0 4)">
           <circle cx="1.5" cy="2.5" r="18" fill="#000" opacity="0.35" />
           <circle r="18" fill={METAL_DARK} />
@@ -317,6 +434,32 @@ export function Jack({ item, onRename, levels }: ControlProps & { levels?: Level
           <circle r="9" fill="#8F8F8F" stroke="#5F5F5F" strokeWidth="1" />
           <circle r="5.6" fill="#0A0A0A" />
           <path d="M -3.6 4.2 A 5.6 5.6 0 0 0 4.2 3.6" fill="none" stroke="#555" strokeWidth="1" />
+        </g>
+      </Art>
+    </Cell>
+  );
+}
+
+/** Holes of a speaker grille: rings round a centre hole, inside `radius`. */
+const GRILLE = [
+  { r: 0, count: 1 }, { r: 5.4, count: 6 }, { r: 10.8, count: 12 }, { r: 16.2, count: 18 },
+].flatMap(({ r, count }) => Array.from({ length: count }, (_, i) => {
+  const a = (i / count) * 2 * Math.PI + (count === 12 ? Math.PI / 12 : 0);
+  return { x: Math.cos(a) * r, y: Math.sin(a) * r };
+}));
+
+/** The output as a small speaker: what the circuit plays through. */
+export function Speaker({ item, onRename, levels }: ControlProps & { levels?: LevelSource }) {
+  return (
+    <Cell item={item} onRename={onRename}>
+      <Art item={item} centre={ROW_CENTRE}>
+        <Meter levels={levels} />
+        <g transform="translate(0 6)" data-testid="cover-speaker-grille">
+          <circle cx="1.5" cy="2.5" r="25" fill="#000" opacity="0.35" />
+          <circle r="25" fill={METAL} stroke={METAL_DARK} strokeWidth="1" />
+          <path d="M -19.6 -8 A 21.2 21.2 0 0 1 -8 -19.6" fill="none" stroke={METAL_LIGHT} strokeWidth="1.6" strokeLinecap="round" />
+          <circle r="21" fill="#1C1C1C" stroke="#0A0A0A" strokeWidth="1" />
+          {GRILLE.map(({ x, y }) => <circle key={`${x.toFixed(1)},${y.toFixed(1)}`} cx={x} cy={y} r="1.9" fill="#050505" stroke="#3A3A3A" strokeWidth="0.6" />)}
         </g>
       </Art>
     </Cell>

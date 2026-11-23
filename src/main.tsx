@@ -15,6 +15,15 @@ import { audioOutputJackDefinition } from './components/definitions/AudioOutputJ
 import { ledDefinition } from './components/definitions/LED';
 import { switchDefinition } from './components/definitions/Switch';
 import { junctionDefinition } from './components/definitions/Junction';
+import { ne555Definition } from './components/definitions/NE555';
+import { cd4093Definition } from './components/definitions/CD4093';
+import { cd4040Definition } from './components/definitions/CD4040';
+import { cd4017Definition } from './components/definitions/CD4017';
+import { lm386Definition } from './components/definitions/LM386';
+import { ldrDefinition } from './components/definitions/LightDependentResistor';
+import { speakerDefinition } from './components/definitions/Speaker';
+import { pushButtonDefinition } from './components/definitions/PushButton';
+import { bodyContactDefinition } from './components/definitions/BodyContact';
 import 'reactflow/dist/style.css';
 import './styles/globals.css';
 
@@ -33,6 +42,15 @@ registry.register(audioOutputJackDefinition);
 registry.register(ledDefinition);
 registry.register(switchDefinition);
 registry.register(junctionDefinition);
+registry.register(ne555Definition);
+registry.register(cd4093Definition);
+registry.register(cd4040Definition);
+registry.register(cd4017Definition);
+registry.register(lm386Definition);
+registry.register(ldrDefinition);
+registry.register(speakerDefinition);
+registry.register(pushButtonDefinition);
+registry.register(bodyContactDefinition);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <StrictMode>

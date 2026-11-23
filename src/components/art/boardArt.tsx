@@ -17,7 +17,8 @@ import { KNOB_MIN_ANGLE, KNOB_SWEEP } from '@/components/art/knob';
 import { formatValue } from '@/utils/parameterParser';
 import {
   BLACK, BRASS, BRASS_DARK, METAL, METAL_DARK, METAL_LIGHT, PRINT_FONT, Print,
-  capacitorBody, capacitorKind, diodeBody, groundArt, jackBody, ledBody, resistorBody, switchBody, transistorBody,
+  capacitorBody, capacitorKind, diodeBody, groundArt, jackBody, ldrBody, ledBody, pushButtonBody, resistorBody,
+  speakerBody, switchBody, touchPadsBody, transistorBody,
 } from './partArt';
 
 type Art = (params: ComponentParameters) => ReactNode;
@@ -154,7 +155,51 @@ export const jackBoard: Art = (params) => (
   </g>
 );
 
+/** Push button: pins at (±25, 0), either side of the body. */
+export const pushButtonBoard: Art = (params) => (
+  <g>
+    <Leg from={[-25, 0]} to={[-12, 0]} />
+    <Leg from={[25, 0]} to={[12, 0]} />
+    <g transform="scale(1.5)">{pushButtonBody(params)}</g>
+  </g>
+);
+
+/** Light-dependent resistor: pins at (±30, 0), the cell facing up. How much light is on it is printed beside it. */
+export const ldrBoard: Art = (params) => (
+  <g>
+    <Leg from={[-30, 0]} to={[-12, 0]} />
+    <Leg from={[30, 0]} to={[12, 0]} />
+    <g transform="scale(1.4)">{ldrBody(params)}</g>
+    <Silk y={25}>{`LIGHT ${Math.round(Math.max(0, Math.min(1, Number(params.light ?? 0.5))) * 100)}%`}</Silk>
+  </g>
+);
+
+/** Body contacts: pins at (±25, 0), a plate to each. */
+export const touchPadsBoard: Art = (params) => (
+  <g>
+    <Leg from={[-25, 0]} to={[-16, 0]} />
+    <Leg from={[25, 0]} to={[16, 0]} />
+    <g transform="scale(1.5)">{touchPadsBody(params)}</g>
+    <Silk y={24}>TOUCH</Silk>
+  </g>
+);
+
+/** Speaker: + at (-30, -10) and − at (-30, 10), a lug to each. */
+export const speakerBoard: Art = (params) => (
+  <g>
+    <Leg from={[-30, -10]} to={[-14, -10]} />
+    <Leg from={[-30, 10]} to={[-14, 10]} />
+    <g transform="translate(5 0) scale(2.1)">{speakerBody(params)}</g>
+    <text x={-24} y={-15} textAnchor="middle" fontSize={8} fontWeight="bold" fill="#D4ECD4" opacity={0.85} fontFamily={PRINT_FONT}>+</text>
+  </g>
+);
+
 interface ChipLeg { x: number; y: number; side: 'left' | 'right' | 'top'; unused?: boolean }
+
+/** The legs of a chip whose pins are down its left and right sides and along its top: one to each pin. */
+export function chipLegs(pins: Array<{ position: { x: number; y: number } }>, top: number): ChipLeg[] {
+  return pins.map(({ position: { x, y } }) => ({ x, y, side: y <= top ? 'top' as const : x < 0 ? 'left' as const : 'right' as const }));
+}
 
 /**
  * A chip from above. Its legs are where the schematic symbol's pins are

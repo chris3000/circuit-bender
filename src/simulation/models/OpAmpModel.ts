@@ -31,6 +31,7 @@ export interface OpAmpParams {
   Cc: number;        // Compensation capacitor (F)
   Rout: number;      // Output resistance (Ω)
   headroom: number;  // How close the output can get to either rail (V)
+  Rsupply: number;   // What the chip draws between its supply pins at rest, as a resistance (Ω)
 }
 
 export const OPAMP_LM741_PARAMS: OpAmpParams = {
@@ -41,6 +42,7 @@ export const OPAMP_LM741_PARAMS: OpAmpParams = {
   Cc: 30e-12,
   Rout: 75,
   headroom: 1.5,
+  Rsupply: 7500,     // about 1.2 mA on 9 V
 };
 
 /** Conductance of the gain-node rail clamps: stiff next to the ±Imax that drives them. */
@@ -59,6 +61,7 @@ export class OpAmpModel implements ComponentModel {
   private readonly gGain: number;   // 1 / Rg
   private readonly cc: number;
   private readonly gOut: number;
+  private readonly gSupply: number;
 
   private nInM = -1;
   private nInP = -1;
@@ -84,6 +87,7 @@ export class OpAmpModel implements ComponentModel {
     this.vClip = this.iMax / this.gm;
     this.gGain = this.gm / params.Aol;
     this.gOut = 1 / params.Rout;
+    this.gSupply = params.Rsupply > 0 ? 1 / params.Rsupply : 0;
     this.clampHigh = new PwlClamp(G_RAIL, -params.headroom);
     this.clampLow = new PwlClamp(G_RAIL, -params.headroom);
   }
@@ -106,6 +110,8 @@ export class OpAmpModel implements ComponentModel {
     const g = this.nGain;
 
     stampConductance(G, this.nInP, this.nInM, 1 / this.rin);
+    // Quiescent current: nothing to an ideal supply, everything to a starved one
+    stampConductance(G, this.nVpos, this.nVneg, this.gSupply);
 
     // Input stage: current gm·(V+ − V−) INTO the gain node while unsaturated.
     // Rows are "current leaving the node", so IN+ enters with a minus sign.

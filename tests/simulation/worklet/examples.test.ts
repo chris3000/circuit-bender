@@ -6,62 +6,23 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
-import { resistorDefinition } from '@/components/definitions/Resistor';
-import { capacitorDefinition } from '@/components/definitions/Capacitor';
-import { cd40106Definition } from '@/components/definitions/CD40106';
-import { lm741Definition } from '@/components/definitions/LM741';
-import { potentiometerDefinition } from '@/components/definitions/Potentiometer';
-import { powerSupplyDefinition } from '@/components/definitions/PowerSupply';
-import { groundDefinition } from '@/components/definitions/Ground';
-import { transistor2N3904Definition } from '@/components/definitions/Transistor2N3904';
-import { diode1N914Definition } from '@/components/definitions/Diode1N914';
-import { audioOutputJackDefinition } from '@/components/definitions/AudioOutputJack';
-import { ledDefinition } from '@/components/definitions/LED';
-import { switchDefinition } from '@/components/definitions/Switch';
-import { junctionDefinition } from '@/components/definitions/Junction';
 import { exampleCircuits } from '@/examples/circuits';
 import { MNASolver } from '@/simulation/solver/MNASolver';
-import { ModelRegistry } from '@/simulation/models/ModelRegistry';
-import { ResistorModel } from '@/simulation/models/ResistorModel';
-import { CapacitorModel } from '@/simulation/models/CapacitorModel';
-import { PotentiometerModel } from '@/simulation/models/PotentiometerModel';
-import { PowerSourceModel } from '@/simulation/models/PowerSourceModel';
-import { GroundModel } from '@/simulation/models/GroundModel';
-import { AudioOutputModel } from '@/simulation/models/AudioOutputModel';
-import { DiodeModel, DIODE_1N914_PARAMS, DIODE_LED_RED_PARAMS } from '@/simulation/models/DiodeModel';
-import { BJTModel, BJT_2N3904_PARAMS } from '@/simulation/models/BJTModel';
-import { OpAmpModel, OPAMP_LM741_PARAMS } from '@/simulation/models/OpAmpModel';
-import { SchmittTriggerModel } from '@/simulation/models/SchmittTriggerModel';
-import { SwitchModel } from '@/simulation/models/SwitchModel';
-import { JunctionModel } from '@/simulation/models/JunctionModel';
+import { createStandardModels } from '@/simulation/models/standardModels';
+import type { DiodeModel } from '@/simulation/models/DiodeModel';
+import type { DecadeCounterModel } from '@/simulation/models/CmosChipModel';
+import { ALL_PARTS } from '../../views/allParts';
 
 const SR = 48000;
 const DT = 1 / SR;
-
-function modelRegistry(): ModelRegistry {
-  const reg = new ModelRegistry();
-  reg.register('resistor', () => new ResistorModel());
-  reg.register('capacitor', () => new CapacitorModel());
-  reg.register('potentiometer', () => new PotentiometerModel());
-  reg.register('power', () => new PowerSourceModel());
-  reg.register('ground', () => new GroundModel());
-  reg.register('audio-output', () => new AudioOutputModel());
-  reg.register('1n914', () => new DiodeModel(DIODE_1N914_PARAMS));
-  reg.register('led', () => new DiodeModel(DIODE_LED_RED_PARAMS));
-  reg.register('2n3904', () => new BJTModel(BJT_2N3904_PARAMS));
-  reg.register('lm741', () => new OpAmpModel(OPAMP_LM741_PARAMS));
-  reg.register('cd40106', () => new SchmittTriggerModel());
-  reg.register('switch', () => new SwitchModel());
-  reg.register('junction', () => new JunctionModel());
-  return reg;
-}
 
 /** Build an example and hand it to the solver exactly as App.tsx serializes it. */
 function load(name: string) {
   const example = exampleCircuits.find(e => e.name === name);
   if (!example) throw new Error(`No example named "${name}"`);
   const { components, connections } = example.build();
-  const solver = new MNASolver(modelRegistry());
+  // The same models the worklet has
+  const solver = new MNASolver(createStandardModels());
   solver.loadCircuit(
     components.map(c => ({
       id: c.id,
@@ -111,12 +72,7 @@ function schmittFrequency(resistance: number, capacitance: number): number {
 beforeAll(() => {
   const registry = ComponentRegistry.getInstance();
   registry.clear();
-  for (const def of [
-    resistorDefinition, capacitorDefinition, cd40106Definition, lm741Definition,
-    potentiometerDefinition, powerSupplyDefinition, groundDefinition,
-    transistor2N3904Definition, diode1N914Definition, audioOutputJackDefinition,
-    ledDefinition, switchDefinition, junctionDefinition,
-  ]) registry.register(def);
+  for (const def of ALL_PARTS) registry.register(def);
 });
 
 describe('example circuits', () => {
@@ -254,6 +210,238 @@ describe('example switches', () => {
     expect(slow).toBeGreaterThanOrEqual(4);
     expect(fast / slow).toBeGreaterThan(4);
     expect(fast / slow).toBeLessThan(7);
+  });
+});
+
+/**
+ * The examples built from the parts that came with the bend tools: timers,
+ * counters, a photocell, a push button, body contacts and a speaker.
+ */
+describe('examples with timers and counters', () => {
+  const named = (components: ReturnType<typeof load>['components'], label: string) => components.find(c => c.label === label)!;
+  const peakOf = (samples: Float64Array) => samples.reduce((peak, s) => Math.max(peak, Math.abs(s)), 0);
+  /** How many times a second a pin goes high, counted on the pin itself. */
+  function risesPerSecond(solver: MNASolver, componentId: string, pinId: string, seconds: number, settle = 0.25): number {
+    for (let i = 0; i < SR * settle; i++) solver.step(DT);
+    let rises = 0, wasHigh = solver.getNodeVoltageByPin(componentId, pinId) > 4;
+    const n = Math.round(SR * seconds);
+    for (let i = 0; i < n; i++) {
+      solver.step(DT);
+      const high = solver.getNodeVoltageByPin(componentId, pinId) > 4;
+      if (high && !wasHigh) rises++;
+      wasHigh = high;
+    }
+    return rises / seconds;
+  }
+
+  describe('Atari Punk Console', () => {
+    const NAME = 'Atari Punk Console';
+    /** The two timers' output frequencies with the controls as given. */
+    function apc(settings: { pitch?: number; width?: number; deep?: number } = {}) {
+      const { solver, components } = load(NAME);
+      if (settings.pitch !== undefined) solver.updateParam(named(components, 'PITCH').id, 'position', settings.pitch);
+      if (settings.width !== undefined) solver.updateParam(named(components, 'WIDTH').id, 'position', settings.width);
+      if (settings.deep !== undefined) solver.updateParam(named(components, 'DEEP').id, 'closed', settings.deep);
+      const [first, second] = components.filter(c => c.type === 'ne555');
+      solver.setProbes([{ componentId: first.id, pinId: first.pins[5].id }, { componentId: second.id, pinId: second.pins[5].id }]);
+      for (let i = 0; i < SR * 0.25; i++) solver.step(DT);
+      const rises = [0, 0], was = [false, false];
+      let peak = 0;
+      for (let i = 0; i < SR; i++) {
+        peak = Math.max(peak, Math.abs(solver.step(DT)));
+        for (let t = 0; t < 2; t++) {
+          const high = solver.getProbeSample(t) > 4;
+          if (high && !was[t]) rises[t]++;
+          was[t] = high;
+        }
+      }
+      return { clock: rises[0], note: rises[1], peak };
+    }
+
+    it('runs the first timer at the pitch its parts give', () => {
+      // 1.44 / ((RA + 2·RB)·C) with RA 1k, RB 10k + half of 500k, C 10nF
+      expect(apc().clock / (1 / (Math.LN2 * (1e3 + 2 * 260e3) * 10e-9))).toBeCloseTo(1, 1);
+      expect(apc({ pitch: 0.9 }).clock).toBeGreaterThan(apc({ pitch: 0.1 }).clock * 5);
+    });
+
+    it('plays a whole division of that pitch, set by WIDTH', () => {
+      for (const width of [0.1, 0.3, 0.5, 0.9]) {
+        const { clock, note } = apc({ width });
+        const division = clock / note;
+        expect(Math.abs(division - Math.round(division))).toBeLessThan(0.1); // counted over a second, to within an edge
+        expect(Math.round(division)).toBeGreaterThanOrEqual(1);
+      }
+      // A longer pulse swallows more cycles: the stepping the circuit is known for
+      expect(apc({ width: 0.9 }).note).toBeLessThan(apc({ width: 0.1 }).note / 2);
+    });
+
+    it('is loud enough to hear through its speaker', () => {
+      expect(apc().peak).toBeGreaterThan(0.2);
+    });
+
+    it('DEEP drops it down', () => {
+      const plain = apc(), deep = apc({ deep: 1 });
+      expect(deep.clock).toBeCloseTo(plain.clock, -1); // the first timer is untouched
+      expect(deep.note).toBeLessThan(plain.note / 2);
+      expect(deep.note).toBeGreaterThan(20);
+    });
+  });
+
+  describe('Light Theremin', () => {
+    const NAME = 'Light Theremin';
+    /** Frequency of a CD4093 gate oscillator with `resistance` round it and 47nF. */
+    const pitch = (resistance: number) => schmittFrequency(resistance, 47e-9);
+    const cell = (light: number) => 1e6 * Math.pow(1e-3, light);
+
+    it('sings at the pitch the light on its photocell gives', () => {
+      const { solver, components } = load(NAME);
+      expect(measureFrequency(render(solver, 0.5)) / pitch(4700 + cell(0.5))).toBeCloseTo(1, 2);
+      solver.updateParam(named(components, 'LIGHT').id, 'light', 0.9);
+      expect(measureFrequency(render(solver, 0.5)) / pitch(4700 + cell(0.9))).toBeCloseTo(1, 2);
+      solver.updateParam(named(components, 'LIGHT').id, 'light', 0.2);
+      expect(measureFrequency(render(solver, 0.5)) / pitch(4700 + cell(0.2))).toBeCloseTo(1, 2);
+    });
+
+    it('DRONE off is silence, until PLAY is held', () => {
+      const { solver, components } = load(NAME);
+      expect(peakOf(render(solver, 0.25))).toBeGreaterThan(0.3);
+      solver.updateParam(named(components, 'DRONE').id, 'closed', 0);
+      expect(peakOf(render(solver, 0.25))).toBeLessThan(0.01);
+      solver.updateParam(named(components, 'PLAY').id, 'closed', 1);
+      const held = render(solver, 0.5, 0.05);
+      expect(peakOf(held)).toBeGreaterThan(0.3);
+      expect(measureFrequency(held) / pitch(4700 + cell(0.5))).toBeCloseTo(1, 2);
+      solver.updateParam(named(components, 'PLAY').id, 'closed', 0);
+      expect(peakOf(render(solver, 0.25))).toBeLessThan(0.01);
+    });
+
+    it('a finger on TOUCH bends the pitch up, more the harder it presses', () => {
+      const { solver, components } = load(NAME);
+      solver.updateParam(named(components, 'LIGHT').id, 'light', 0.1); // dim: half a megohm
+      const untouched = measureFrequency(render(solver, 1));
+      solver.updateParam(named(components, 'TOUCH').id, 'touch', 0.3);
+      const light = measureFrequency(render(solver, 1));
+      solver.updateParam(named(components, 'TOUCH').id, 'touch', 1);
+      const hard = measureFrequency(render(solver, 1));
+      expect(light).toBeGreaterThan(untouched * 1.2);
+      expect(hard).toBeGreaterThan(light * 1.5);
+      // A hard press is 50k across the cell
+      expect(hard / pitch(4700 + 1 / (1 / cell(0.1) + 1 / 50e3))).toBeCloseTo(1, 2);
+    });
+  });
+
+  describe('Octave Organ', () => {
+    const NAME = 'Octave Organ';
+
+    it('plays an eighth of its oscillator, and BASS a sixteenth, louder', () => {
+      const { solver, components } = load(NAME);
+      const osc = components.find(c => c.type === 'cd40106')!;
+      const clock = risesPerSecond(solver, osc.id, osc.pins[6].id, 1);
+      expect(clock / (1 / ((4700 + 50e3 + 280) * 10e-9 * Math.log((0.59 / 0.40) * (0.60 / 0.41))))).toBeCloseTo(1, 1);
+
+      const plain = render(solver, 1, 0.5);
+      expect(measureFrequency(plain) / (clock / 8)).toBeCloseTo(1, 2);
+      solver.updateParam(named(components, 'BASS').id, 'closed', 1);
+      const bass = render(solver, 1, 0.5);
+      expect(measureFrequency(bass) / (clock / 16)).toBeCloseTo(1, 2);
+      expect(peakOf(bass)).toBeGreaterThan(peakOf(plain) * 1.5);
+      expect(peakOf(plain)).toBeGreaterThan(0.15);
+    });
+
+    it('PITCH moves every octave together', () => {
+      const { solver, components } = load(NAME);
+      const osc = components.find(c => c.type === 'cd40106')!;
+      const divider = components.find(c => c.type === 'cd4040')!;
+      const at = (position: number) => {
+        solver.updateParam(named(components, 'PITCH').id, 'position', position);
+        const clock = risesPerSecond(solver, osc.id, osc.pins[6].id, 1);
+        const q3 = risesPerSecond(solver, divider.id, divider.pins[4].id, 1);
+        return { clock, q3 };
+      };
+      const low = at(0.2), high = at(0.8);
+      // Turning it up takes resistance out of the oscillator
+      expect(high.clock / low.clock).toBeCloseTo((4700 + 80e3 + 280) / (4700 + 20e3 + 280), 1);
+      expect(low.q3 / (low.clock / 8)).toBeCloseTo(1, 1);
+      expect(high.q3 / (high.clock / 8)).toBeCloseTo(1, 1);
+    });
+
+    it('idles its amplifier at half the supply, with nothing across the speaker', () => {
+      const { solver, components } = load(NAME);
+      const amp = components.find(c => c.type === 'lm386')!;
+      const speaker = components.find(c => c.type === 'speaker')!;
+      // Before a single sample: the 220µF starts charged, so there is no thump
+      expect(solver.getNodeVoltageByPin(amp.id, amp.pins[3].id)).toBeGreaterThan(3.5);
+      expect(solver.getNodeVoltageByPin(amp.id, amp.pins[3].id)).toBeLessThan(5.5);
+      expect(Math.abs(solver.getNodeVoltageByPin(speaker.id, speaker.pins[0].id))).toBeLessThan(0.01);
+    });
+  });
+
+  describe('Step Sequencer', () => {
+    const NAME = 'Step Sequencer';
+    /** Run for `seconds`; which steps were visited, and the note played on each. */
+    function listen(short: number, seconds: number) {
+      const { solver, components } = load(NAME);
+      solver.updateParam(named(components, 'SHORT').id, 'closed', short);
+      const counter = solver.getModel(components.find(c => c.type === 'cd4017')!.id) as unknown as DecadeCounterModel;
+      const led = solver.getModel(components.find(c => c.type === 'led')!.id) as DiodeModel;
+      const periods = new Map<number, number[]>();
+      const order: number[] = [];
+      const litOn = new Set<number>();
+      let previous = 0, crossed = -1;
+      for (let i = 0; i < SR * seconds; i++) {
+        const sample = solver.step(DT);
+        const step = counter.getCount();
+        if (order[order.length - 1] !== step) { order.push(step); crossed = -1; }
+        if (led.isLit()) litOn.add(step);
+        if (previous < 0 && sample >= 0) {
+          const at = i - 1 + previous / (previous - sample);
+          if (crossed >= 0) periods.set(step, [...(periods.get(step) ?? []), at - crossed]);
+          crossed = at;
+        }
+        previous = sample;
+      }
+      const notes = new Map([...periods].map(([step, all]) => [step, SR / all.sort((a, b) => a - b)[all.length >> 1]]));
+      return { order, notes, litOn };
+    }
+
+    it('SHORT goes round the first four steps, each with its own note', () => {
+      const { order, notes, litOn } = listen(1, 4);
+      expect(new Set(order)).toEqual(new Set([0, 1, 2, 3]));
+      // In order, round and round
+      for (let i = 1; i < order.length; i++) expect(order[i]).toBe((order[i - 1] + 1) % 4);
+      expect(order.length).toBeGreaterThan(8);
+      const pitches = [0, 1, 2, 3].map((step) => notes.get(step)!);
+      // The smaller a step's resistor, the lower its note: 4.7k, 10k, 6.8k, 15k
+      expect(pitches[0]).toBeLessThan(pitches[2]);
+      expect(pitches[2]).toBeLessThan(pitches[1]);
+      expect(pitches[1]).toBeLessThan(pitches[3]);
+      for (const [low, high] of [[0, 2], [2, 1], [1, 3]]) expect(pitches[high] / pitches[low]).toBeGreaterThan(1.08);
+      expect(pitches[0]).toBeGreaterThan(300);
+      expect(pitches[3]).toBeLessThan(1000);
+      // The light is on for the first step and no other
+      expect([...litOn]).toEqual([0]);
+    });
+
+    it('without SHORT there are ten steps, the last six on the top note', () => {
+      const { order, notes } = listen(0, 6);
+      expect(new Set(order)).toEqual(new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]));
+      for (let i = 1; i < order.length; i++) expect(order[i]).toBe((order[i - 1] + 1) % 10);
+      const rest = [4, 5, 6, 7, 8, 9].map((step) => notes.get(step)!);
+      for (const pitch of rest) expect(pitch / rest[0]).toBeCloseTo(1, 2);
+      expect(rest[0]).toBeGreaterThan(notes.get(3)! * 1.08);
+    });
+
+    it('TEMPO sets the pace', () => {
+      const pace = (position: number) => {
+        const { solver, components } = load(NAME);
+        solver.updateParam(named(components, 'TEMPO').id, 'position', position);
+        const clock = components.find(c => c.type === 'cd40106')!;
+        return risesPerSecond(solver, clock.id, clock.pins[6].id, 6, 0);
+      };
+      const fast = pace(0.9), slow = pace(0.1);
+      expect(fast).toBeGreaterThan(slow * 3);
+      expect(slow).toBeGreaterThan(1);
+    });
   });
 });
 

@@ -112,3 +112,33 @@
   min-width: 32px;
   text-align: center;
 }
+
+/* The bend tool: the one thing here that is about playing, not editing */
+.bendButton {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: none;
+  border-radius: 7px;
+  background: #F5F5F5;
+  color: #666;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.bendButton:hover {
+  background-color: #EBEBEB;
+  color: #FF2D55;
+}
+
+.bendButtonActive,
+.bendButtonActive:hover {
+  background-color: #FF2D55;
+  color: white;
+}

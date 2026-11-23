@@ -89,3 +89,9 @@ body {
   transform-origin: center;
   transform: rotate(180deg);
 }
+
+/* The bend tool: over a pin or a wire the pointer is a clip, whatever is underneath */
+[data-bend-over],
+[data-bend-over] * {
+  cursor: crosshair !important;
+}

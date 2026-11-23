@@ -33,11 +33,19 @@ const SETTLING_MS = 2000;
  * is sent to the running simulation as a parameter update instead of
  * reloading (and so restarting) the whole circuit.
  */
-const LIVE_PARAMETERS: Record<string, readonly string[]> = {
+export const LIVE_PARAMETERS: Record<string, readonly string[]> = {
   potentiometer: ['position'],
   switch: ['closed'],
+  pushbutton: ['closed'],
   'audio-output': ['gain'],
+  power: ['starve'],
+  ldr: ['light'],
+  'body-contact': ['touch'],
+  lm386: ['gain'],
 };
+
+/** One end of a bend: a pin of a part. */
+export interface BendPoint { componentId: string; pinId: string }
 
 /** Everything about a circuit that the simulation is built from, minus the live controls. */
 function structureKey(components: SerializedComponent[], connections: SerializedConnection[]): string {
@@ -204,6 +212,16 @@ export class AudioEngine {
       key,
       value,
     });
+  }
+
+  /**
+   * Hold a jumper between two points of the playing circuit (through `ohms`
+   * if given), or let go of it with null. The circuit is not reloaded, so the
+   * bend is heard as it is made. Loading a circuit drops it.
+   */
+  setBend(bend: { from: BendPoint; to: BendPoint; ohms?: number } | null): void {
+    if (!this.workletNode) return;
+    this.workletNode.port.postMessage({ type: 'setBend', bend });
   }
 
   /** Tell the worklet to start/stop simulation */

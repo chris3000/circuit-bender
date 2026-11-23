@@ -347,6 +347,98 @@ export const jackArt: Art = (params) => (
   </g>
 );
 
+/** A push button from above: a square metal frame with a round red cap, darker while it is held. 16 × 16. */
+export const pushButtonBody: Art = (params) => {
+  const held = Number(params.closed) >= 1;
+  return (
+    <g>
+      <rect x={-8} y={-8} width={16} height={16} rx={1.8} fill={METAL} stroke={METAL_DARK} strokeWidth={0.6} />
+      <rect x={-6.6} y={-6.8} width={13.2} height={1.2} rx={0.6} fill="white" opacity={0.6} />
+      <rect x={-6.8} y={5.2} width={13.6} height={1.6} rx={0.8} fill="black" opacity={0.14} />
+      {[[-6, -6], [6, -6], [-6, 6], [6, 6]].map(([x, y]) => <circle key={`${x},${y}`} cx={x} cy={y} r={0.8} fill={METAL_DARK} />)}
+      <circle cx={0} cy={0} r={5.6} fill="#8E1226" />
+      <circle cx={0} cy={held ? 0 : -0.6} r={held ? 4.4 : 4.8} fill={held ? '#B0152F' : '#F0314F'} />
+      {!held && <path d="M-3.2,-2.2 A3.6,3.6 0 0 1 -0.4,-4" fill="none" stroke="white" strokeWidth={1.1} strokeLinecap="round" opacity={0.7} />}
+    </g>
+  );
+};
+
+export const pushButtonArt: Art = (params) => (
+  <g>
+    <Lead x1={-23} x2={-8} y={0} />
+    <Lead x1={8} x2={23} y={0} />
+    {pushButtonBody(params)}
+  </g>
+);
+
+/** A light-dependent resistor from the front: a pale disc with its zigzag of cadmium sulphide. 19 across. */
+export const ldrBody: Art = () => (
+  <g>
+    <circle cx={0} cy={0} r={9.6} fill="#EFE3C2" stroke="#A8966A" strokeWidth={0.6} />
+    <path d="M-5.2,-5.6 H5.2 V-3.4 H-5.2 V-1.1 H5.2 V1.1 H-5.2 V3.4 H5.2 V5.6 H-5.2" fill="none" stroke="#C8452C" strokeWidth={1.2} strokeLinejoin="round" strokeLinecap="round" />
+    <path d="M-7.4,-3.4 A8,8 0 0 1 -2.4,-7.8" fill="none" stroke="white" strokeWidth={1.2} strokeLinecap="round" opacity={0.75} />
+    <path d="M-4.6,6.6 A8,8 0 0 0 7.2,3.4" fill="none" stroke="black" strokeWidth={1.3} strokeLinecap="round" opacity={0.12} />
+  </g>
+);
+
+export const ldrArt: Art = (params) => (
+  <g>
+    <Lead x1={-4.5} x2={21.5} y={-3} />
+    <Lead x1={-4.5} x2={21.5} y={3} />
+    <g transform="translate(-10.5 0)">{ldrBody(params)}</g>
+  </g>
+);
+
+/** Body contacts: two brass plates a finger's width apart, a pink fingertip across them while they are touched. 23 × 15. */
+export const touchPadsBody: Art = (params) => {
+  const touched = Number(params.touch) > 0;
+  return (
+    <g>
+      {[-11.5, 1.5].map((x) => (
+        <g key={x}>
+          <rect x={x} y={-7.5} width={10} height={15} rx={2.4} fill={BRASS} stroke={BRASS_DARK} strokeWidth={0.6} />
+          <rect x={x + 1.6} y={-6.2} width={6.8} height={1.2} rx={0.6} fill="white" opacity={0.55} />
+          <rect x={x + 1.4} y={4.4} width={7.2} height={1.8} rx={0.9} fill="black" opacity={0.14} />
+        </g>
+      ))}
+      {touched && <ellipse cx={0} cy={0} rx={7.5} ry={5.6} fill="#FF2D55" opacity={0.3 + 0.5 * Math.min(1, Number(params.touch))} />}
+    </g>
+  );
+};
+
+export const touchPadsArt: Art = (params) => (
+  <g>
+    <Lead x1={-23} x2={-11} y={0} />
+    <Lead x1={11} x2={23} y={0} />
+    {touchPadsBody(params)}
+  </g>
+);
+
+/** A small loudspeaker from the front: pressed-steel frame, paper cone, dust cap. 23 across. */
+export const speakerBody: Art = () => (
+  <g>
+    <circle cx={0} cy={0} r={11.5} fill={METAL} stroke={METAL_DARK} strokeWidth={0.6} />
+    <path d="M-9,-4.4 A10,10 0 0 1 -3,-9.6" fill="none" stroke="white" strokeWidth={1.1} strokeLinecap="round" opacity={0.8} />
+    {[45, 135, 225, 315].map((a) => (
+      <circle key={a} cx={Math.cos((a * Math.PI) / 180) * 10} cy={Math.sin((a * Math.PI) / 180) * 10} r={0.8} fill="#5E6368" />
+    ))}
+    <circle cx={0} cy={0} r={8.8} fill={BLACK} />
+    <circle cx={0} cy={0} r={7.4} fill="#4A4A4A" />
+    <circle cx={0} cy={0} r={5.6} fill="none" stroke="#3A3A3A" strokeWidth={0.8} />
+    <path d="M-5.6,-3 A6.4,6.4 0 0 1 -1.4,-6.2" fill="none" stroke="white" strokeWidth={1} strokeLinecap="round" opacity={0.25} />
+    <circle cx={0} cy={0} r={3} fill="#1E1E1E" />
+    <circle cx={-0.9} cy={-1} r={0.8} fill="white" opacity={0.35} />
+  </g>
+);
+
+export const speakerArt: Art = (params) => (
+  <g transform="translate(-2 0)">
+    <rect x={11} y={-4.4} width={5.6} height={2.2} rx={0.5} fill={BRASS} stroke={BRASS_DARK} strokeWidth={0.4} />
+    <rect x={11} y={2.2} width={5.6} height={2.2} rx={0.5} fill={BRASS} stroke={BRASS_DARK} strokeWidth={0.4} />
+    {speakerBody(params)}
+  </g>
+);
+
 /** A blob of solder, 10 across. */
 export const solderBlob: Art = () => (
   <g>

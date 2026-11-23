@@ -19,7 +19,7 @@ All three are clean and CI (`.github/workflows/ci.yml`, Node 24) runs them on ev
 
 The simulation engine is a **Modified Nodal Analysis solver** running inside an `AudioWorkletProcessor`. It lives in `src/simulation/` as TypeScript: Vite serves it as modules in dev and bundles it to a self-contained `audio-worklet-processor.js` for production (plugin in `vite.config.ts`).
 
-**How it works:** each component is a model class (`src/simulation/models/`) that stamps itself into one shared matrix; the solver (`solver/MNASolver.ts`) solves all node voltages simultaneously. No sequential iteration or special-case hacks.
+**How it works:** each component is a model class (`src/simulation/models/`) that stamps itself into one shared matrix; the solver (`solver/MNASolver.ts`) solves all node voltages simultaneously. No sequential iteration or special-case hacks. `models/standardModels.ts` registers every model by its definition's `type`; the worklet and the tests both build their solver from it.
 
 **Key principle:** All components must simulate through the same MNA path. No component-specific voltage propagation.
 
@@ -35,15 +35,17 @@ The simulation engine is a **Modified Nodal Analysis solver** running inside an 
 
 **Conventions the solver relies on:**
 - Every `ground` symbol is the same node, wired together or not.
-- The audio jack is a 1 MΩ load to ground; its `gain` parameter is an input trim that only scales the recorded level. A rail-to-rail swing is ±0.5 at gain 1.
-- Models that set `ignoresUnconnectedPins` (the CD40106) get no node for unwired pins.
-- The op-amp (`OpAmpModel.ts`) is a piecewise-linear macromodel: gain-bandwidth, slew rate and output swing are parameters, all handled with events rather than Newton iteration.
+- What is heard is the sum of every model with an `audioTap()`: Audio Out (a 1 MΩ load to ground) and the bare `speaker` (8 Ω between its two pins, so it needs something that can drive it: a 555, an LM386). Audio Out's `gain` parameter is an input trim that only scales the recorded level. A rail-to-rail swing is ±0.5 at gain 1.
+- Models that set `ignoresUnconnectedPins` (the logic chips: CD40106, CD4093, CD4040, CD4017) get no node for unwired pins. Their definitions say the same with `floatingPins`, which is how the bend tool knows an unused leg is dead; `partsAndModels.test.ts` checks the two agree.
+- The op-amp (`OpAmpModel.ts`) is a piecewise-linear macromodel: gain-bandwidth, slew rate and output swing are parameters, all handled with events rather than Newton iteration. The LM386 (`PowerAmpModel.ts`) is built the same way; the 555 (`Timer555Model.ts`) and the CMOS chips (`CmosChipModel.ts`: one base class, a subclass per chip) are flip-flops and counters switched by events.
+- The supply (`PowerSourceModel.ts`) has a `starve` control: a series resistance (0 to 1 MΩ on a log sweep) with 100 nF across the output. The capacitor is what makes a starved CMOS oscillator well-posed; do not take it out. Chips work down to 0.1 V and have no supply-dependent output resistance, so starving raises pitch and cross-modulates oscillators rather than slowing them.
+- A bend (`MNASolver.setBend`) is a conductance between two nodes, stamped with the matrix. It is not part of the circuit and loading a circuit drops it.
 
 ### Communication
 
 Main thread serializes circuit topology and posts it to the worklet. The worklet posts back audio samples, probe data, LED states and, twice a second, its load.
 
-`AudioEngine.updateCircuit` decides what an edit needs: a changed circuit is reloaded (which restarts the simulation), a live control (`LIVE_PARAMETERS`: pot position, switch state, jack trim) is sent as `setParam`, and moving parts on the canvas sends nothing. Add new live controls to that table and give the model an `updateParam`.
+`AudioEngine.updateCircuit` decides what an edit needs: a changed circuit is reloaded (which restarts the simulation), a live control (`LIVE_PARAMETERS`: pot position, switch and button state, starve, light, touch, amplifier gain, output trim) is sent as `setParam`, and moving parts on the canvas sends nothing. Add new live controls to that table and give the model an `updateParam`; anything a definition's `cover` or `control` sets must be in it (tested). `AudioEngine.setBend` holds or releases a jumper in the running circuit without a reload.
 
 ### UI
 
@@ -51,13 +53,13 @@ Candy Lab + Mono Pop design system: monospace font, monochrome palette, #FF2D55 
 
 **Three views** of one circuit (`views/viewModes.ts`; the tabs in the toolbar, Tab steps through them): schematic and board are the same React Flow canvas drawn two ways, the cover is a separate view. While the cover shows, the canvas stays mounted but out of sight (`hidden`: `visibility: hidden`, so it keeps its size, its viewport and its measured nodes) and its delete keys are switched off, because React Flow listens for them on the whole page.
 
-**Cover** (`src/views/Cover/`): the front panel of the circuit as a finished thing — every input and output and nothing else. Nothing is stored for it: `coverLayout.ts` works the panel out from the circuit (knobs across the top, switches bottom left, lights and sockets bottom right; rows wrap, a long name widens its cell), and nothing in it knows any particular part. A part is on the cover when its definition has `cover: { control, parameter?, name, detail? }`: `knob` and `toggle` are inputs that set a live parameter (0 to 1, or 0 / 1), `lamp` follows the worklet's LED states, `pilot` (the supply) is lit while playing, `jack` has a level meter fed by `App`'s `levels` (peak of each sample block; it updates the DOM directly, not through React). Names are the parts' own labels (click one on the cover to change it), or the kind's name, numbered, until a part has one. `PanelArt.tsx` is the faceplate and its trimmings (cheeks, screws, nameplate, stripes, badge, vents), drawn like the shelf art: flat fills, one highlight, one shadow. The panel is laid out in fixed units and scaled to fit.
+**Cover** (`src/views/Cover/`): the front panel of the circuit as a finished thing — every input and output and nothing else. Nothing is stored for it: `coverLayout.ts` works the panel out from the circuit (knobs across the top, switches bottom left, lights and sockets bottom right; rows wrap, a long name widens its cell), and nothing in it knows any particular part. A part is on the cover when its definition has `cover: { control, parameter?, name, detail? }` (or a list of them: the supply is a pilot light and a STARVE knob; `when` picks by the part's parameters, `fixedName` is a name the player cannot change): `knob` and `toggle` are inputs that set a live parameter (0 to 1, or 0 / 1), `button` and `pad` (touch plates; higher up is a firmer touch) are on only while held and are not undo steps, `lamp` follows the worklet's LED states, `pilot` (the supply) is lit while playing, `speaker` and `jack` have a level meter fed by `App`'s `levels` (peak of each sample block; it updates the DOM directly, not through React). Audio Out is a small speaker on the cover: it plays straight to the computer's speakers. Its `destination: 'line'` parameter (`utils/audioOut.ts`) is reserved for sending the signal somewhere else, and shows the jack instead; nothing sets it yet. Names are the parts' own labels (click one on the cover to change it), or the kind's name, numbered, until a part has one. `PanelArt.tsx` is the faceplate and its trimmings (cheeks, screws, nameplate, stripes, badge, vents), drawn like the shelf art: flat fills, one highlight, one shadow. The panel is laid out in fixed units and scaled to fit.
 
 **Parts shelf** (`src/views/ComponentDrawer/`): built to hold many parts, and nothing in it knows any particular part. `catalog.ts` works the shelf out from the definitions: one tile per part, or one per stocked value for a part that comes in values (`value` + `shelf.stock`; `shelf.common` are the ones shown before "All N values"). Search matches name, type, caption, description, category and `shelf.keywords`, reads values however they are written (4k7, 100nF, 0.1µ), and makes up a value that is not stocked. Parts are drawn as they look in the hand (`src/components/art/partArt.tsx`; a resistor's bands come from `resistorBands`), in a 48 × 24 box, without gradients, clip paths or ids. A drag carries the type and the value's parameters (`dragData.ts`). Recent parts, folded categories and the folded shelf are remembered in localStorage.
 
 **Part drawings** (`src/components/art/`): a part looks the same on the shelf and on the board. `partArt.tsx` has each part's body, centred on the origin and without leads (`resistorBody`, `capacitorBody`, …), and the shelf drawing built from it (`resistorArt`, …). `boardArt.tsx` draws the same bodies for the board view (`resistorBoard`, `chipBoard`, …) with leads run to wherever the definition's pins are. Pins stay where the schematic has them, so board leads are not always realistic (a disc capacitor has a leg out of each side, a chip's legs are in schematic order, not package order): the schematic's connections win over realism. A board drawing must stay inside the definition's `dimensions` plus `overhang`. `knob.ts` is the dial's sweep, shared by the board pot and the cover knob.
 
-To add a part: write its definition and register it in `main.tsx`; it appears on the shelf, drawn with its board symbol. Draw its body once in `partArt.tsx` and use it for both `shelf.art` and the board symbol (`boardArt.tsx`). Give it `shelf: { title, caption, keywords, art }` to do better, and `value` + `shelf.stock` if it comes in values (the inspector's value field uses `value` too). If it is something the player touches or watches, give it `cover` as well; a new kind of control also needs drawing in `Cover/CoverControls.tsx`.
+To add a part: write its definition and register it in `main.tsx` and `tests/views/allParts.ts`, and its model in `standardModels.ts`; it appears on the shelf, drawn with its board symbol. A chip gets its schematic box, pin labels and board body from `art/chipSymbol.tsx` (`chipViews`). Draw its body once in `partArt.tsx` and use it for both `shelf.art` and the board symbol (`boardArt.tsx`). Give it `shelf: { title, caption, keywords, art }` to do better, and `value` + `shelf.stock` if it comes in values (the inspector's value field uses `value` too). If it is something the player touches or watches, give it `cover` as well; a new kind of control also needs drawing in `Cover/CoverControls.tsx`. If it can be worked on the canvas too, give it `control` (`dial`: a small knob beside the symbol; `hold`: the symbol is pressed) and `nodes/ControlNode.tsx` and the inspector draw it.
 
 **Canvas** (`src/views/CircuitCanvas/`): React Flow, with the circuit in `CircuitContext` as the source of truth. `useCircuitSync` keeps React Flow's copy of the nodes:
 - A drag only moves the canvas's copy; the circuit is told once, when it ends (`onNodeDragStop` → `moveComponents`, one undo step). Never dispatch to the circuit from inside a `setNodes` updater.
@@ -66,6 +68,8 @@ To add a part: write its definition and register it in `main.tsx`; it appears on
 - Wires are derived from the circuit, but their selection must be taken up in `onEdgesChange`: React Flow marks its own copy selected, and ignoring that makes each click select the wire clicked the time before.
 
 **Wires** (`routing/`): nobody draws wire paths by hand. `router.ts` routes every wire on a 10 px grid with A*; all its rules are costs (so it always finds a route): never through a part, never along another net, cross at right angles when it must, share track within a net (drawn with a junction dot), leave a pin straight out of its part. `layout.ts` is the one description of a part's geometry — pin positions and directions (`pinSide`: the nearest edge of the symbol), the room the symbol takes, where its name goes — used by both the node components and the router. A symbol that draws text outside its `dimensions` box declares it as `overhang` in its definition so wires stay off it. `tests/views/routing/router.test.ts` checks the promises on every example circuit.
+
+**Bend tool** (`CircuitCanvas/BendTool.tsx`, `bend.ts`; the BEND button or B, Esc to leave): while it is on, pressing on a pin or wire picks up one end of a jumper, and holding the other end on a different net joins the two in the playing circuit (`onBend` → `AudioEngine.setBend`) through a wire, 10 kΩ or a finger's half megohm; letting go takes it away. Nothing is stored and nothing is an undo step, and parts cannot be moved or wired meanwhile. "Keep it as a switch / button" (`keptBend`) adds the part, with the jumper's resistor in line, clear of the parts already there, as one undo step (`addParts`). `bend.ts` is the pure part: nets (`netsOfPins`), what is under the pointer (`bendTargetAt`), where a kept bend goes. It converts pointer positions itself: React Flow's `screenToFlowPosition` snaps to the 20 px grid, which is coarser than a pin.
 
 **Inspector** (`src/views/Inspector/`): the panel at the top right for whatever is selected — a part's name, value, controls (pot position, switch, supply voltage, jack trim), rotation and delete, or a wire's probe. Every gesture on the canvas should also be reachable here; add new part parameters to it. It stops key events at its root so typing is not taken for canvas shortcuts.
 
@@ -77,7 +81,7 @@ To add a part: write its definition and register it in `main.tsx`; it appears on
 - Anything that puts another circuit on the canvas goes through `useReplaceCircuit()` (`views/ReplaceGuard.tsx`), which asks before discarding unsaved changes. Don't call `loadCircuit` directly from UI.
 - A saved part is everything but its runtime `state`. Circuit files (`exportCircuitFile` / `importCircuitFile`) are plain JSON and are validated on the way in.
 
-**Playing:** `utils/circuitChecks.ts` lists reasons a circuit will be silent; `PlayNotice` shows them (and a failed audio start) under the header.
+**Playing:** the play button, or Space anywhere except in a text field or while a dialog is open (`utils/keyboard.ts`; `App` hears it in the capture phase so no panel swallows it, and React Flow's own Space-to-pan is switched off). `utils/circuitChecks.ts` lists reasons a circuit will be silent; `PlayNotice` shows them (and a failed audio start) under the header.
 
 **Load:** while a circuit plays, `LoadIndicator` in the header shows how much of the time available the simulation needs, and `PlayNotice` says so when the sound breaks up. The worklet measures it (`worklet/RenderLoad.ts`: time spent computing over time played; a worklet only has a millisecond clock, so a reading is good to a few points), `AudioEngine.onLoad` adds the dropouts Chrome reports (`AudioContext.playbackStats`, not in every browser), and `audio/loadStatus.ts` grades the two as `ok` / `high` (70%) / `over` (95%, or repeated dropouts) without flickering. Loading a circuit breaks the sound for a moment; dropouts are not counted for two seconds after one.
 
@@ -87,7 +91,7 @@ To add a part: write its definition and register it in `main.tsx`; it appears on
 
 - `src/simulation/solver/MNASolver.ts` — MNA solver (the simulation engine)
 - `src/simulation/solver/OutputSampler.ts` — anti-aliased conversion of solver output to audio samples
-- `src/simulation/models/` — one model class per component type
+- `src/simulation/models/` — one model class per component type; `standardModels.ts` registers them all
 - `src/simulation/worklet/processor.ts` — AudioWorkletProcessor entry point
 - `src/audio/AudioEngine.ts` — AudioContext + worklet communication
 - `src/audio/loadStatus.ts`, `src/views/LoadIndicator.tsx` — whether the simulation is keeping up, and the header meter that shows it
@@ -95,6 +99,7 @@ To add a part: write its definition and register it in `main.tsx`; it appears on
 - `src/views/CircuitCanvas/CircuitCanvas.tsx` — React Flow circuit editor (schematic + board)
 - `src/views/CircuitCanvas/useCircuitSync.ts` — circuit ↔ React Flow nodes/edges, drags, wire routes
 - `src/views/CircuitCanvas/routing/` — wire router (`router.ts`) and part geometry (`layout.ts`)
+- `src/views/CircuitCanvas/BendTool.tsx`, `bend.ts` — the bend tool
 - `src/views/Inspector/Inspector.tsx` — panel for the selected part or wire
 - `src/views/ComponentDrawer/` — parts shelf (`catalog.ts`: what is on it and search)
 - `src/views/Cover/` — the cover view (`coverLayout.ts`: what is on it and where)
@@ -114,13 +119,22 @@ To add a part: write its definition and register it in `main.tsx`; it appears on
 | potentiometer | 1 | wiper | 3 | |
 | cd40106 | 1A–6A (0-5) | 1Y–6Y (6-11) | VDD (12) | VSS (13) |
 | audio-output | IN | | | |
+| speaker | + | − | | |
 | led | A (anode) | K (cathode) | | |
+| pushbutton, ldr, body-contact | 1 | 2 | | |
+| ne555 | TRIG | THRES | RESET | CTRL (3), DISCH (4), OUT (5), VCC (6), GND (7) |
+| cd4093 | A1, B1 … A4, B4 (0-7) | Y1–Y4 (8-11) | VDD (12) | VSS (13) |
+| cd4040 | CLK | RST | Q1–Q12 (2-13) | VDD (14), VSS (15) |
+| cd4017 | CLK | INH | RST | Q0–Q9 (3-12), CO (13), VDD (14), VSS (15) |
+| lm386 | IN− | IN+ | GND | OUT (3), VS (4) |
+
+The CD4040 counts on the falling edge of its clock, the CD4017 on the rising edge.
 
 ## Testing Circuits
 
 Load examples from the header menu. The simulation needs play (▶) to be active. Right-click wires to add oscilloscope probes.
 
-Every example has a named switch (SOUND, SOFT, SUB, HIGHER, FAST, LOW, WACKINESS), so its cover has at least one input. Each starts in the position that plays the example as its description says, and `tests/simulation/worklet/examples.test.ts` checks that flipping it does what its name promises. Keep that true for new examples.
+Every example has a named switch (SOUND, SOFT, SUB, HIGHER, FAST, LOW, DEEP, DRONE, BASS, SHORT, WACKINESS), so its cover has at least one input. Each starts in the position that plays the example as its description says, and `tests/simulation/worklet/examples.test.ts` checks that flipping it does what its name promises. Keep that true for new examples.
 
 Checking the UI in a browser: the page must be in a visible tab. In a background tab Chrome delivers no ResizeObserver callbacks, so React Flow never measures the nodes and they stay hidden and unclickable.
 

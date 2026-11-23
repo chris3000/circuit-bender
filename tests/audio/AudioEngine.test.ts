@@ -150,7 +150,20 @@ describe('AudioEngine', () => {
     it('does nothing before initialization', () => {
       engine.loadCircuit([], []);
       engine.setParam('pot1', 'position', 0.25);
+      engine.setBend({ from: { componentId: 'a', pinId: '1' }, to: { componentId: 'b', pinId: '2' } });
       expect(mockPostMessage).not.toHaveBeenCalled();
+    });
+
+    it('holds a bend in the running circuit and lets go of it, without reloading', async () => {
+      await engine.initialize();
+      engine.loadCircuit([], []);
+      mockPostMessage.mockClear();
+      const bend = { from: { componentId: 'a', pinId: '1' }, to: { componentId: 'b', pinId: '2' }, ohms: 10e3 };
+
+      engine.setBend(bend);
+      engine.setBend(null);
+
+      expect(mockPostMessage.mock.calls.map(([m]) => m)).toEqual([{ type: 'setBend', bend }, { type: 'setBend', bend: null }]);
     });
   });
 
@@ -201,6 +214,26 @@ describe('AudioEngine', () => {
 
       expect(loads()).toBe(0);
       expect(mockPostMessage).toHaveBeenCalledWith({ type: 'setParam', componentId: 'sw1', key: 'closed', value: 0 });
+    });
+
+    it.each([
+      ['pushbutton', 'closed', 0, 1],
+      ['power', 'starve', 0, 0.4],
+      ['ldr', 'light', 0.5, 0.9],
+      ['body-contact', 'touch', 0, 0.6],
+      ['lm386', 'gain', 20, 200],
+      ['audio-output', 'gain', 1, 0.5],
+    ])('sends a %s\'s %s as a parameter change', async (type, key, before, after) => {
+      const part = (value: number) => ({
+        id: 'p1', type, pins: [{ id: 'a', label: '1', type: 'bidirectional' }], parameters: { [key]: value, other: 1 },
+      });
+      await engine.initialize();
+      engine.loadCircuit([part(before)], []);
+      mockPostMessage.mockClear();
+
+      engine.updateCircuit([part(after)], []);
+
+      expect(mockPostMessage.mock.calls.map(([m]) => m)).toEqual([{ type: 'setParam', componentId: 'p1', key, value: after }]);
     });
 
     it('sends nothing when the circuit is electrically unchanged (a part was only moved)', async () => {

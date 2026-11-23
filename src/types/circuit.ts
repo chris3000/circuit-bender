@@ -134,14 +134,54 @@ export interface ComponentShelf {
  * Parts without this stay inside the box.
  */
 export interface ComponentCover {
-  /** Knobs and toggles are inputs; lamps, jacks and the pilot light are outputs. */
-  control: 'knob' | 'toggle' | 'lamp' | 'jack' | 'pilot';
-  /** The live parameter a knob (0 to 1) or a toggle (0 or 1) sets. */
+  /**
+   * Knobs, toggles, buttons and touch pads are inputs; lamps, the pilot
+   * light, jacks and speakers are outputs.
+   */
+  control: 'knob' | 'toggle' | 'button' | 'pad' | 'lamp' | 'pilot' | 'jack' | 'speaker';
+  /**
+   * The live parameter an input sets: a knob 0 to 1, a toggle 0 or 1, a
+   * button 1 while it is held, a pad 0 to 1 (how hard) while it is touched.
+   */
   parameter?: string;
   /** What it is called on the panel until the part is given a name: "KNOB". */
   name: string;
+  /**
+   * For a second thing a part puts on the cover (the supply's starve knob,
+   * beside its light): it is always called `name`, and the part's own name
+   * stays with the first.
+   */
+  fixedName?: boolean;
   /** Small print beside it, e.g. the supply voltage. */
   detail?: (parameters: ComponentParameters) => string;
+  /** On the cover only while this says so (the audio output is a speaker or a socket, not both). */
+  when?: (parameters: ComponentParameters) => boolean;
+}
+
+/**
+ * A control a part has on the canvas besides its value: a small knob beside
+ * the symbol (the supply's starve, the light on a photocell), or the symbol
+ * itself held down (a push button, a finger on the contacts). It sets a live
+ * parameter, so using it does not restart the simulation. The inspector
+ * offers the same control.
+ */
+export interface ComponentControl {
+  kind: 'dial' | 'hold';
+  /** The live parameter: 0 to 1 for a dial; 0, or `held` while held, for a hold. */
+  parameter: string;
+  /** What it is called in the inspector and in tooltips: "Starve". */
+  name: string;
+  /** A dial: where its knob sits, from the part's centre (before rotation), and what is printed under it. */
+  at?: Position2D;
+  print?: string;
+  /** A dial: where it is until it is turned. */
+  rest?: number;
+  /**
+   * A hold: the value while held. 1 (the default) is a button, down or up.
+   * Less is a touch, which dragging up and down while holding makes firmer
+   * or lighter.
+   */
+  held?: number;
 }
 
 export interface ComponentDefinition {
@@ -155,7 +195,15 @@ export interface ComponentDefinition {
   defaultParameters: ComponentParameters;
   value?: ComponentValue;
   shelf?: ComponentShelf;
-  cover?: ComponentCover;
+  /** One thing on the cover, or several. */
+  cover?: ComponentCover | ComponentCover[];
+  control?: ComponentControl;
+  /**
+   * A leg with nothing wired to it is not connected to anything inside the
+   * part either, as far as the simulation goes (logic chips, whose model sets
+   * `ignoresUnconnectedPins`): a bend cannot reach it.
+   */
+  floatingPins?: boolean;
   schematic: ComponentView;
   board: ComponentView;
   controlPanel?: (component: Component) => React.ReactNode;
