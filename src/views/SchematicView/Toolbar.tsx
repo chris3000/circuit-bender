@@ -1,4 +1,5 @@
 import React from 'react';
+import { VIEWS, type ActiveView } from '@/views/viewModes';
 import styles from './Toolbar.module.css';
 
 interface ToolbarProps {
@@ -6,8 +7,8 @@ interface ToolbarProps {
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
-  activeView?: 'schematic' | 'board';
-  onToggleView?: () => void;
+  activeView?: ActiveView;
+  onSelectView?: (view: ActiveView) => void;
   zoom?: number;
   onZoomIn?: () => void;
   onZoomOut?: () => void;
@@ -19,7 +20,7 @@ export const Toolbar = React.memo(function Toolbar({
   canUndo = false,
   canRedo = false,
   activeView,
-  onToggleView,
+  onSelectView,
   zoom,
   onZoomIn,
   onZoomOut,
@@ -52,23 +53,23 @@ export const Toolbar = React.memo(function Toolbar({
         </svg>
       </button>
 
-      {onToggleView && (
+      {onSelectView && (
         <>
           <div className={styles.divider} />
-          {/* View toggle */}
-          <div className={styles.viewToggle}>
-            <button
-              className={`${styles.viewTab} ${activeView === 'schematic' ? styles.viewTabActive : ''}`}
-              onClick={activeView !== 'schematic' ? onToggleView : undefined}
-            >
-              Schematic
-            </button>
-            <button
-              className={`${styles.viewTab} ${activeView === 'board' ? styles.viewTabActive : ''}`}
-              onClick={activeView !== 'board' ? onToggleView : undefined}
-            >
-              Board
-            </button>
+          {/* The three views of the circuit (Tab steps through them) */}
+          <div className={styles.viewToggle} role="group" aria-label="View">
+            {VIEWS.map((view) => (
+              <button
+                key={view.id}
+                className={`${styles.viewTab} ${activeView === view.id ? styles.viewTabActive : ''}`}
+                data-testid={`view-${view.id}`}
+                aria-pressed={activeView === view.id}
+                title={`${view.hint} (Tab for the next view)`}
+                onClick={activeView !== view.id ? () => onSelectView(view.id) : undefined}
+              >
+                {view.label}
+              </button>
+            ))}
           </div>
         </>
       )}

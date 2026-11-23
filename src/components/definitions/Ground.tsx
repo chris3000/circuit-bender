@@ -1,5 +1,7 @@
 import type { ComponentDefinition } from '@/types/circuit';
 import { generatePinId } from '@/utils/ids';
+import { groundArt } from '@/components/art/partArt';
+import { groundBoard } from '@/components/art/boardArt';
 
 export const groundDefinition: ComponentDefinition = {
   type: 'ground',
@@ -17,6 +19,7 @@ export const groundDefinition: ComponentDefinition = {
     },
   ],
   defaultParameters: {},
+  shelf: { caption: '0 V', keywords: ['gnd', 'earth', 'vss', 'common'], art: groundArt },
   schematic: {
     symbol: {
       width: 40,
@@ -68,17 +71,7 @@ export const groundDefinition: ComponentDefinition = {
     symbol: {
       width: 40,
       height: 40,
-      render: () => {
-        return (
-          <g>
-            <rect x="-10" y="-10" width="20" height="14" rx="2" fill="#2a2a2a" stroke="#555" strokeWidth="0.6" />
-            <line x1="-6" y1="0" x2="6" y2="0" stroke="#888" strokeWidth="1.5" />
-            <line x1="-4" y1="3" x2="4" y2="3" stroke="#888" strokeWidth="1.2" />
-            <line x1="-2" y1="6" x2="2" y2="6" stroke="#888" strokeWidth="0.8" />
-            <text x="0" y="18" textAnchor="middle" fontSize="7" fill="#d4ecd4" opacity="0.85" fontFamily="Courier New">GND</text>
-          </g>
-        );
-      },
+      render: groundBoard,
     },
     dimensions: { width: 40, height: 40 },
   },

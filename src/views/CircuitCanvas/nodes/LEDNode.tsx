@@ -1,54 +1,39 @@
-import { memo, useMemo } from 'react';
-import { Handle, Position, type NodeProps } from 'reactflow';
-import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
+import { memo } from 'react';
+import type { NodeProps } from 'reactflow';
+import { LED_DOME_CENTRE } from '@/components/art/boardArt';
 import type { CircuitNodeData } from '../useCircuitSync';
-import { pinTooltip } from './pinTooltip';
-import { rotatePin, rotateDimensions } from './rotatePin';
-import { RotateButton } from './RotateButton';
-
-function pinPositionToHandleStyle(pinX: number, pinY: number, w: number, h: number): React.CSSProperties {
-  return { position: 'absolute', left: `${pinX + w / 2}px`, top: `${pinY + h / 2}px`, transform: 'translate(-50%, -50%)' };
-}
-function getHandlePosition(pinX: number, pinY: number): Position {
-  if (Math.abs(pinX) >= Math.abs(pinY)) return pinX < 0 ? Position.Left : Position.Right;
-  return pinY < 0 ? Position.Top : Position.Bottom;
-}
+import { rotatePin } from '../routing/layout';
+import { NodeFrame } from './NodeFrame';
 
 export const LEDNode = memo(function LEDNode({ data, selected }: NodeProps<CircuitNodeData>) {
   const { component, viewMode, ledOn } = data;
-  const definition = useMemo(() => ComponentRegistry.getInstance().get(component.type), [component.type]);
-  if (!definition) return null;
-  const symbol = definition[viewMode].symbol;
-  const rawDims = definition[viewMode].dimensions;
-  const rotation = component.rotation || 0;
-  const dims = rotateDimensions(rawDims.width, rawDims.height, rotation);
-
-  return (
-    <div style={{ width: dims.width, height: dims.height, position: 'relative', cursor: 'grab' }}>
-      {selected && (
-        <RotateButton componentId={component.id} rotation={rotation} width={dims.width} height={dims.height} />
-      )}
-      <svg width={dims.width} height={dims.height}
-        viewBox={`${-dims.width / 2} ${-dims.height / 2} ${dims.width} ${dims.height}`}
-        style={{ display: 'block', overflow: 'visible' }}>
-        <defs>
-          <filter id="ledGlow"><feGaussianBlur stdDeviation="3" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-        </defs>
-        {selected && <rect x={-dims.width/2-3} y={-dims.height/2-3} width={dims.width+6} height={dims.height+6} fill="none" stroke="#FF2D55" strokeWidth="1.5" strokeDasharray="4 2" rx="4" />}
-        {ledOn && (<><circle cx="0" cy="0" r="20" fill="#FF2D55" opacity="0.15" filter="url(#ledGlow)" /><circle cx="0" cy="0" r="12" fill="#FF2D55" opacity="0.3" /></>)}
-        <g transform={rotation ? `rotate(${rotation})` : undefined}>
-          {symbol.render(component.parameters)}
-        </g>
-      </svg>
-      {component.pins.flatMap((pin) => {
-        const rp = rotatePin(pin.position.x, pin.position.y, rotation);
-        const handleStyle = { ...pinPositionToHandleStyle(rp.x, rp.y, dims.width, dims.height), width: 10, height: 10, borderRadius: '50%', background: viewMode === 'schematic' ? '#999' : '#c4a24e', border: viewMode === 'schematic' ? '2px solid #666' : '1px solid #8a7030' };
-        const pos = getHandlePosition(rp.x, rp.y);
-        return [
-          <Handle key={`${pin.id}-src`} id={pin.id} type="source" position={pos} isConnectable={true} style={handleStyle} title={pinTooltip(component.type, pin.label, pin.type)} />,
-          <Handle key={`${pin.id}-tgt`} id={pin.id} type="target" position={pos} isConnectable={true} style={{ ...handleStyle, opacity: 0, pointerEvents: 'none' }} />,
-        ];
-      })}
-    </div>
+  // On the board the light comes from the dome, which stands above the pins
+  const at = viewMode === 'board' ? rotatePin(0, LED_DOME_CENTRE, component.rotation || 0) : { x: 0, y: 0 };
+  const glow = !ledOn ? null : viewMode === 'board' ? (
+    // Red light on a green board goes muddy unless it fades out softly
+    <>
+      <defs>
+        <filter id="ledGlowBoard" x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur stdDeviation="6" />
+        </filter>
+      </defs>
+      <circle cx={at.x} cy={at.y} r="15" fill="#FF4D6D" opacity="0.75" filter="url(#ledGlowBoard)" />
+    </>
+  ) : (
+    <>
+      <defs>
+        <filter id="ledGlow">
+          <feGaussianBlur stdDeviation="3" result="blur" />
+          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
+      <circle cx="0" cy="0" r="20" fill="#FF2D55" opacity="0.15" filter="url(#ledGlow)" />
+      <circle cx="0" cy="0" r="12" fill="#FF2D55" opacity="0.3" />
+    </>
   );
+  // ...and the dome itself brightens
+  const shine = ledOn && viewMode === 'board' ? (
+    <circle cx={at.x} cy={at.y} r="5.5" fill="#FFE1E7" opacity="0.75" pointerEvents="none" />
+  ) : null;
+  return <NodeFrame component={component} viewMode={viewMode} selected={selected} underlay={glow} overlay={shine} />;
 });

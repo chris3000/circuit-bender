@@ -1,5 +1,6 @@
 import { memo, useState } from 'react';
 import { Handle, Position, type NodeProps } from 'reactflow';
+import { solderBlob } from '@/components/art/partArt';
 import type { CircuitNodeData } from '../useCircuitSync';
 
 const SIZE = 30; // large hit area for easy grabbing
@@ -9,7 +10,7 @@ const HANDLE_SIZE = 12; // small — just covers the dot for wiring
 
 export const JunctionNode = memo(function JunctionNode({ data, selected }: NodeProps<CircuitNodeData>) {
   const { component, viewMode } = data;
-  const fill = viewMode === 'schematic' ? '#333' : '#c4a24e';
+  const fill = viewMode === 'schematic' ? '#333' : '#D4ECD4';
   const pin = component.pins[0];
   const [hovered, setHovered] = useState(false);
 
@@ -47,11 +48,18 @@ export const JunctionNode = memo(function JunctionNode({ data, selected }: NodeP
             fill="none" stroke="#FF2D55" strokeWidth="1.5" strokeDasharray="3 2" rx="4" />
         )}
 
-        {/* The dot */}
-        <circle cx="0" cy="0" r={DOT_R} fill={fill}
-          stroke={selected ? '#FF2D55' : 'none'}
-          strokeWidth={selected ? 1.5 : 0}
-        />
+        {/* The dot: ink on the schematic, a blob of solder on the board */}
+        {viewMode === 'board' ? (
+          <>
+            {solderBlob({})}
+            {selected && <circle cx="0" cy="0" r={DOT_R} fill="none" stroke="#FF2D55" strokeWidth="1.5" />}
+          </>
+        ) : (
+          <circle cx="0" cy="0" r={DOT_R} fill={fill}
+            stroke={selected ? '#FF2D55' : 'none'}
+            strokeWidth={selected ? 1.5 : 0}
+          />
+        )}
       </svg>
 
       {/* Source Handle — small, just covers the dot. Drag FROM dot = start wire. */}

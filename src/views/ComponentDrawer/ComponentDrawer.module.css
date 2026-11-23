@@ -1,45 +1,374 @@
-.drawer {
-  width: 100px;
+.shelf {
+  width: 236px;
   height: 100%;
-  background: #EBEBEB;
-  border-right: 1px solid #DDD;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
-  flex-shrink: 0;
-  padding: 8px 0;
+  background: #EBEBEB;
+  border-right: 1px solid #DDD;
   font-family: 'Courier New', Courier, monospace;
+  color: #222;
 }
 
-.drawer::-webkit-scrollbar {
+/* Heading and search stay put; the parts scroll beneath */
+.top {
+  padding: 10px 10px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 1px solid #DDD;
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.name {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.total {
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: #DDD;
+  font-size: 9px;
+  font-weight: bold;
+  color: #666;
+}
+
+.fold {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  color: #666;
+  cursor: pointer;
+}
+
+.fold:hover {
+  background: #DDD;
+  color: #222;
+}
+
+.search {
+  position: relative;
+}
+
+.search input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 30px;
+  padding: 0 28px 0 10px;
+  border: 2px solid #DDD;
+  border-radius: 10px;
+  background: white;
+  font: inherit;
+  font-size: 11px;
+  color: #222;
+  outline: none;
+}
+
+.search input:focus {
+  border-color: #FF2D55;
+}
+
+.search input::placeholder {
+  color: #999;
+}
+
+.clear {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #EBEBEB;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  color: #666;
+  cursor: pointer;
+}
+
+.clear:hover {
+  background: #FF2D55;
+  color: white;
+}
+
+.scroll {
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding-bottom: 16px;
+}
+
+.scroll::-webkit-scrollbar {
   width: 4px;
 }
 
-.drawer::-webkit-scrollbar-thumb {
+.scroll::-webkit-scrollbar-thumb {
   background: #CCC;
   border-radius: 2px;
 }
 
-.header {
-  display: none;
+.status {
+  margin: 0;
+  padding: 9px 10px 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: #666;
 }
 
-.title {
-  display: none;
+.sectionTitle {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0;
+  background: #EBEBEB;
 }
 
-.content {
+.sectionHead {
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 6px 6px 10px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  text-align: left;
+  color: #666;
+}
+
+button.sectionHead {
+  cursor: pointer;
+}
+
+button.sectionHead:hover {
+  color: #222;
+}
+
+.count {
+  font-weight: normal;
+  color: #999;
+}
+
+.chevron {
+  margin-left: auto;
+  font-size: 7px;
+  transition: transform 0.15s ease;
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 6px 6px 10px;
+}
+
+.valuesHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+
+.valuesName {
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.more {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 10px;
+  color: #666;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.more:hover {
+  color: #FF2D55;
+}
+
+.fold:focus-visible,
+.clear:focus-visible,
+.more:focus-visible,
+button.sectionHead:focus-visible,
+.stripButton:focus-visible {
+  outline: 2px solid #FF2D55;
+  outline-offset: -2px;
+}
+
+/* Values of a part go four to a row; parts that stand alone, three */
+.grid,
+.parts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.parts {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Both kinds together (the parts used last): all one height, a stand-alone part wider for its name */
+.mixed {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.mixed .tile {
+  width: calc((100% - 12px) / 4);
+  padding: 7px 0 5px;
+}
+
+.mixed .wide {
+  width: calc((100% - 8px) / 3);
+}
+
+.mixed .wide .art svg {
+  width: 44px;
+  height: 22px;
+}
+
+/* A compartment with a part lying in it */
+.tile {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 0 8px;
+  gap: 4px;
+  padding: 7px 0 5px;
+  background: white;
+  border: 1.5px solid #E0E0E0;
+  border-radius: 8px;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.04);
+  cursor: grab;
+  user-select: none;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
 }
 
-.empty {
-  color: #999;
+.tile:hover {
+  border-color: #FF2D55;
+  box-shadow: 0 2px 8px rgba(255, 45, 85, 0.18);
+  transform: translateY(-1px);
+}
+
+.tile:active {
+  cursor: grabbing;
+}
+
+.wide {
+  padding: 8px 0 6px;
+}
+
+/* A value that is not in stock, made up from what was typed */
+.custom {
+  border-style: dashed;
+  border-color: #BBB;
+}
+
+.art {
+  display: block;
+  line-height: 0;
+  filter: drop-shadow(0 1px 0.8px rgba(0, 0, 0, 0.3));
+}
+
+.art svg {
+  display: block;
+  width: 44px;
+  height: 22px;
+  overflow: visible;
+}
+
+.wide .art svg {
+  width: 60px;
+  height: 30px;
+}
+
+.title {
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.caption {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 0 2px;
+  overflow: hidden;
   font-size: 9px;
-  text-align: center;
-  padding: 12px 4px;
+  line-height: 1.1;
+  color: #777;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Folded away: a strip to bring the shelf back */
+.strip {
+  width: 30px;
+  height: 100%;
+  flex-shrink: 0;
+  background: #EBEBEB;
+  border-right: 1px solid #DDD;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.stripButton {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  color: #666;
+  cursor: pointer;
+}
+
+.stripButton:hover {
+  background: #DDD;
+  color: #222;
+}
+
+.stripLabel {
+  writing-mode: vertical-rl;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
 }

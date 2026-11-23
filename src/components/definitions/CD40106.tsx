@@ -1,5 +1,7 @@
 import type { ComponentDefinition } from '@/types/circuit';
 import { generatePinId } from '@/utils/ids';
+import { chipArt } from '@/components/art/partArt';
+import { chipBoard } from '@/components/art/boardArt';
 
 export const cd40106Definition: ComponentDefinition = {
   type: 'cd40106',
@@ -99,6 +101,7 @@ export const cd40106Definition: ComponentDefinition = {
     },
   ],
   defaultParameters: {},
+  shelf: { caption: 'Schmitt ×6', keywords: ['40106', 'hex', 'cmos', 'chip', 'ic', 'oscillator', 'logic'], art: chipArt(14, 'CD40106') },
   schematic: {
     symbol: {
       width: 80,
@@ -144,32 +147,16 @@ export const cd40106Definition: ComponentDefinition = {
     symbol: {
       width: 80,
       height: 160,
-      render: () => {
-        return (
-          <g>
-            <rect x="-25" y="-70" width="50" height="140" rx="3" fill="#2a2a2a" stroke="#555" strokeWidth="0.8" />
-            <path d="M 0,-70 A 6,6 0 0,0 0,-58" fill="none" stroke="#555" strokeWidth="1" />
-            <circle cx="-15" cy="-60" r="2" fill="#555" />
-            <text x="0" y="-5" textAnchor="middle" fontSize="7" fill="#ccc" fontFamily="Courier New" fontWeight="bold">CD40106</text>
-            <text x="0" y="6" textAnchor="middle" fontSize="6" fill="#888" fontFamily="Courier New">HEX SCHMITT</text>
-            <text x="0" y="15" textAnchor="middle" fontSize="6" fill="#888" fontFamily="Courier New">INVERTER</text>
-            <rect x="-30" y="-52" width="6" height="2" fill="#bbb" />
-            <rect x="-30" y="-32" width="6" height="2" fill="#bbb" />
-            <rect x="-30" y="-12" width="6" height="2" fill="#bbb" />
-            <rect x="-30" y="8" width="6" height="2" fill="#bbb" />
-            <rect x="-30" y="28" width="6" height="2" fill="#bbb" />
-            <rect x="-30" y="48" width="6" height="2" fill="#bbb" />
-            <rect x="24" y="-52" width="6" height="2" fill="#bbb" />
-            <rect x="24" y="-32" width="6" height="2" fill="#bbb" />
-            <rect x="24" y="-12" width="6" height="2" fill="#bbb" />
-            <rect x="24" y="8" width="6" height="2" fill="#bbb" />
-            <rect x="24" y="28" width="6" height="2" fill="#bbb" />
-            <rect x="24" y="48" width="6" height="2" fill="#bbb" />
-            <rect x="-11" y="-70" width="2" height="6" fill="#bbb" />
-            <rect x="9" y="-70" width="2" height="6" fill="#bbb" />
-          </g>
-        );
-      },
+      render: chipBoard({
+        left: -24, top: -64, width: 48, height: 132,
+        marking: 'CD40106',
+        lines: ['HEX SCHMITT', 'INVERTER'],
+        // Inputs 1A–6A down the left, outputs 1Y–6Y down the right, the supply on top
+        legs: [
+          ...[-50, -30, -10, 10, 30, 50].flatMap((y) => [{ x: -30, y, side: 'left' as const }, { x: 30, y, side: 'right' as const }]),
+          { x: -10, y: -70, side: 'top' }, { x: 10, y: -70, side: 'top' },
+        ],
+      }),
     },
     dimensions: { width: 80, height: 160 },
   },

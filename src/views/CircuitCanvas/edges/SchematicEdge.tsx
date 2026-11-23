@@ -1,31 +1,31 @@
-import { memo, useCallback, useState } from 'react';
-import { type EdgeProps, useReactFlow, useStore } from 'reactflow';
+import { memo, useCallback, useSyncExternalStore } from 'react';
+import { type EdgeProps, useReactFlow } from 'reactflow';
 import { useCircuit } from '@/context/CircuitContext';
 import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
 import { createComponentFromDefinition } from '@/utils/componentFactory';
-import { generateSmartPath } from '@/utils/wiring';
+import { buildRoundedPath, generateSmartPath } from '@/utils/wiring';
 import { generateConnectionId, generateNetId } from '@/utils/ids';
 import type { ComponentId, PinId } from '@/types/circuit';
+import { useWireRoute } from '../routing/useWireRoutes';
 
 // Shared hovered net state — when one wire is hovered, all wires sharing
 // an endpoint highlight. Simple module-level state since edges are all in
 // the same React tree.
 let hoveredEdgeEndpoints: Set<string> | null = null;
-let hoverListeners: Set<() => void> = new Set();
+const hoverListeners: Set<() => void> = new Set();
 
 function setHoveredNet(endpoints: Set<string> | null) {
   hoveredEdgeEndpoints = endpoints;
   hoverListeners.forEach(fn => fn());
 }
 
+function subscribeToHover(listener: () => void): () => void {
+  hoverListeners.add(listener);
+  return () => { hoverListeners.delete(listener); };
+}
+
 function useHoveredNet(): Set<string> | null {
-  const [, forceUpdate] = useState(0);
-  useState(() => {
-    const listener = () => forceUpdate(n => n + 1);
-    hoverListeners.add(listener);
-    return () => { hoverListeners.delete(listener); };
-  });
-  return hoveredEdgeEndpoints;
+  return useSyncExternalStore(subscribeToHover, () => hoveredEdgeEndpoints);
 }
 
 export const SchematicEdge = memo(function SchematicEdge({
@@ -33,10 +33,12 @@ export const SchematicEdge = memo(function SchematicEdge({
 }: EdgeProps) {
   const { addComponent, addConnection, removeConnection, circuit } = useCircuit();
   const { screenToFlowPosition } = useReactFlow();
-  const pathData = generateSmartPath(
-    sourceX, sourceY, sourcePosition,
-    targetX, targetY, targetPosition,
-  );
+  // The router's path avoids parts and other wires; until it has one (the
+  // first frame of a new wire) draw a plain path between the two pins
+  const route = useWireRoute(id);
+  const pathData = route
+    ? buildRoundedPath(route.points)
+    : generateSmartPath(sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition);
 
   // Double-click wire → insert junction (splits wire into two halves)
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
@@ -57,23 +59,24 @@ export const SchematicEdge = memo(function SchematicEdge({
     // Add junction, remove original wire, create two new wires through junction
     addComponent(junction);
     removeConnection(conn.id);
+    const color = conn.color ? { color: conn.color } : {}; // both halves keep the wire's color
     addConnection({
       id: generateConnectionId(),
       from: conn.from,
       to: { componentId: junction.id as ComponentId, pinId: junctionPinId as PinId },
       net: generateNetId(),
+      ...color,
     });
     addConnection({
       id: generateConnectionId(),
       from: { componentId: junction.id as ComponentId, pinId: junctionPinId as PinId },
       to: conn.to,
       net: generateNetId(),
+      ...color,
     });
   }, [data, circuit, addComponent, addConnection, removeConnection, screenToFlowPosition]);
 
-  // Net highlighting: compute this edge's endpoints as keys
-  const sourceKey = `${data?.connectionId}:src:${sourceX},${sourceY}`;
-  const targetKey = `${data?.connectionId}:tgt:${targetX},${targetY}`;
+  // Net highlighting: this edge's endpoints as keys
   const edgeSourcePin = `${(data as Record<string, unknown>)?.sourceComp}::${(data as Record<string, unknown>)?.sourcePin}`;
   const edgeTargetPin = `${(data as Record<string, unknown>)?.targetComp}::${(data as Record<string, unknown>)?.targetPin}`;
 
@@ -85,23 +88,18 @@ export const SchematicEdge = memo(function SchematicEdge({
     const pins = new Set<string>();
     pins.add(edgeSourcePin);
     pins.add(edgeTargetPin);
-    // Also find all other connections sharing these pins
+    // Then everything wired to those pins, however many wires away
     const conns = circuit.getConnections();
-    for (const c of conns) {
-      const fp = `${c.from.componentId}::${c.from.pinId}`;
-      const tp = `${c.to.componentId}::${c.to.pinId}`;
-      if (pins.has(fp) || pins.has(tp)) {
-        pins.add(fp);
-        pins.add(tp);
-      }
-    }
-    // Second pass to catch transitive connections through junctions
-    for (const c of conns) {
-      const fp = `${c.from.componentId}::${c.from.pinId}`;
-      const tp = `${c.to.componentId}::${c.to.pinId}`;
-      if (pins.has(fp) || pins.has(tp)) {
-        pins.add(fp);
-        pins.add(tp);
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const c of conns) {
+        const fp = `${c.from.componentId}::${c.from.pinId}`;
+        const tp = `${c.to.componentId}::${c.to.pinId}`;
+        if (pins.has(fp) !== pins.has(tp)) {
+          pins.add(fp);
+          pins.add(tp);
+          grew = true;
+        }
       }
     }
     setHoveredNet(pins);
@@ -111,13 +109,24 @@ export const SchematicEdge = memo(function SchematicEdge({
     setHoveredNet(null);
   }, []);
 
-  const strokeColor = selected ? '#FF2D55' : isNetHighlighted ? '#2196F3' : '#333';
+  // A wire the user has colored keeps its color whatever else is going on:
+  // selected, it gets a pink halo instead of turning pink, so the color being
+  // chosen can be seen; hovered, its net thickens instead of turning blue
+  const userColor = data?.userColor as string | undefined;
+  const strokeColor = userColor ?? (selected ? '#FF2D55' : isNetHighlighted ? '#2196F3' : '#333');
   const strokeW = selected ? 3 : isNetHighlighted ? 2.5 : 2;
 
   return (
     <g onDoubleClick={handleDoubleClick} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
       <path d={pathData} fill="none" stroke="transparent" strokeWidth={12} style={{ cursor: 'pointer' }} />
+      {selected && userColor && (
+        <path d={pathData} fill="none" stroke="#FF2D55" strokeOpacity={0.35} strokeWidth={strokeW + 6} strokeLinecap="round" />
+      )}
       <path id={id} d={pathData} fill="none" stroke={strokeColor} strokeWidth={strokeW} strokeLinecap="round" />
+      {/* A dot where wires join, so a junction cannot be mistaken for a crossing */}
+      {route?.dots.map((dot) => (
+        <circle key={`${dot.x},${dot.y}`} cx={dot.x} cy={dot.y} r={strokeW + 1.5} fill={strokeColor} />
+      ))}
     </g>
   );
 });

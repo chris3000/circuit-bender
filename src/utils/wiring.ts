@@ -107,7 +107,7 @@ function posToDir(pos: string): Dir {
  * Build an SVG path through orthogonal points with rounded corners.
  * Consecutive duplicate points are skipped. Collinear segments are merged.
  */
-function buildRoundedPath(raw: { x: number; y: number }[]): string {
+export function buildRoundedPath(raw: { x: number; y: number }[], radius: number = CORNER_R): string {
   // Deduplicate and remove collinear midpoints
   const pts: { x: number; y: number }[] = [raw[0]];
   for (let i = 1; i < raw.length; i++) {
@@ -143,7 +143,7 @@ function buildRoundedPath(raw: { x: number; y: number }[]): string {
 
     if (len1 < 0.5 || len2 < 0.5) { path += ` L ${curr.x},${curr.y}`; continue; }
 
-    const r = Math.min(CORNER_R, len1 / 2, len2 / 2);
+    const r = Math.min(radius, len1 / 2, len2 / 2);
     const bx = curr.x - (dx1 / len1) * r;
     const by = curr.y - (dy1 / len1) * r;
     const ax = curr.x + (dx2 / len2) * r;
@@ -286,6 +286,20 @@ export function pointToSegmentDistance(
   const projX = x1 + t * dx;
   const projY = y1 + t * dy;
   return Math.hypot(px - projX, py - projY);
+}
+
+/**
+ * Minimum distance from a point to a wire drawn through the given corners.
+ */
+export function pointToPolylineDistance(
+  px: number, py: number,
+  points: { x: number; y: number }[],
+): number {
+  let best = Infinity;
+  for (let i = 1; i < points.length; i++) {
+    best = Math.min(best, pointToSegmentDistance(px, py, points[i - 1].x, points[i - 1].y, points[i].x, points[i].y));
+  }
+  return best;
 }
 
 /**

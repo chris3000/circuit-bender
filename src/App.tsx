@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { CircuitProvider } from './context/CircuitContext';
 import { useCircuit } from './context/CircuitContext';
 import { ComponentDrawer } from './views/ComponentDrawer';
@@ -7,21 +7,58 @@ import OscilloscopePanel from './views/Oscilloscope/OscilloscopePanel';
 import { ExamplesMenu } from './views/ExamplesMenu';
 import { SaveLoadControls } from './views/SaveLoadControls';
 import CircuitCanvas from './views/CircuitCanvas/CircuitCanvas';
+import { ReplaceGuard } from './views/ReplaceGuard';
+import { CircuitTitle } from './views/CircuitTitle';
+import { PlayNotice } from './views/PlayNotice';
+import { readAutosave, writeAutosave } from './storage/autosave';
+import { playbackWarnings } from './utils/circuitChecks';
+import { CoverView } from './views/Cover/CoverView';
+import { nextView, type ActiveView } from './views/viewModes';
 import type { Circuit } from './models/Circuit';
 
-type ActiveView = 'schematic' | 'board';
-
 export function AppContent() {
-  const { circuit } = useCircuit();
+  const { circuit, isDirty } = useCircuit();
   const [activeView, setActiveView] = useState<ActiveView>('schematic');
+  // Behind the cover the canvas stays as it was last drawn
+  const canvasView = useRef<'schematic' | 'board'>('schematic');
+  if (activeView !== 'cover') canvasView.current = activeView;
   const [audioStarted, setAudioStarted] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(0.7);
 
   const audioEngineRef = useRef<AudioEngine | null>(null);
   const scopeCallbackRef = useRef<((samples: Float32Array, probeData?: Float32Array[]) => void) | null>(null);
+  // Whoever wants to know how loud the output is (the cover's level meter)
+  const levelListeners = useRef(new Set<(peak: number) => void>());
+  const levels = useCallback((listener: (peak: number) => void) => {
+    levelListeners.current.add(listener);
+    return () => { levelListeners.current.delete(listener); };
+  }, []);
   const [ledStates, setLedStates] = useState<Record<string, boolean>>({});
   const [probes, setProbes] = useState<Array<{ componentId: string; pinId: string; label: string }>>([]);
+  const [startError, setStartError] = useState<string | null>(null);
+  const [dismissedNotice, setDismissedNotice] = useState('');
+
+  // Keep the canvas in this browser as it is edited, so a reload or a closed
+  // tab loses nothing. Written a moment after the last change, and at once
+  // when the page is being left.
+  const latest = useRef({ circuit, isDirty });
+  latest.current = { circuit, isDirty };
+  useEffect(() => {
+    const timer = setTimeout(() => writeAutosave(circuit, isDirty), 400);
+    return () => clearTimeout(timer);
+  }, [circuit, isDirty]);
+  useEffect(() => {
+    const flush = () => writeAutosave(latest.current.circuit, latest.current.isDirty);
+    window.addEventListener('pagehide', flush);
+    return () => window.removeEventListener('pagehide', flush);
+  }, []);
+
+  // While playing, say so if the circuit cannot make a sound
+  const warnings = useMemo(() => (audioStarted ? playbackWarnings(circuit) : []), [audioStarted, circuit]);
+  const noticeKey = startError ?? warnings.join('|');
+  // A reason for not starting is out of date once the circuit has been edited
+  useEffect(() => setStartError(null), [circuit]);
 
   const serializeCircuit = useCallback((c: Circuit) => {
     const components = c.getComponents().map(comp => ({
@@ -43,8 +80,18 @@ export function AppContent() {
     audioEngineRef.current = audioEngine;
     audioEngine.onSamples((samples, probeData) => {
       if (scopeCallbackRef.current) scopeCallbackRef.current(samples, probeData);
+      if (levelListeners.current.size > 0) {
+        let peak = 0;
+        for (let i = 0; i < samples.length; i++) peak = Math.max(peak, Math.abs(samples[i]));
+        for (const listener of levelListeners.current) listener(peak);
+      }
     });
-    audioEngine.onLedStates((states) => setLedStates(states));
+    // The worklet reports LED states many times a second; only a change needs a render
+    audioEngine.onLedStates((states) => setLedStates((prev) => {
+      const ids = Object.keys(states);
+      const same = ids.length === Object.keys(prev).length && ids.every((id) => prev[id] === states[id]);
+      return same ? prev : states;
+    }));
     return () => { audioEngine.close(); };
   }, []);
 
@@ -86,7 +133,7 @@ export function AppContent() {
         const target = e.target as HTMLElement;
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return;
         e.preventDefault();
-        setActiveView((v) => (v === 'schematic' ? 'board' : 'schematic'));
+        setActiveView(nextView);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -95,6 +142,12 @@ export function AppContent() {
 
   const handleStartAudio = useCallback(async () => {
     if (!audioEngineRef.current) return;
+    setStartError(null);
+    setDismissedNotice('');
+    if (circuit.getComponents().length === 0) {
+      setStartError(playbackWarnings(circuit)[0]);
+      return;
+    }
     try {
       await audioEngineRef.current.initialize();
       await audioEngineRef.current.resume();
@@ -104,6 +157,8 @@ export function AppContent() {
       setAudioStarted(true);
     } catch (err) {
       console.error('Failed to start audio:', err);
+      const reason = err instanceof Error && err.message ? ` (${err.message})` : '';
+      setStartError(`The audio engine could not start${reason}. Check that this tab is allowed to play sound, then press play again.`);
     }
   }, [circuit, serializeCircuit]);
 
@@ -113,10 +168,6 @@ export function AppContent() {
     setAudioStarted(false);
   }, []);
 
-  const handlePotChange = useCallback((componentId: string, position: number) => {
-    audioEngineRef.current?.setParam(componentId, 'position', position);
-  }, []);
-
   return (
     <div className="app">
       <header className="app-header">
@@ -124,6 +175,7 @@ export function AppContent() {
         <div style={{ width: '1px', height: '18px', background: '#444' }} />
         <ExamplesMenu />
         <SaveLoadControls />
+        <CircuitTitle />
         <div className="audio-controls" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
           {!audioStarted ? (
             <button className="play-btn" onClick={handleStartAudio}>&#9654;</button>
@@ -139,15 +191,26 @@ export function AppContent() {
           </button>
         </div>
       </header>
-      <main className="app-main">
+      <main className="app-main" style={{ position: 'relative' }}>
         <ComponentDrawer />
-        <CircuitCanvas
-          viewMode={activeView}
-          onToggleView={() => setActiveView((v) => (v === 'schematic' ? 'board' : 'schematic'))}
-          ledStates={ledStates}
-          onPotChange={handlePotChange}
-          onAddProbe={handleAddProbe}
-        />
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', position: 'relative' }}>
+          {noticeKey !== dismissedNotice && (
+            <PlayNotice error={startError} warnings={warnings}
+              onDismiss={() => { setDismissedNotice(noticeKey); setStartError(null); }} />
+          )}
+          <CircuitCanvas
+            viewMode={canvasView.current}
+            activeView={activeView}
+            onSelectView={setActiveView}
+            hidden={activeView === 'cover'}
+            ledStates={ledStates}
+            onAddProbe={handleAddProbe}
+          />
+          {activeView === 'cover' && (
+            <CoverView activeView={activeView} onSelectView={setActiveView}
+              ledStates={ledStates} playing={audioStarted} levels={levels} />
+          )}
+        </div>
       </main>
       <OscilloscopePanel
         onRegisterSampleCallback={useCallback((cb: (samples: Float32Array, probeData?: Float32Array[]) => void) => {
@@ -161,9 +224,13 @@ export function AppContent() {
 }
 
 function App() {
+  // Pick up where the last visit left off
+  const [restored] = useState(readAutosave);
   return (
-    <CircuitProvider>
-      <AppContent />
+    <CircuitProvider initial={restored}>
+      <ReplaceGuard>
+        <AppContent />
+      </ReplaceGuard>
     </CircuitProvider>
   );
 }

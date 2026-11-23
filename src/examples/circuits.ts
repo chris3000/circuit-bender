@@ -27,13 +27,24 @@ function connect(
   };
 }
 
+/**
+ * A named switch. Every example has one, so its cover has something to flip;
+ * each starts in the position that plays the example as described.
+ */
+function namedSwitch(name: string, x: number, y: number, closed: boolean): Component {
+  const part = createComponentFromDefinition(getDefinition('switch'), { x, y });
+  part.label = name;
+  part.parameters = { ...part.parameters, closed: closed ? 1 : 0 };
+  return part;
+}
+
 /** Input trim on the WSG's jack: its output is line level, a tenth of what a bare CMOS gate puts out. */
 const WSG_INPUT_TRIM = 8;
 
 export const exampleCircuits: ExampleCircuit[] = [
   {
     name: 'Simple Oscillator',
-    description: 'CD40106 + 27kΩ + 2.2kΩ + 100nF → A4 (440Hz)',
+    description: 'CD40106 + 27kΩ + 2.2kΩ + 100nF → A4 (440Hz). SOUND switches it on and off',
     build: () => {
       // Layout: IC top-center, feedback R1-R2 bridge below with wide spacing,
       // power/ground above IC, cap far-left below, audio right
@@ -50,9 +61,11 @@ export const exampleCircuits: ExampleCircuit[] = [
       const power = createComponentFromDefinition(getDefinition('power'), { x: 490, y: 60 });
       const ground = createComponentFromDefinition(getDefinition('ground'), { x: 260, y: 440 });
       const ground2 = createComponentFromDefinition(getDefinition('ground'), { x: 510, y: 130 });
-      const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 700, y: 210 });
+      // SOUND: the gate's output reaches the jack through this switch
+      const sound = namedSwitch('SOUND', 620, 210, true);
+      const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 700, y: 250 });
 
-      const components = [power, ground, ground2, r1, r2, capacitor, ic, output];
+      const components = [power, ground, ground2, r1, r2, capacitor, ic, sound, output];
       const connections = [
         // Power to IC VDD (pin 12)
         connect(power, 0, ic, 12),
@@ -72,8 +85,9 @@ export const exampleCircuits: ExampleCircuit[] = [
         connect(capacitor, 1, ground, 0),
         // Connect both grounds to same net
         connect(ground, 0, ground2, 0),
-        // IC output 1Y to audio output
-        connect(ic, 6, output, 0),
+        // IC output 1Y to audio output, through the SOUND switch
+        connect(ic, 6, sound, 0),
+        connect(sound, 1, output, 0),
       ];
 
       return { components, connections };
@@ -81,7 +95,7 @@ export const exampleCircuits: ExampleCircuit[] = [
   },
   {
     name: 'Oscillator + Op-Amp',
-    description: 'Simple oscillator through LM741 inverting amp',
+    description: 'Simple oscillator through LM741 inverting amp. SOFT halves the volume',
     build: () => {
       const power = createComponentFromDefinition(getDefinition('power'), { x: 200, y: 80 });
       const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 500 });
@@ -98,6 +112,11 @@ export const exampleCircuits: ExampleCircuit[] = [
       rIn.parameters = { ...rIn.parameters, resistance: 100000, value: '100k' };
       const rFb = createComponentFromDefinition(getDefinition('resistor'), { x: 850, y: 200 });
       rFb.parameters = { ...rFb.parameters, resistance: 100000, value: '100k' };
+      // SOFT: 47k across the feedback resistor cuts the gain to a third. At
+      // full gain the 741 runs into its output limits, so that is about half as loud.
+      const rSoft = createComponentFromDefinition(getDefinition('resistor'), { x: 810, y: 120 });
+      rSoft.parameters = { ...rSoft.parameters, resistance: 47000, value: '47k' };
+      const soft = namedSwitch('SOFT', 910, 120, false);
       const rBias1 = createComponentFromDefinition(getDefinition('resistor'), { x: 750, y: 380 });
       rBias1.parameters = { ...rBias1.parameters, resistance: 100000, value: '100k' };
       const rBias2 = createComponentFromDefinition(getDefinition('resistor'), { x: 750, y: 450 });
@@ -111,7 +130,7 @@ export const exampleCircuits: ExampleCircuit[] = [
 
       const components = [
         power, ground, r1, r2, capacitor, ic,
-        opamp, rIn, rFb, rBias1, rBias2, rOut, cOut,
+        opamp, rIn, rFb, rSoft, soft, rBias1, rBias2, rOut, cOut,
         output,
       ];
 
@@ -136,6 +155,10 @@ export const exampleCircuits: ExampleCircuit[] = [
         // Feedback: OUT → R_fb → IN-
         connect(opamp, 3, rFb, 0),        // OUT
         connect(rFb, 1, opamp, 0),        // IN-
+        // SOFT: OUT → R_soft → switch → IN-
+        connect(rFb, 0, rSoft, 0),
+        connect(rSoft, 1, soft, 0),
+        connect(soft, 1, rFb, 1),
         // Bias: +9V → R1 → IN+ → R2 → GND (4.5V midpoint)
         connect(power, 0, rBias1, 0),
         connect(rBias1, 1, opamp, 1),     // IN+
@@ -152,17 +175,20 @@ export const exampleCircuits: ExampleCircuit[] = [
   },
   {
     name: 'Low Drone',
-    description: 'CD40106 + 100kΩ + 100nF → ~130Hz bass tone',
+    description: 'CD40106 + 100kΩ + 100nF → ~130Hz bass tone. SUB drops it an octave',
     build: () => {
       const power = createComponentFromDefinition(getDefinition('power'), { x: 200, y: 80 });
       const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 500 });
       const resistor = createComponentFromDefinition(getDefinition('resistor'), { x: 350, y: 200 });
       resistor.parameters = { ...resistor.parameters, resistance: 100000, value: '100k' };
       const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 350 });
+      // SUB: a second 100nF beside the first doubles the capacitance, halving the pitch
+      const cSub = createComponentFromDefinition(getDefinition('capacitor'), { x: 290, y: 430 });
+      const sub = namedSwitch('SUB', 390, 430, false);
       const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 500, y: 280 });
       const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 650, y: 280 });
 
-      const components = [power, ground, resistor, capacitor, ic, output];
+      const components = [power, ground, resistor, capacitor, cSub, sub, ic, output];
       const connections = [
         connect(power, 0, ic, 12),
         connect(ground, 0, ic, 13),
@@ -171,6 +197,10 @@ export const exampleCircuits: ExampleCircuit[] = [
         connect(resistor, 1, ic, 6),
         connect(capacitor, 0, ic, 0),
         connect(capacitor, 1, ground, 0),
+        // SUB: IC input → switch → second capacitor → ground
+        connect(sub, 1, ic, 0),
+        connect(sub, 0, cSub, 1),
+        connect(cSub, 0, ground, 0),
         connect(ic, 6, output, 0),
       ];
 
@@ -179,23 +209,31 @@ export const exampleCircuits: ExampleCircuit[] = [
   },
   {
     name: 'High Chirp',
-    description: 'CD40106 + 10kΩ + 100nF → ~1.3kHz treble',
+    description: 'CD40106 + 10kΩ + 100nF → ~1.3kHz treble. HIGHER lifts it an octave',
     build: () => {
       const power = createComponentFromDefinition(getDefinition('power'), { x: 200, y: 80 });
       const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 500 });
       const resistor = createComponentFromDefinition(getDefinition('resistor'), { x: 350, y: 200 });
       resistor.parameters = { ...resistor.parameters, resistance: 10000, value: '10k' };
       const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 350 });
+      // HIGHER: a second 10k across the first halves the resistance, doubling the pitch
+      const rHigher = createComponentFromDefinition(getDefinition('resistor'), { x: 350, y: 130 });
+      rHigher.parameters = { ...rHigher.parameters, resistance: 10000, value: '10k' };
+      const higher = namedSwitch('HIGHER', 450, 130, false);
       const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 500, y: 280 });
       const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 650, y: 280 });
 
-      const components = [power, ground, resistor, capacitor, ic, output];
+      const components = [power, ground, resistor, rHigher, higher, capacitor, ic, output];
       const connections = [
         connect(power, 0, ic, 12),
         connect(ground, 0, ic, 13),
         connect(power, 1, ground, 0),
         connect(resistor, 0, ic, 0),
         connect(resistor, 1, ic, 6),
+        // HIGHER: IC input → second resistor → switch → IC output
+        connect(resistor, 0, rHigher, 0),
+        connect(rHigher, 1, higher, 0),
+        connect(higher, 1, ic, 6),
         connect(capacitor, 0, ic, 0),
         connect(capacitor, 1, ground, 0),
         connect(ic, 6, output, 0),
@@ -206,7 +244,7 @@ export const exampleCircuits: ExampleCircuit[] = [
   },
   {
     name: 'LED Blinker',
-    description: 'Oscillator driving an LED',
+    description: 'Oscillator driving an LED. FAST makes it flicker',
     build: () => {
       const power = createComponentFromDefinition(getDefinition('power'), { x: 200, y: 80 });
       const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 500 });
@@ -215,10 +253,14 @@ export const exampleCircuits: ExampleCircuit[] = [
       const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 350 });
       capacitor.parameters = { ...capacitor.parameters, capacitance: 10e-6, value: '10µF' };
       const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 500, y: 280 });
+      // FAST: 22k across the 100k speeds the blink up about five times
+      const rFast = createComponentFromDefinition(getDefinition('resistor'), { x: 350, y: 130 });
+      rFast.parameters = { ...rFast.parameters, resistance: 22000, value: '22k' };
+      const fast = namedSwitch('FAST', 450, 130, false);
       const rLed = createComponentFromDefinition(getDefinition('resistor'), { x: 650, y: 200 });
       const led = createComponentFromDefinition(getDefinition('led'), { x: 650, y: 350 });
 
-      const components = [power, ground, resistor, capacitor, ic, rLed, led];
+      const components = [power, ground, resistor, rFast, fast, capacitor, ic, rLed, led];
       const connections = [
         connect(power, 0, ic, 12),
         connect(ground, 0, ic, 13),
@@ -226,6 +268,10 @@ export const exampleCircuits: ExampleCircuit[] = [
         // Oscillator
         connect(resistor, 0, ic, 0),
         connect(resistor, 1, ic, 6),
+        // FAST: IC input → second resistor → switch → IC output
+        connect(resistor, 0, rFast, 0),
+        connect(rFast, 1, fast, 0),
+        connect(fast, 1, ic, 6),
         connect(capacitor, 0, ic, 0),
         connect(capacitor, 1, ground, 0),
         // IC output to LED through resistor
@@ -239,21 +285,26 @@ export const exampleCircuits: ExampleCircuit[] = [
   },
   {
     name: 'Pitch Control',
-    description: '10kΩ + 100kΩ pot → 120Hz–1.3kHz',
+    description: '10kΩ + 100kΩ pot → 120Hz–1.3kHz. LOW moves the range down to 37–400Hz',
     build: () => {
       const power = createComponentFromDefinition(getDefinition('power'), { x: 200, y: 80 });
-      const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 500 });
+      const ground = createComponentFromDefinition(getDefinition('ground'), { x: 200, y: 540 });
       // Fixed 10kΩ resistor sets the ceiling frequency (~1.3kHz)
       const rFixed = createComponentFromDefinition(getDefinition('resistor'), { x: 300, y: 280 });
       rFixed.parameters = { ...rFixed.parameters, resistance: 10000, value: '10k' };
       // 100kΩ pot in series adds 0–100kΩ (floor frequency ~120Hz)
       const pot = createComponentFromDefinition(getDefinition('potentiometer'), { x: 420, y: 280 });
+      pot.label = 'PITCH';
       pot.parameters = { ...pot.parameters, maxResistance: 100000, value: '100k', position: 0.5 };
       const capacitor = createComponentFromDefinition(getDefinition('capacitor'), { x: 350, y: 420 });
+      // LOW: 220nF beside the 100nF makes every pitch 3.2 times lower
+      const cLow = createComponentFromDefinition(getDefinition('capacitor'), { x: 290, y: 500 });
+      cLow.parameters = { ...cLow.parameters, capacitance: 220e-9, value: '220nF' };
+      const low = namedSwitch('LOW', 390, 500, false);
       const ic = createComponentFromDefinition(getDefinition('cd40106'), { x: 560, y: 300 });
       const output = createComponentFromDefinition(getDefinition('audio-output'), { x: 700, y: 300 });
 
-      const components = [power, ground, rFixed, pot, capacitor, ic, output];
+      const components = [power, ground, rFixed, pot, capacitor, cLow, low, ic, output];
       const connections = [
         connect(power, 0, ic, 12),
         connect(ground, 0, ic, 13),
@@ -265,6 +316,10 @@ export const exampleCircuits: ExampleCircuit[] = [
         // Capacitor from IC input to ground
         connect(capacitor, 0, ic, 0),
         connect(capacitor, 1, ground, 0),
+        // LOW: IC input → switch → second capacitor → ground
+        connect(low, 1, ic, 0),
+        connect(low, 0, cLow, 1),
+        connect(cLow, 0, ground, 0),
         // IC output to audio
         connect(ic, 6, output, 0),
       ];
@@ -304,73 +359,81 @@ export const exampleCircuits: ExampleCircuit[] = [
         c.parameters = { ...c.parameters, capacitance, value };
         return c;
       };
-      const pot = (x: number, y: number, maxResistance: number, value: string, position: number, rotation = 0) => {
+      const pot = (name: string, x: number, y: number, maxResistance: number, value: string, position: number, rotation = 0) => {
         const c = at('potentiometer', x, y, rotation);
+        c.label = name;
         c.parameters = { ...c.parameters, maxResistance, value, position };
         return c;
       };
 
       const ground = (x: number, y: number) => at('ground', x, y);
 
+      // The layout follows the signal: supply top left, the three
+      // oscillators around the IC, the Weird oscillator's bending network to
+      // its right, then the filter and the output. Wacky and Zany loop under
+      // the IC (one inside the other) and Weird's feedback returns over the
+      // top, which keeps wire crossings to a handful.
+
       // --- Supply ---
-      const power = at('power', 120, 150);
-      const c9 = capacitor(220, 150, 100e-9, '100nF', 90);  // bypass
-      const gPower = ground(170, 260);
+      const power = at('power', 240, 170);
+      const c9 = capacitor(320, 170, 100e-9, '100nF', 90);  // bypass
+      const gPower = ground(280, 270);
 
-      const ic = at('cd40106', 520, 430);
-      const gIc = ground(620, 330);
+      const ic = at('cd40106', 500, 420);
+      const gIc = ground(560, 300);
 
-      // --- Wacky oscillator (U1-B), above the IC ---
-      const r6 = resistor(400, 230, 4700, '4.7k');
-      const r1 = pot(520, 230, 1e6, '1M', 0.35);            // Wacky Frequency
-      const c4 = capacitor(310, 320, 22e-9, '22nF', 90);
-      const gWacky = ground(310, 400);
+      // --- Zany oscillator (U1-C): the inner loop under the IC ---
+      const r13 = pot('ZANY', 520, 580, 1e6, '1M', 0.6);    // Zany Frequency
+      const r15 = resistor(420, 580, 4700, '4.7k');
+      const c7 = capacitor(300, 470, 1e-6, '1uF', 90);
+      const gZany = ground(300, 540);
 
-      // --- Zany oscillator (U1-C), below the IC ---
-      const r15 = resistor(400, 630, 4700, '4.7k');
-      const r13 = pot(520, 630, 1e6, '1M', 0.6);            // Zany Frequency
-      const c7 = capacitor(310, 540, 1e-6, '1uF', 90);
-      const gZany = ground(310, 620);
+      // --- Wacky oscillator (U1-B): the outer loop under the IC ---
+      const r1 = pot('WACKY', 520, 730, 1e6, '1M', 0.35);   // Wacky Frequency
+      const r6 = resistor(420, 730, 4700, '4.7k');
+      const c4 = capacitor(200, 460, 22e-9, '22nF', 90);
+      const gWacky = ground(200, 530);
 
       // --- Zany → Q1 base ---
-      const r18 = pot(700, 680, 100e3, '100k', 0.7);        // Zaniness Amount
-      const gZaniness = ground(640, 750);
-      const r19 = resistor(790, 620, 47e3, '47k');
-      const r33 = resistor(890, 620, 47e3, '47k');
-
-      // --- Wackiness gate ---
-      const s2 = at('switch', 700, 250);                    // Wackiness
-      s2.parameters = { ...s2.parameters, closed: 1 };
-      const d1 = at('1n914', 800, 250, 180);                // cathode towards the switch
+      const r18 = pot('ZANINESS', 670, 570, 100e3, '100k', 0.7);  // Zaniness Amount
+      const gZaniness = ground(620, 620);
+      const r19 = resistor(670, 490, 47e3, '47k', 270);
+      const r33 = resistor(740, 440, 47e3, '47k');
 
       // --- Weird oscillator (U1-A), right of the IC ---
-      const r7 = resistor(700, 380, 4700, '4.7k');
-      const q1 = at('2n3904', 810, 450);
-      const r9 = pot(930, 380, 1e6, '1M', 0.8);             // Weird Frequency
-      const r14 = resistor(930, 500, 4700, '4.7k');
-      const c5 = capacitor(700, 520, 22e-9, '22nF', 90);
-      const gWeird = ground(700, 600);
+      const r7 = resistor(640, 370, 4700, '4.7k');
+      const q1 = at('2n3904', 860, 440);
+      const r9 = pot('WEIRD', 960, 410, 1e6, '1M', 0.8, 90); // Weird Frequency
+      const r14 = resistor(960, 500, 4700, '4.7k', 270);
+      const c5 = capacitor(1040, 610, 22e-9, '22nF', 90);
+      const gWeird = ground(1040, 690);
+
+      // --- Wackiness gate ---
+      const s2 = at('switch', 870, 620);                    // Wackiness
+      s2.parameters = { ...s2.parameters, closed: 1 };
+      s2.label = 'WACKINESS';
+      const d1 = at('1n914', 950, 620, 180);                // cathode towards the switch
 
       // --- Oddness filter and output (U2) ---
-      const r5 = resistor(1080, 300, 1e6, '1M');
-      const r10 = resistor(1160, 380, 1000, '1k', 90);
-      const gFilter = ground(1160, 470);
-      const c1 = capacitor(1230, 300, 100e-9, '100nF');
-      const r11 = resistor(1320, 300, 750e3, '750k');
-      const opamp = at('lm741', 1480, 320);
-      const gOpamp = ground(1420, 420);
-      const r4 = resistor(1480, 220, 10e6, '10M');
-      const c2 = capacitor(1430, 140, 470e-12, '470pF');
-      const c3 = capacitor(1530, 140, 470e-12, '470pF');
-      const r3 = pot(1480, 70, 1e6, '1M', 0.9, 180);        // Oddness Cut Off Frequency
-      const r8 = resistor(1360, 70, 1000, '1k');
-      const r16 = resistor(1250, 440, 100e3, '100k');
-      const r17 = resistor(1340, 520, 100e3, '100k', 90);
-      const c8 = capacitor(1260, 520, 220e-6, '220uF', 90);
-      const gBias = ground(1300, 620);
-      const r12 = resistor(1590, 329, 1000, '1k');
-      const c6 = capacitor(1680, 329, 1e-6, '1uF');
-      const output = at('audio-output', 1770, 349);
+      const r5 = resistor(1180, 300, 1e6, '1M');
+      const r10 = resistor(1260, 380, 1000, '1k', 90);
+      const gFilter = ground(1260, 470);
+      const c1 = capacitor(1330, 300, 100e-9, '100nF');
+      const r11 = resistor(1420, 300, 750e3, '750k');
+      const opamp = at('lm741', 1580, 320);
+      const gOpamp = ground(1520, 420);
+      const r4 = resistor(1580, 220, 10e6, '10M');
+      const c2 = capacitor(1530, 140, 470e-12, '470pF');
+      const c3 = capacitor(1630, 140, 470e-12, '470pF');
+      const r3 = pot('ODDNESS', 1580, 70, 1e6, '1M', 0.9, 180); // Oddness Cut Off Frequency
+      const r8 = resistor(1460, 70, 1000, '1k');
+      const r16 = resistor(1350, 440, 100e3, '100k');
+      const r17 = resistor(1440, 520, 100e3, '100k', 90);
+      const c8 = capacitor(1360, 520, 220e-6, '220uF', 90);
+      const gBias = ground(1400, 620);
+      const r12 = resistor(1690, 329, 1000, '1k');
+      const c6 = capacitor(1780, 329, 1e-6, '1uF');
+      const output = at('audio-output', 1870, 349);
       // The WSG puts out a few hundred millivolts (it is meant for an
       // amplifier input), so turn the jack's input trim up to match
       output.parameters = { ...output.parameters, gain: WSG_INPUT_TRIM };

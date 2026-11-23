@@ -48,6 +48,11 @@ export class Circuit {
   }
 
   // Immutable operations that return new Circuit instances
+  /** The same circuit under another name. */
+  withName(name: string): Circuit {
+    return name === this.name ? this : Circuit.fromJSON({ ...this.toJSON(), name });
+  }
+
   addComponent(component: Component): Circuit {
     const newComponents = new Map(this.components);
     newComponents.set(component.id, component);

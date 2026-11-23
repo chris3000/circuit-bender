@@ -2,6 +2,9 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useCircuit } from '@/context/CircuitContext';
 import { StorageManager } from '@/storage/StorageManager';
 import { Circuit } from '@/models/Circuit';
+import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
+import { circuitFileName, exportCircuitFile, importCircuitFile } from '@/storage/serializer';
+import { useReplaceCircuit } from './ReplaceGuard';
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -46,11 +49,30 @@ const dropdownStyle = {
   fontFamily: "'Courier New', Courier, monospace",
 };
 
+const linkButtonStyle = {
+  background: 'none',
+  border: 'none',
+  color: '#bbb',
+  cursor: 'pointer' as const,
+  padding: '8px 12px',
+  width: '100%',
+  textAlign: 'left' as const,
+  fontFamily: "'Courier New', Courier, monospace",
+  fontSize: 11,
+  borderTop: '1px solid #333',
+};
+
+const errorStyle = { color: '#FF2D55', fontSize: 10, lineHeight: 1.4, padding: '0 12px 10px' };
+
 export function SaveLoadControls() {
-  const { circuit, loadCircuit } = useCircuit();
+  const { circuit, markSaved } = useCircuit();
+  const replaceCircuit = useReplaceCircuit();
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [loadOpen, setLoadOpen] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [circuits, setCircuits] = useState<ReturnType<StorageManager['listCircuits']>>([]);
 
   const saveRef = useRef<HTMLDivElement>(null);
@@ -62,6 +84,7 @@ export function SaveLoadControls() {
   useEffect(() => {
     if (loadOpen) {
       setCircuits(storageRef.current.listCircuits());
+      setLoadError('');
     }
   }, [loadOpen]);
 
@@ -99,34 +122,71 @@ export function SaveLoadControls() {
 
   const openSavePrompt = useCallback(() => {
     setSaveName(circuit.name || '');
+    setSaveError('');
     setSaveOpen(true);
     setLoadOpen(false);
   }, [circuit.name]);
 
-  const handleSave = useCallback(() => {
+  /** The circuit on screen under the name typed in the save prompt. */
+  const named = useCallback((): Circuit | null => {
     const name = saveName.trim();
-    if (!name) return;
-
-    // Create a circuit copy with the chosen name via fromJSON
+    if (!name) return null;
     const data = circuit.toJSON();
     data.name = name;
     data.metadata = { ...data.metadata, modified: new Date().toISOString() };
-    const toSave = Circuit.fromJSON(data);
+    return Circuit.fromJSON(data);
+  }, [saveName, circuit]);
 
-    storageRef.current.saveCircuit(toSave);
-
-    // Load the named circuit back so the app tracks the saved identity
-    loadCircuit(toSave);
+  const handleSave = useCallback(() => {
+    const toSave = named();
+    if (!toSave) return;
+    try {
+      storageRef.current.saveCircuit(toSave);
+    } catch {
+      setSaveError('This browser would not store the circuit (its storage may be full or switched off). Export it to a file instead.');
+      return;
+    }
+    // The canvas keeps its undo history; only the name and the saved mark change
+    markSaved(toSave);
     setSaveOpen(false);
-  }, [saveName, circuit, loadCircuit]);
+  }, [named, markSaved]);
+
+  /** Download the circuit as a file, to keep outside this browser or pass on. */
+  const handleExport = useCallback(() => {
+    const toExport = named() ?? circuit;
+    const url = URL.createObjectURL(new Blob([exportCircuitFile(toExport)], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = circuitFileName(toExport.name);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setSaveOpen(false);
+  }, [named, circuit]);
 
   const handleLoad = useCallback((id: string) => {
     const loaded = storageRef.current.loadCircuit(id);
-    if (loaded) {
-      loadCircuit(loaded);
+    if (!loaded) {
+      setLoadError('That circuit could not be read.');
+      return;
     }
+    replaceCircuit(loaded);
     setLoadOpen(false);
-  }, [loadCircuit]);
+  }, [replaceCircuit]);
+
+  const handleImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // so choosing the same file again is still a change
+    if (!file) return;
+    try {
+      const known = new Set(ComponentRegistry.getInstance().listAll().map((d) => d.type));
+      replaceCircuit(importCircuitFile(await file.text(), known));
+      setLoadOpen(false);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'That file could not be read.');
+    }
+  }, [replaceCircuit]);
 
   const handleDelete = useCallback((e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -241,6 +301,10 @@ export function SaveLoadControls() {
                 </button>
               </div>
             </div>
+            {saveError && <div role="alert" style={errorStyle}>{saveError}</div>}
+            <button onClick={handleExport} style={linkButtonStyle} title="Download this circuit as a file">
+              Export to a file…
+            </button>
           </div>
         )}
       </div>
@@ -330,6 +394,12 @@ export function SaveLoadControls() {
                 ))
               )}
             </div>
+            {loadError && <div role="alert" style={errorStyle}>{loadError}</div>}
+            <button onClick={() => fileInputRef.current?.click()} style={linkButtonStyle} title="Open a circuit file exported from Circuit Bender">
+              Import from a file…
+            </button>
+            <input ref={fileInputRef} type="file" accept=".json,application/json" onChange={handleImport}
+              data-testid="import-file" style={{ display: 'none' }} />
           </div>
         )}
       </div>

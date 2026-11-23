@@ -1,5 +1,7 @@
 import type { ComponentDefinition } from '@/types/circuit';
 import { generatePinId } from '@/utils/ids';
+import { switchArt } from '@/components/art/partArt';
+import { switchBoard } from '@/components/art/boardArt';
 
 export const switchDefinition: ComponentDefinition = {
   type: 'switch',
@@ -13,6 +15,8 @@ export const switchDefinition: ComponentDefinition = {
     { id: generatePinId('switch', 1), label: '2', type: 'bidirectional', position: { x: 25, y: 0 } },
   ],
   defaultParameters: { closed: 0, value: 'SPST' },
+  shelf: { caption: 'On / off', keywords: ['spst', 'toggle'], art: switchArt },
+  cover: { control: 'toggle', parameter: 'closed', name: 'SWITCH' },
   schematic: {
     symbol: {
       width: 50, height: 30,
@@ -31,24 +35,15 @@ export const switchDefinition: ComponentDefinition = {
       },
     },
     dimensions: { width: 50, height: 30 },
+    overhang: { bottom: 8 },
   },
   board: {
     symbol: {
       width: 50, height: 40,
-      render: (params) => {
-        const closed = (params.closed as number) >= 1;
-        return (
-          <g>
-            <rect x="-18" y="-12" width="36" height="24" rx="4" fill="#333" stroke="#555" strokeWidth="1" />
-            <rect x={closed ? '2' : '-14'} y="-8" width="12" height="16" rx="2" fill={closed ? '#4a9' : '#666'} stroke="#444" strokeWidth="0.5" />
-            <rect x="-25" y="-1.5" width="8" height="3" rx="1" fill="#ccc" />
-            <rect x="17" y="-1.5" width="8" height="3" rx="1" fill="#ccc" />
-            <text x="0" y="24" textAnchor="middle" fontSize="8" fill="#d4ecd4" opacity="0.85" fontFamily="Courier New">{closed ? 'ON' : 'OFF'}</text>
-          </g>
-        );
-      },
+      render: switchBoard,
     },
     dimensions: { width: 50, height: 40 },
+    overhang: { bottom: 8 },
   },
   simulate: (inputs) => ({
     pin_0: inputs.pin_0 || { voltage: 0, current: 0 },

@@ -1,5 +1,7 @@
 import type { ComponentDefinition } from '@/types/circuit';
 import { generatePinId } from '@/utils/ids';
+import { ledArt } from '@/components/art/partArt';
+import { ledBoard } from '@/components/art/boardArt';
 
 export const ledDefinition: ComponentDefinition = {
   type: 'led',
@@ -26,6 +28,8 @@ export const ledDefinition: ComponentDefinition = {
     color: 'red',
     forwardVoltage: 2.0,
   },
+  shelf: { caption: 'Red', keywords: ['light', 'lamp', 'indicator'], art: ledArt },
+  cover: { control: 'lamp', name: 'LED' },
   schematic: {
     symbol: {
       width: 40,
@@ -53,28 +57,13 @@ export const ledDefinition: ComponentDefinition = {
       },
     },
     dimensions: { width: 40, height: 30 },
+    overhang: { bottom: 6 },
   },
   board: {
     symbol: {
       width: 50,
       height: 40,
-      render: (params) => {
-        const color = (params.color as string) || 'red';
-        const cssColor = color === 'red' ? '#ff2d55' : color === 'green' ? '#00ff88' : color === 'blue' ? '#4488ff' : '#ff2d55';
-        return (
-          <g>
-            <rect x="-20" y="-1.5" width="6" height="3" rx="1" fill="#ccc" />
-            <rect x="14" y="-1.5" width="6" height="3" rx="1" fill="#ccc" />
-            <ellipse cx="0" cy="0" rx="13" ry="15" fill={cssColor} opacity="0.25" stroke={cssColor} strokeWidth="1" />
-            <ellipse cx="0" cy="0" rx="9" ry="11" fill={cssColor} opacity="0.45" />
-            <ellipse cx="-3" cy="-4" rx="4" ry="5" fill="#fff" opacity="0.15" />
-            <line x1="10" y1="-13" x2="10" y2="13" stroke={cssColor} strokeWidth="1.2" opacity="0.5" />
-            <text x="0" y="26" textAnchor="middle" fontSize="9" fill="#d4ecd4" opacity="0.85" fontFamily="Courier New">
-              LED
-            </text>
-          </g>
-        );
-      },
+      render: ledBoard,
     },
     dimensions: { width: 50, height: 40 },
   },

@@ -1,11 +1,26 @@
 import React, { createContext, useContext, useCallback, useMemo, useReducer } from 'react';
 import { Circuit } from '@/models/Circuit';
+import { wireNets } from '@/utils/wireColors';
 import type {
   Component,
   Connection,
   ComponentId,
   ConnectionId,
+  Position2D,
 } from '@/types/circuit';
+
+export interface UpdateOptions {
+  /**
+   * Whether the change is a step of its own for undo (default true). A knob
+   * being turned records the first movement and not the hundred after it.
+   */
+  record?: boolean;
+}
+
+export interface ComponentMove {
+  componentId: ComponentId;
+  position: Position2D;
+}
 
 const MAX_UNDO_STACK_SIZE = 50;
 
@@ -13,11 +28,20 @@ interface CircuitContextType {
   circuit: Circuit;
   addComponent: (component: Component) => void;
   removeComponent: (componentId: ComponentId) => void;
-  updateComponent: (componentId: ComponentId, updates: Partial<Component>) => void;
+  updateComponent: (componentId: ComponentId, updates: Partial<Component>, options?: UpdateOptions) => void;
+  /** Move several parts as one undo step. */
+  moveComponents: (moves: ComponentMove[]) => void;
   addConnection: (connection: Connection) => void;
   removeConnection: (connectionId: ConnectionId) => void;
   updateConnection: (connectionId: ConnectionId, updates: Partial<Connection>) => void;
-  loadCircuit: (circuit: Circuit) => void;
+  /** Color the given wires and everything they are joined to (undefined: back to the default). One undo step. */
+  setWireColor: (connectionIds: ConnectionId[], color: string | undefined) => void;
+  /** Replace the whole circuit (and its undo history). `dirty` marks it as not saved anywhere yet. */
+  loadCircuit: (circuit: Circuit, options?: { dirty?: boolean }) => void;
+  /** Whether the circuit has changes that are not in its saved copy (or its example). */
+  isDirty: boolean;
+  /** The circuit was just saved as `saved` (the same circuit, perhaps under a new name). */
+  markSaved: (saved: Circuit) => void;
   selectedComponents: ComponentId[];
   selectedConnections: ConnectionId[];
   setSelection: (components: ComponentId[], connections: ConnectionId[]) => void;
@@ -32,6 +56,8 @@ const CircuitContext = createContext<CircuitContextType | undefined>(undefined);
 
 interface CircuitState {
   circuit: Circuit;
+  /** The circuit as last saved or loaded; null when what is on screen was never saved. */
+  cleanCircuit: Circuit | null;
   undoStack: Circuit[];
   redoStack: Circuit[];
   selectedComponents: ComponentId[];
@@ -41,11 +67,14 @@ interface CircuitState {
 type CircuitAction =
   | { type: 'ADD_COMPONENT'; component: Component }
   | { type: 'REMOVE_COMPONENT'; componentId: ComponentId }
-  | { type: 'UPDATE_COMPONENT'; componentId: ComponentId; updates: Partial<Component> }
+  | { type: 'UPDATE_COMPONENT'; componentId: ComponentId; updates: Partial<Component>; record: boolean }
+  | { type: 'MOVE_COMPONENTS'; moves: ComponentMove[] }
   | { type: 'ADD_CONNECTION'; connection: Connection }
   | { type: 'REMOVE_CONNECTION'; connectionId: ConnectionId }
   | { type: 'UPDATE_CONNECTION'; connectionId: ConnectionId; updates: Partial<Connection> }
-  | { type: 'LOAD_CIRCUIT'; circuit: Circuit }
+  | { type: 'SET_WIRE_COLOR'; connectionIds: ConnectionId[]; color: string | undefined }
+  | { type: 'LOAD_CIRCUIT'; circuit: Circuit; dirty: boolean }
+  | { type: 'MARK_SAVED'; circuit: Circuit }
   | { type: 'SET_SELECTION'; components: ComponentId[]; connections: ConnectionId[] }
   | { type: 'CLEAR_SELECTION' }
   | { type: 'UNDO' }
@@ -57,6 +86,10 @@ function pushUndoStack(undoStack: Circuit[], current: Circuit): Circuit[] {
     return next.slice(next.length - MAX_UNDO_STACK_SIZE);
   }
   return next;
+}
+
+function sameIds(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((id, i) => id === b[i]);
 }
 
 function circuitReducer(state: CircuitState, action: CircuitAction): CircuitState {
@@ -76,12 +109,29 @@ function circuitReducer(state: CircuitState, action: CircuitAction): CircuitStat
         circuit: state.circuit.removeComponent(action.componentId),
       };
     case 'UPDATE_COMPONENT':
+      if (!state.circuit.getComponent(action.componentId)) return state;
+      return {
+        ...state,
+        undoStack: action.record ? pushUndoStack(state.undoStack, state.circuit) : state.undoStack,
+        redoStack: action.record ? [] : state.redoStack,
+        circuit: state.circuit.updateComponent(action.componentId, action.updates),
+      };
+    case 'MOVE_COMPONENTS': {
+      let circuit = state.circuit;
+      for (const move of action.moves) {
+        const component = circuit.getComponent(move.componentId);
+        if (!component) continue;
+        if (component.position.x === move.position.x && component.position.y === move.position.y) continue;
+        circuit = circuit.updateComponent(move.componentId, { position: { ...move.position } });
+      }
+      if (circuit === state.circuit) return state;
       return {
         ...state,
         undoStack: pushUndoStack(state.undoStack, state.circuit),
         redoStack: [],
-        circuit: state.circuit.updateComponent(action.componentId, action.updates),
+        circuit,
       };
+    }
     case 'ADD_CONNECTION':
       return {
         ...state,
@@ -101,6 +151,23 @@ function circuitReducer(state: CircuitState, action: CircuitAction): CircuitStat
         ...state,
         circuit: state.circuit.updateConnection(action.connectionId, action.updates),
       };
+    case 'SET_WIRE_COLOR': {
+      const connections = state.circuit.getConnections();
+      const nets = wireNets(connections);
+      const chosen = new Set(action.connectionIds.map((id) => nets.get(id)));
+      let circuit = state.circuit;
+      for (const c of connections) {
+        if (!chosen.has(nets.get(c.id)) || c.color === action.color) continue;
+        circuit = circuit.updateConnection(c.id, { color: action.color });
+      }
+      if (circuit === state.circuit) return state;
+      return {
+        ...state,
+        undoStack: pushUndoStack(state.undoStack, state.circuit),
+        redoStack: [],
+        circuit,
+      };
+    }
     case 'UNDO': {
       if (state.undoStack.length === 0) return state;
       const newUndoStack = [...state.undoStack];
@@ -127,16 +194,30 @@ function circuitReducer(state: CircuitState, action: CircuitAction): CircuitStat
       return {
         ...state,
         circuit: action.circuit,
+        cleanCircuit: action.dirty ? null : action.circuit,
         undoStack: [],
         redoStack: [],
       };
+    case 'MARK_SAVED': {
+      // Saving can rename the circuit. The history keeps its steps, under the new name
+      const name = action.circuit.name;
+      return {
+        ...state,
+        circuit: action.circuit,
+        cleanCircuit: action.circuit,
+        undoStack: state.undoStack.map((c) => c.withName(name)),
+        redoStack: state.redoStack.map((c) => c.withName(name)),
+      };
+    }
     case 'SET_SELECTION':
+      if (sameIds(state.selectedComponents, action.components) && sameIds(state.selectedConnections, action.connections)) return state;
       return {
         ...state,
         selectedComponents: action.components,
         selectedConnections: action.connections,
       };
     case 'CLEAR_SELECTION':
+      if (state.selectedComponents.length === 0 && state.selectedConnections.length === 0) return state;
       return {
         ...state,
         selectedComponents: [],
@@ -145,9 +226,17 @@ function circuitReducer(state: CircuitState, action: CircuitAction): CircuitStat
   }
 }
 
-function createInitialState(): CircuitState {
+/** What to start with instead of an empty circuit (work restored from the last visit). */
+export interface InitialCircuit {
+  circuit: Circuit;
+  dirty: boolean;
+}
+
+function createInitialState(initial?: InitialCircuit | null): CircuitState {
+  const circuit = initial?.circuit ?? new Circuit('Untitled Circuit');
   return {
-    circuit: new Circuit('Untitled Circuit'),
+    circuit,
+    cleanCircuit: initial?.dirty ? null : circuit,
     undoStack: [],
     redoStack: [],
     selectedComponents: [],
@@ -155,8 +244,8 @@ function createInitialState(): CircuitState {
   };
 }
 
-export function CircuitProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(circuitReducer, undefined, createInitialState);
+export function CircuitProvider({ children, initial }: { children: React.ReactNode; initial?: InitialCircuit | null }) {
+  const [state, dispatch] = useReducer(circuitReducer, initial, createInitialState);
 
   const addComponent = useCallback((component: Component) => {
     dispatch({ type: 'ADD_COMPONENT', component });
@@ -167,11 +256,15 @@ export function CircuitProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateComponent = useCallback(
-    (componentId: ComponentId, updates: Partial<Component>) => {
-      dispatch({ type: 'UPDATE_COMPONENT', componentId, updates });
+    (componentId: ComponentId, updates: Partial<Component>, options?: UpdateOptions) => {
+      dispatch({ type: 'UPDATE_COMPONENT', componentId, updates, record: options?.record !== false });
     },
     []
   );
+
+  const moveComponents = useCallback((moves: ComponentMove[]) => {
+    dispatch({ type: 'MOVE_COMPONENTS', moves });
+  }, []);
 
   const addConnection = useCallback((connection: Connection) => {
     dispatch({ type: 'ADD_CONNECTION', connection });
@@ -188,6 +281,10 @@ export function CircuitProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const setWireColor = useCallback((connectionIds: ConnectionId[], color: string | undefined) => {
+    dispatch({ type: 'SET_WIRE_COLOR', connectionIds, color });
+  }, []);
+
   const undo = useCallback(() => {
     dispatch({ type: 'UNDO' });
   }, []);
@@ -196,8 +293,12 @@ export function CircuitProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'REDO' });
   }, []);
 
-  const loadCircuit = useCallback((newCircuit: Circuit) => {
-    dispatch({ type: 'LOAD_CIRCUIT', circuit: newCircuit });
+  const loadCircuit = useCallback((newCircuit: Circuit, options?: { dirty?: boolean }) => {
+    dispatch({ type: 'LOAD_CIRCUIT', circuit: newCircuit, dirty: options?.dirty === true });
+  }, []);
+
+  const markSaved = useCallback((saved: Circuit) => {
+    dispatch({ type: 'MARK_SAVED', circuit: saved });
   }, []);
 
   const setSelection = useCallback((components: ComponentId[], connections: ConnectionId[]) => {
@@ -213,10 +314,14 @@ export function CircuitProvider({ children }: { children: React.ReactNode }) {
     addComponent,
     removeComponent,
     updateComponent,
+    moveComponents,
     addConnection,
     removeConnection,
     updateConnection,
+    setWireColor,
     loadCircuit,
+    isDirty: state.circuit !== state.cleanCircuit,
+    markSaved,
     selectedComponents: state.selectedComponents,
     selectedConnections: state.selectedConnections,
     setSelection,
@@ -225,7 +330,7 @@ export function CircuitProvider({ children }: { children: React.ReactNode }) {
     redo,
     canUndo: state.undoStack.length > 0,
     canRedo: state.redoStack.length > 0,
-  }), [state, addComponent, removeComponent, updateComponent, addConnection, removeConnection, updateConnection, loadCircuit, setSelection, clearSelection, undo, redo]);
+  }), [state, addComponent, removeComponent, updateComponent, moveComponents, addConnection, removeConnection, updateConnection, setWireColor, loadCircuit, markSaved, setSelection, clearSelection, undo, redo]);
 
   return (
     <CircuitContext.Provider value={value}>{children}</CircuitContext.Provider>

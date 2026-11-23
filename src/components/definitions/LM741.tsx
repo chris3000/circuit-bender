@@ -1,5 +1,7 @@
 import type { ComponentDefinition } from '@/types/circuit';
 import { generatePinId } from '@/utils/ids';
+import { chipArt } from '@/components/art/partArt';
+import { chipBoard } from '@/components/art/boardArt';
 
 export const lm741Definition: ComponentDefinition = {
   type: 'lm741',
@@ -46,6 +48,7 @@ export const lm741Definition: ComponentDefinition = {
     },
   ],
   defaultParameters: {},
+  shelf: { caption: 'Op-amp', keywords: ['741', 'opamp', 'amplifier', 'chip', 'ic'], art: chipArt(8, 'LM741') },
   schematic: {
     symbol: {
       width: 70,
@@ -97,32 +100,22 @@ export const lm741Definition: ComponentDefinition = {
       },
     },
     dimensions: { width: 70, height: 90 },
+    overhang: { top: 14 },
   },
   board: {
     symbol: {
       width: 70,
       height: 90,
-      render: () => {
-        return (
-          <g>
-            <rect x="-20" y="-35" width="40" height="70" rx="3" fill="#2a2a2a" stroke="#555" strokeWidth="0.8" />
-            <path d="M 0,-35 A 5,5 0 0,0 0,-25" fill="none" stroke="#555" strokeWidth="1" />
-            <circle cx="-10" cy="-27" r="2" fill="#555" />
-            <text x="0" y="0" textAnchor="middle" fontSize="7" fill="#ccc" fontFamily="Courier New" fontWeight="bold">LM741</text>
-            <text x="0" y="10" textAnchor="middle" fontSize="6" fill="#888" fontFamily="Courier New">OP-AMP</text>
-            {/* Left legs: NC, IN-, IN+, V- (4 pins, DIP8 layout) */}
-            <rect x="-25" y="-32" width="6" height="2" fill="#666"><title>Unused</title></rect>
-            <rect x="-25" y="-12" width="6" height="2" fill="#bbb" />
-            <rect x="-25" y="8" width="6" height="2" fill="#bbb" />
-            <rect x="-25" y="28" width="6" height="2" fill="#bbb" />
-            {/* Right legs: NC, V+, OUT, NC (4 pins, DIP8 layout) */}
-            <rect x="19" y="-32" width="6" height="2" fill="#666"><title>Unused</title></rect>
-            <rect x="19" y="-12" width="6" height="2" fill="#bbb" />
-            <rect x="19" y="8" width="6" height="2" fill="#bbb" />
-            <rect x="19" y="28" width="6" height="2" fill="#666"><title>Unused</title></rect>
-          </g>
-        );
-      },
+      render: chipBoard({
+        left: -19, top: -38, width: 38, height: 76,
+        marking: 'LM741',
+        lines: ['OP-AMP'],
+        // IN−, IN+ and V− on the left, V+ and OUT on the right; the rest of the eight are not connected
+        legs: [
+          { x: -25, y: -31, side: 'left', unused: true }, { x: -25, y: -11, side: 'left' }, { x: -25, y: 9, side: 'left' }, { x: -25, y: 29, side: 'left' },
+          { x: 25, y: -31, side: 'right', unused: true }, { x: 25, y: -11, side: 'right' }, { x: 25, y: 9, side: 'right' }, { x: 25, y: 29, side: 'right', unused: true },
+        ],
+      }),
     },
     dimensions: { width: 70, height: 90 },
   },

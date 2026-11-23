@@ -1,5 +1,7 @@
 import type { ComponentDefinition } from '@/types/circuit';
 import { generatePinId } from '@/utils/ids';
+import { transistorArt } from '@/components/art/partArt';
+import { transistorBoard } from '@/components/art/boardArt';
 
 export const transistor2N3904Definition: ComponentDefinition = {
   type: '2n3904',
@@ -32,6 +34,7 @@ export const transistor2N3904Definition: ComponentDefinition = {
     beta: 100,
     vbeThreshold: 0.7,
   },
+  shelf: { title: '2N3904', caption: 'Transistor', keywords: ['npn', 'bjt', '3904'], art: transistorArt(['2N', '3904']) },
   schematic: {
     symbol: {
       width: 50,
@@ -56,24 +59,13 @@ export const transistor2N3904Definition: ComponentDefinition = {
       },
     },
     dimensions: { width: 50, height: 50 },
+    overhang: { right: 18 },
   },
   board: {
     symbol: {
       width: 50,
       height: 50,
-      render: () => {
-        return (
-          <g>
-            <rect x="-25" y="-1.5" width="10" height="3" rx="1" fill="#ccc" />
-            <rect x="-1.5" y="-25" width="3" height="10" rx="1" fill="#ccc" />
-            <rect x="-1.5" y="15" width="3" height="10" rx="1" fill="#ccc" />
-            <path d="M -10,-12 A 14,14 0 0,1 10,-12 L 10,12 A 14,14 0 0,1 -10,12 Z" fill="#2a2a2a" stroke="#555" strokeWidth="0.8" />
-            <line x1="-10" y1="-12" x2="-10" y2="12" stroke="#555" strokeWidth="1" />
-            <text x="0" y="2" textAnchor="middle" fontSize="6" fill="#ccc" fontFamily="Courier New">2N</text>
-            <text x="0" y="9" textAnchor="middle" fontSize="6" fill="#ccc" fontFamily="Courier New">3904</text>
-          </g>
-        );
-      },
+      render: transistorBoard(['2N', '3904']),
     },
     dimensions: { width: 50, height: 50 },
   },

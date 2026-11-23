@@ -182,6 +182,82 @@ describe('example circuits', () => {
 });
 
 /**
+ * Every example has a switch, so its cover has at least one control. Each is
+ * flipped here the way the UI flips it (a live `closed` parameter).
+ */
+describe('example switches', () => {
+  /** Load an example and flip its (only) switch to the other position. */
+  function flipped(name: string) {
+    const loaded = load(name);
+    const toggle = loaded.components.find(c => c.type === 'switch')!;
+    loaded.solver.updateParam(toggle.id, 'closed', (toggle.parameters.closed as number) >= 1 ? 0 : 1);
+    return loaded;
+  }
+  const peakOf = (samples: Float64Array) => samples.reduce((peak, s) => Math.max(peak, Math.abs(s)), 0);
+
+  it.each(exampleCircuits.map(e => e.name))('%s has a named switch', (name) => {
+    const { components } = exampleCircuits.find(e => e.name === name)!.build();
+    const switches = components.filter(c => c.type === 'switch');
+    expect(switches.length).toBeGreaterThanOrEqual(1);
+    for (const s of switches) expect(s.label).toMatch(/^[A-Z]+$/);
+  });
+
+  it('Simple Oscillator: SOUND off is silence', () => {
+    expect(peakOf(render(load('Simple Oscillator').solver, 0.25))).toBeGreaterThan(0.3);
+    expect(peakOf(render(flipped('Simple Oscillator').solver, 0.25))).toBeLessThan(0.01);
+  });
+
+  it('Oscillator + Op-Amp: SOFT halves the volume', () => {
+    const loud = peakOf(render(load('Oscillator + Op-Amp').solver, 0.25));
+    const soft = peakOf(render(flipped('Oscillator + Op-Amp').solver, 0.25));
+    // Gain drops to 0.32, but the loud setting is already held back by the
+    // 741's output swing
+    expect(soft / loud).toBeGreaterThan(0.4);
+    expect(soft / loud).toBeLessThan(0.55);
+    expect(soft).toBeGreaterThan(0.1);
+  });
+
+  it('Low Drone: SUB drops the pitch an octave', () => {
+    const drone = measureFrequency(render(load('Low Drone').solver, 1));
+    const sub = measureFrequency(render(flipped('Low Drone').solver, 1));
+    expect(Math.abs(sub / drone - 0.5)).toBeLessThan(0.005);
+  });
+
+  it('High Chirp: HIGHER lifts the pitch an octave', () => {
+    const chirp = measureFrequency(render(load('High Chirp').solver, 0.5));
+    const higher = measureFrequency(render(flipped('High Chirp').solver, 0.5));
+    // Not quite double: the gate's own 280 Ω output counts for more against 5k
+    expect(Math.abs(higher / schmittFrequency(5000, 100e-9) - 1)).toBeLessThan(0.002);
+    expect(higher / chirp).toBeGreaterThan(1.9);
+  });
+
+  it('Pitch Control: LOW moves the whole range down', () => {
+    const normal = measureFrequency(render(load('Pitch Control').solver, 1));
+    const low = measureFrequency(render(flipped('Pitch Control').solver, 1));
+    expect(Math.abs(low / normal - 100 / 320)).toBeLessThan(0.002);
+  });
+
+  it('LED Blinker: FAST blinks about five times as often', () => {
+    const blinks = ({ solver, components }: ReturnType<typeof load>) => {
+      const model = solver.getModel(components.find(c => c.type === 'led')!.id) as DiodeModel;
+      let count = 0, wasLit = model.isLit();
+      // 4 s in 5 ms slices
+      for (let slice = 0; slice < 800; slice++) {
+        for (let i = 0; i < SR / 200; i++) solver.step(DT);
+        if (model.isLit() && !wasLit) count++;
+        wasLit = model.isLit();
+      }
+      return count;
+    };
+    const slow = blinks(load('LED Blinker'));
+    const fast = blinks(flipped('LED Blinker'));
+    expect(slow).toBeGreaterThanOrEqual(4);
+    expect(fast / slow).toBeGreaterThan(4);
+    expect(fast / slow).toBeLessThan(7);
+  });
+});
+
+/**
  * The WSG is checked against what its schematic says each part does, with the
  * controls set through the same parameter messages the UI sends.
  */

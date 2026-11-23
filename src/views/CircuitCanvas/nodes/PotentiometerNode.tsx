@@ -1,48 +1,67 @@
-import { memo, useMemo, useCallback, useState } from 'react';
-import { Handle, Position, type NodeProps } from 'reactflow';
-import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
+import { memo, useCallback, useState } from 'react';
+import type { NodeProps } from 'reactflow';
 import { useCircuit } from '@/context/CircuitContext';
 import { parseValue, formatValue } from '@/utils/parameterParser';
+import { KNOB_MIN_ANGLE, KNOB_SWEEP, knobPositionAt } from '@/components/art/knob';
 import type { CircuitNodeData } from '../useCircuitSync';
-import { pinTooltip } from './pinTooltip';
-import { rotatePin, rotateDimensions } from './rotatePin';
-import { RotateButton } from './RotateButton';
+import { rotatePin } from '../routing/layout';
+import { NodeFrame } from './NodeFrame';
+import { ValueEditor } from './ValueEditor';
 
-function pinPositionToHandleStyle(pinX: number, pinY: number, w: number, h: number): React.CSSProperties {
-  return { position: 'absolute', left: `${pinX + w / 2}px`, top: `${pinY + h / 2}px`, transform: 'translate(-50%, -50%)' };
-}
-function getHandlePosition(pinX: number, pinY: number): Position {
-  if (Math.abs(pinX) >= Math.abs(pinY)) return pinX < 0 ? Position.Left : Position.Right;
-  return pinY < 0 ? Position.Top : Position.Bottom;
-}
+/** Where the schematic symbol's little knob sits, relative to the part's centre (before rotation). */
+const KNOB = { x: 18, y: -14, r: 7 };
+/** Pointer travel, in screen pixels, that takes the schematic knob from one end to the other. */
+const KNOB_TRAVEL = 150;
 
+/**
+ * A potentiometer. The knob turns in both views: in the board view by
+ * dragging around the dial, in the schematic by dragging the small knob up
+ * and down. The audio engine sends the new position to the running
+ * simulation as a live parameter, so turning it does not restart anything.
+ */
 export const PotentiometerNode = memo(function PotentiometerNode({ data, selected }: NodeProps<CircuitNodeData>) {
-  const { component, viewMode, onPotChange } = data;
+  const { component, viewMode } = data;
   const { updateComponent } = useCircuit();
   const [editing, setEditing] = useState(false);
-  const definition = useMemo(() => ComponentRegistry.getInstance().get(component.type), [component.type]);
+  const [turning, setTurning] = useState(false);
+  const position = Math.max(0, Math.min(1, (component.parameters.position as number) ?? 0.5));
 
-  const handleDialDrag = useCallback((e: React.PointerEvent) => {
+  /** Follow the pointer until it is released; `toPosition` maps a pointer event to a knob position. */
+  const startTurn = useCallback((e: React.PointerEvent, toPosition: (move: PointerEvent) => number) => {
     e.stopPropagation();
     e.preventDefault();
-    const target = e.currentTarget as HTMLElement;
-    const rect = target.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-
-    const onMove = (moveEvent: PointerEvent) => {
-      const dx = moveEvent.clientX - centerX;
-      const dy = moveEvent.clientY - centerY;
-      const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-      let normalized = (angle + 135) / 270;
-      normalized = Math.max(0, Math.min(1, normalized));
-      updateComponent(component.id, { parameters: { ...component.parameters, position: normalized } });
-      if (onPotChange) onPotChange(component.id, normalized);
+    let first = true;
+    let last = position;
+    const onMove = (move: PointerEvent) => {
+      const next = Math.max(0, Math.min(1, toPosition(move)));
+      if (next === last) return;
+      last = next;
+      // One undo step for the whole turn, not one per pixel
+      updateComponent(component.id, { parameters: { ...component.parameters, position: next } }, { record: first });
+      first = false;
     };
-    const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      setTurning(false);
+    };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
-  }, [component, updateComponent, onPotChange]);
+    setTurning(true);
+  }, [component, position, updateComponent]);
+
+  const handleDialDrag = useCallback((e: React.PointerEvent) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+    const turned = component.rotation || 0;
+    // The dial is drawn turned with the part
+    startTurn(e, (move) => knobPositionAt(move.clientX - cx, move.clientY - cy, turned));
+  }, [startTurn, component.rotation]);
+
+  const handleKnobDrag = useCallback((e: React.PointerEvent) => {
+    const x0 = e.clientX, y0 = e.clientY, from = position;
+    startTurn(e, (move) => from + ((move.clientX - x0) - (move.clientY - y0)) / KNOB_TRAVEL);
+  }, [startTurn, position]);
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => { e.stopPropagation(); setEditing(true); }, []);
   const handleConfirm = useCallback((raw: string) => {
@@ -55,44 +74,40 @@ export const PotentiometerNode = memo(function PotentiometerNode({ data, selecte
   }, [component, updateComponent]);
   const handleCancel = useCallback(() => setEditing(false), []);
 
-  if (!definition) return null;
-  const symbol = definition[viewMode].symbol;
-  const rawDims = definition[viewMode].dimensions;
-  const rotation = component.rotation || 0;
-  const dims = rotateDimensions(rawDims.width, rawDims.height, rotation);
+  const percent = `${Math.round(position * 100)}%`;
+  const knob = rotatePin(KNOB.x, KNOB.y, component.rotation || 0);
+  const pointer = ((KNOB_MIN_ANGLE + position * KNOB_SWEEP) * Math.PI) / 180;
+
+  const schematicKnob = viewMode === 'schematic' ? (
+    <g>
+      <circle cx={knob.x} cy={knob.y} r={KNOB.r} fill="#fff" stroke={turning ? '#FF2D55' : '#222'} strokeWidth="1.5" />
+      <line x1={knob.x} y1={knob.y}
+        x2={knob.x + Math.cos(pointer) * (KNOB.r - 1.5)} y2={knob.y + Math.sin(pointer) * (KNOB.r - 1.5)}
+        stroke="#FF2D55" strokeWidth="2" strokeLinecap="round" />
+      {turning && (
+        <text x={knob.x} y={knob.y - KNOB.r - 4} textAnchor="middle" fontSize="9" fontWeight="bold"
+          fontFamily="'Courier New', Courier, monospace" fill="#FF2D55">{percent}</text>
+      )}
+    </g>
+  ) : null;
 
   return (
-    <div style={{ width: dims.width, height: dims.height, position: 'relative', cursor: 'grab' }} onDoubleClick={handleDoubleClick}>
-      {selected && (
-        <RotateButton componentId={component.id} rotation={rotation} width={dims.width} height={dims.height} />
-      )}
-      <svg width={dims.width} height={dims.height}
-        viewBox={`${-dims.width / 2} ${-dims.height / 2} ${dims.width} ${dims.height}`}
-        style={{ display: 'block', overflow: 'visible' }}>
-        {selected && <rect x={-dims.width/2-3} y={-dims.height/2-3} width={dims.width+6} height={dims.height+6} fill="none" stroke="#FF2D55" strokeWidth="1.5" strokeDasharray="4 2" rx="4" />}
-        <g transform={rotation ? `rotate(${rotation})` : undefined}>
-          {symbol.render(component.parameters)}
-        </g>
-      </svg>
+    <NodeFrame component={component} viewMode={viewMode} selected={selected}
+      onDoubleClick={handleDoubleClick} overlay={schematicKnob}>
       {editing && (
-        <input autoFocus defaultValue={String(component.parameters.value || '')}
-          onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') handleConfirm((e.target as HTMLInputElement).value); if (e.key === 'Escape') handleCancel(); }}
-          onBlur={handleCancel}
-          style={{ position: 'absolute', top: -30, left: '50%', transform: 'translateX(-50%)', width: 80, height: 24, border: '1px solid #FF2D55', borderRadius: 3, padding: '2px 4px', fontSize: 12, textAlign: 'center', outline: 'none', background: 'white', zIndex: 10 }}
-        />
+        <ValueEditor value={String(component.parameters.value || '')} onConfirm={handleConfirm} onCancel={handleCancel} />
       )}
-      {viewMode === 'board' && (
-        <div onPointerDown={handleDialDrag} style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: 48, height: 48, borderRadius: '50%', cursor: 'grab' }} />
+      {viewMode === 'board' ? (
+        <div className="nodrag" onPointerDown={handleDialDrag} title={`Drag around the dial to turn (${percent})`}
+          style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: 48, height: 48, borderRadius: '50%', cursor: 'grab' }} />
+      ) : (
+        <div className="nodrag" onPointerDown={handleKnobDrag} onDoubleClick={(e) => e.stopPropagation()}
+          title={`Drag up or down to turn (${percent})`}
+          style={{
+            position: 'absolute', left: `calc(50% + ${knob.x}px)`, top: `calc(50% + ${knob.y}px)`,
+            transform: 'translate(-50%, -50%)', width: 20, height: 20, borderRadius: '50%', cursor: 'ns-resize',
+          }} />
       )}
-      {component.pins.flatMap((pin) => {
-        const rp = rotatePin(pin.position.x, pin.position.y, rotation);
-        const handleStyle = { ...pinPositionToHandleStyle(rp.x, rp.y, dims.width, dims.height), width: 10, height: 10, borderRadius: '50%', background: viewMode === 'schematic' ? '#999' : '#c4a24e', border: viewMode === 'schematic' ? '2px solid #666' : '1px solid #8a7030' };
-        const pos = getHandlePosition(rp.x, rp.y);
-        return [
-          <Handle key={`${pin.id}-src`} id={pin.id} type="source" position={pos} isConnectable={true} style={handleStyle} title={pinTooltip(component.type, pin.label, pin.type)} />,
-          <Handle key={`${pin.id}-tgt`} id={pin.id} type="target" position={pos} isConnectable={true} style={{ ...handleStyle, opacity: 0, pointerEvents: 'none' }} />,
-        ];
-      })}
-    </div>
+    </NodeFrame>
   );
 });

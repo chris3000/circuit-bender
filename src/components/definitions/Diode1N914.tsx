@@ -1,5 +1,7 @@
 import type { ComponentDefinition } from '@/types/circuit';
 import { generatePinId } from '@/utils/ids';
+import { diodeArt } from '@/components/art/partArt';
+import { diodeBoard } from '@/components/art/boardArt';
 
 export const diode1N914Definition: ComponentDefinition = {
   type: '1n914',
@@ -25,6 +27,7 @@ export const diode1N914Definition: ComponentDefinition = {
   defaultParameters: {
     forwardVoltage: 0.7,
   },
+  shelf: { title: '1N914', caption: 'Diode', keywords: ['914', '1n4148', 'rectifier'], art: diodeArt },
   schematic: {
     symbol: {
       width: 40,
@@ -47,26 +50,16 @@ export const diode1N914Definition: ComponentDefinition = {
       },
     },
     dimensions: { width: 40, height: 20 },
+    overhang: { top: 14 },
   },
   board: {
     symbol: {
       width: 40,
       height: 20,
-      render: () => {
-        return (
-          <g>
-            <rect x="-20" y="-1.5" width="8" height="3" rx="1" fill="#ccc" />
-            <rect x="12" y="-1.5" width="8" height="3" rx="1" fill="#ccc" />
-            <rect x="-12" y="-5" width="24" height="10" rx="4" fill="#e8a060" stroke="#c07030" strokeWidth="0.6" opacity="0.8" />
-            <rect x="8" y="-5" width="3" height="10" rx="0.5" fill="#1a1a1a" opacity="0.8" />
-            <text x="0" y="16" textAnchor="middle" fontSize="7" fill="#d4ecd4" opacity="0.85" fontFamily="Courier New">
-              1N914
-            </text>
-          </g>
-        );
-      },
+      render: diodeBoard,
     },
     dimensions: { width: 40, height: 20 },
+    overhang: { bottom: 10 },
   },
   simulate: (inputs, params) => {
     const anode = inputs.pin_0 || { voltage: 0, current: 0 };

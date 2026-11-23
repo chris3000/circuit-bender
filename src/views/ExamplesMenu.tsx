@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useCircuit } from '@/context/CircuitContext';
-import { Circuit } from '@/models/Circuit';
 import { exampleCircuits } from '@/examples/circuits';
+import { exampleToCircuit } from '@/examples/load';
+import { useReplaceCircuit } from './ReplaceGuard';
 
 export function ExamplesMenu() {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { loadCircuit } = useCircuit();
+  const replaceCircuit = useReplaceCircuit();
 
   // Close on outside click
   useEffect(() => {
@@ -21,21 +21,9 @@ export function ExamplesMenu() {
   }, [open]);
 
   const handleLoad = useCallback((index: number) => {
-    const example = exampleCircuits[index];
-    const { components, connections } = example.build();
-
-    const newCircuit = new Circuit(example.name);
-    let circuit = newCircuit as ReturnType<typeof newCircuit.addComponent>;
-    for (const comp of components) {
-      circuit = circuit.addComponent(comp);
-    }
-    for (const conn of connections) {
-      circuit = circuit.addConnection(conn);
-    }
-
-    loadCircuit(circuit);
+    replaceCircuit(exampleToCircuit(exampleCircuits[index]));
     setOpen(false);
-  }, [loadCircuit]);
+  }, [replaceCircuit]);
 
   return (
     <div ref={menuRef} style={{ position: 'relative' }}>

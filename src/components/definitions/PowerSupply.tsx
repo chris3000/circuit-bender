@@ -1,5 +1,7 @@
 import type { ComponentDefinition } from '@/types/circuit';
 import { generatePinId } from '@/utils/ids';
+import { batteryArt } from '@/components/art/partArt';
+import { batteryBoard } from '@/components/art/boardArt';
 
 export const powerSupplyDefinition: ComponentDefinition = {
   type: 'power',
@@ -26,6 +28,9 @@ export const powerSupplyDefinition: ComponentDefinition = {
     voltage: 9,
     value: '+9V',
   },
+  shelf: { title: 'Power', caption: '+9 V supply', keywords: ['battery', 'vcc', 'vdd', '9v', 'dc', 'source'], art: batteryArt },
+  // The pilot light: on while the circuit is running
+  cover: { control: 'pilot', name: 'POWER', detail: (p) => `${p.voltage}V DC` },
   schematic: {
     symbol: {
       width: 40,
@@ -58,22 +63,13 @@ export const powerSupplyDefinition: ComponentDefinition = {
       },
     },
     dimensions: { width: 40, height: 60 },
+    overhang: { left: 16 },
   },
   board: {
     symbol: {
       width: 40,
       height: 60,
-      render: (params) => {
-        return (
-          <g>
-            <rect x="-18" y="-25" width="36" height="50" rx="4" fill="#2a2a2a" stroke="#555" strokeWidth="0.8" />
-            <rect x="-8" y="-25" width="16" height="3" rx="1" fill="#c44" />
-            <text x="0" y="-5" textAnchor="middle" fontSize="12" fill="#e04040" fontFamily="Courier New" fontWeight="bold">+</text>
-            <text x="0" y="12" textAnchor="middle" fontSize="12" fill="#999" fontFamily="Courier New">-</text>
-            <text x="0" y="22" textAnchor="middle" fontSize="6" fill="#777" fontFamily="Courier New">{params.value}</text>
-          </g>
-        );
-      },
+      render: batteryBoard,
     },
     dimensions: { width: 40, height: 60 },
   },

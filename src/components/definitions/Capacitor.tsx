@@ -1,19 +1,10 @@
 import type { ComponentDefinition } from '@/types/circuit';
 import { generatePinId } from '@/utils/ids';
+import { capacitorArt } from '@/components/art/partArt';
+import { capacitorBoard } from '@/components/art/boardArt';
+import { standardValues } from '@/utils/partValue';
 
 /** Convert capacitance in farads to ceramic cap code (e.g., 100nF → "104", 22nF → "223") */
-function capCode(farads: number): string {
-  const pf = farads * 1e12;
-  if (pf < 1) return String(Math.round(pf * 10) / 10);
-  if (pf < 10) return String(Math.round(pf * 10) / 10);
-  if (pf < 100) return String(Math.round(pf));
-  // Standard 3-digit code: first two significant digits + number of trailing zeros
-  const log = Math.floor(Math.log10(pf));
-  const sig = Math.round(pf / Math.pow(10, log - 1));
-  const zeros = log - 1;
-  return `${sig}${zeros}`;
-}
-
 export const capacitorDefinition: ComponentDefinition = {
   type: 'capacitor',
   metadata: {
@@ -38,6 +29,14 @@ export const capacitorDefinition: ComponentDefinition = {
   defaultParameters: {
     capacitance: 0.0000001, // 100nF in farads
     value: '100nF',
+  },
+  value: { parameter: 'capacitance', kind: 'capacitance', label: 'Capacitance', example: '100n' },
+  shelf: {
+    keywords: ['cap', 'farad', 'ceramic', 'film', 'electrolytic'],
+    art: capacitorArt,
+    // The E6 series from 10 pF to 1000 µF
+    stock: [...standardValues(10e-12, 680e-6, 'E6'), 1000e-6],
+    common: [100e-12, 1e-9, 4.7e-9, 10e-9, 22e-9, 47e-9, 100e-9, 220e-9, 1e-6, 4.7e-6, 10e-6, 100e-6],
   },
   schematic: {
     symbol: {
@@ -69,28 +68,16 @@ export const capacitorDefinition: ComponentDefinition = {
       },
     },
     dimensions: { width: 50, height: 30 },
+    overhang: { top: 14 },
   },
   board: {
     symbol: {
       width: 50,
       height: 30,
-      render: (params) => {
-        return (
-          <g>
-            <rect x="-20" y="-1.5" width="8" height="3" rx="1" fill="#ccc" />
-            <rect x="12" y="-1.5" width="8" height="3" rx="1" fill="#ccc" />
-            <ellipse cx="0" cy="0" rx="12" ry="10" fill="#e8a020" stroke="#c08010" strokeWidth="0.8" />
-            <text x="0" y="2" textAnchor="middle" fontSize="6" fill="#6a4000" fontFamily="Courier New" fontWeight="bold">
-              {capCode(params.capacitance as number)}
-            </text>
-            <text x="0" y="20" textAnchor="middle" fontSize="8" fill="#d4ecd4" opacity="0.85" fontFamily="Courier New">
-              {params.value}
-            </text>
-          </g>
-        );
-      },
+      render: capacitorBoard,
     },
     dimensions: { width: 50, height: 30 },
+    overhang: { bottom: 8 },
   },
   simulate: (inputs, _params) => {
     // Simplified MVP model: acts as pass-through

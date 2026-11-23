@@ -1,5 +1,7 @@
 import type { ComponentDefinition } from '@/types/circuit';
 import { generatePinId } from '@/utils/ids';
+import { jackArt } from '@/components/art/partArt';
+import { jackBoard } from '@/components/art/boardArt';
 
 export const audioOutputJackDefinition: ComponentDefinition = {
   type: 'audio-output',
@@ -17,6 +19,8 @@ export const audioOutputJackDefinition: ComponentDefinition = {
     },
   ],
   defaultParameters: {},
+  shelf: { title: 'Audio out', caption: 'To speakers', keywords: ['jack', 'speaker', 'sound', 'line', 'socket', 'output'], art: jackArt },
+  cover: { control: 'jack', name: 'OUT' },
   schematic: {
     symbol: {
       width: 40,
@@ -44,16 +48,7 @@ export const audioOutputJackDefinition: ComponentDefinition = {
     symbol: {
       width: 40,
       height: 40,
-      render: () => {
-        return (
-          <g>
-            <rect x="-12" y="-8" width="24" height="16" rx="3" fill="#444" stroke="#666" strokeWidth="0.8" />
-            <circle cx="8" cy="0" r="4" fill="#222" stroke="#666" strokeWidth="0.5" />
-            <circle cx="8" cy="0" r="2" fill="#888" />
-            <text x="0" y="18" textAnchor="middle" fontSize="7" fill="#d4ecd4" opacity="0.85" fontFamily="Courier New">OUT</text>
-          </g>
-        );
-      },
+      render: jackBoard,
     },
     dimensions: { width: 40, height: 40 },
   },

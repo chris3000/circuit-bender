@@ -1,0 +1,193 @@
+.panel {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  width: 216px;
+  padding: 12px;
+  background: white;
+  border: 1px solid #EBEBEB;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  font-family: 'Courier New', Courier, monospace;
+  color: #222;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.kind {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #FF2D55;
+}
+
+.description {
+  margin-top: 3px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: #666;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #666;
+}
+
+.readout {
+  color: #222;
+  letter-spacing: 0;
+}
+
+.input {
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  background: #F5F5F5;
+  border: 1.5px solid transparent;
+  border-radius: 8px;
+  outline: none;
+  font-family: inherit;
+  font-size: 12px;
+  color: #222;
+}
+
+.input:hover {
+  background: #EBEBEB;
+}
+
+.input:focus {
+  background: white;
+  border-color: #222;
+}
+
+.invalid,
+.invalid:focus {
+  border-color: #FF2D55;
+}
+
+.hint {
+  font-size: 9px;
+  line-height: 1.4;
+  color: #FF2D55;
+}
+
+.slider {
+  width: 100%;
+  accent-color: #FF2D55;
+  cursor: pointer;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.button {
+  flex: 1;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #F5F5F5;
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: bold;
+  color: #222;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.button:hover {
+  background: #EBEBEB;
+}
+
+.button:focus-visible,
+.input:focus-visible,
+.slider:focus-visible {
+  outline: 2px solid #FF2D55;
+  outline-offset: 1px;
+}
+
+.pressed,
+.pressed:hover {
+  background: #222;
+  color: white;
+}
+
+.angle {
+  width: 44px;
+  text-align: center;
+  font-size: 11px;
+  color: #222;
+}
+
+.danger {
+  color: #FF2D55;
+}
+
+.danger:hover {
+  background: #FF2D55;
+  color: white;
+}
+
+.key {
+  font-size: 9px;
+  font-weight: normal;
+  opacity: 0.7;
+}
+
+.swatches {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px;
+}
+
+.swatch {
+  width: 19px;
+  height: 19px;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.swatch:hover {
+  transform: scale(1.12);
+}
+
+.swatch:focus-visible {
+  outline: 2px solid #FF2D55;
+  outline-offset: 2px;
+}
+
+/* The chosen color: a ring in the panel's ink, clear of the swatch so it shows on any color */
+.swatch[aria-pressed="true"] {
+  box-shadow: 0 0 0 1.5px white, 0 0 0 3px #222;
+}
+
+/* "No color of its own": a white disc struck through */
+.auto {
+  background:
+    linear-gradient(to top right, transparent calc(50% - 1px), #999 calc(50% - 1px), #999 calc(50% + 1px), transparent calc(50% + 1px)),
+    white;
+}
+

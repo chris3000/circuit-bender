@@ -5,12 +5,15 @@ import type { ComponentId } from '@/types/circuit';
 interface RotateButtonProps {
   componentId: string;
   rotation: number;
-  width: number;
-  height: number;
+  /** Where to put the button's top-left corner, in the node's own coordinates. */
+  left: number;
+  top: number;
 }
 
-/** Small rotate button that appears at the top-right corner of a selected component. */
-export function RotateButton({ componentId, rotation, width, height }: RotateButtonProps) {
+export const ROTATE_BUTTON_SIZE = 18;
+
+/** Small rotate button shown beside a selected component, clear of its symbol. */
+export function RotateButton({ componentId, rotation, left, top }: RotateButtonProps) {
   const { updateComponent } = useCircuit();
 
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -22,14 +25,15 @@ export function RotateButton({ componentId, rotation, width, height }: RotateBut
 
   return (
     <div
+      className="nodrag nopan"
       onClick={handleClick}
       title="Rotate 90° (R)"
       style={{
         position: 'absolute',
-        right: -6,
-        top: -6,
-        width: 18,
-        height: 18,
+        left,
+        top,
+        width: ROTATE_BUTTON_SIZE,
+        height: ROTATE_BUTTON_SIZE,
         borderRadius: '50%',
         background: '#FF2D55',
         display: 'flex',
