@@ -29,7 +29,44 @@ export function pinTooltip(componentType: string, label: string, pinType: string
     },
     lm386: { '-': 'Inverting input', '+': 'Non-inverting input', GND: 'Ground', VS: 'Power (VS)', OUT: 'Output: idles at half the supply' },
     speaker: { '+': 'Positive terminal', '\u2212': 'Negative terminal' },
+    piezo: { '+': 'The ceramic (signal)', '\u2212': 'The brass plate (ground)' },
+    'audio-input': { OUT: 'The signal coming in' },
+    spdt: { COM: 'Common: joined to A or to B', A: 'Throw A', B: 'Throw B' },
+    optocoupler: { A: 'LED anode (+)', K: 'LED cathode (-)', 1: 'Photocell', 2: 'Photocell' },
+    '1n4004': { A: 'Anode (+)', K: 'Cathode (-)' },
+    '2n3906': { B: 'Base', C: 'Collector', E: 'Emitter' },
+    '2n5457': { G: 'Gate: its voltage, from the source, sets the channel', D: 'Drain', S: 'Source' },
+    cd4049: { VDD: 'Power (VDD)', VSS: 'Ground (VSS)' },
+    cd4013: { VDD: 'Power (VDD)', VSS: 'Ground (VSS)' },
+    lm324: { 'V+': 'Power / V+', 'V-': 'Ground / V-' },
+    tl072: { 'V+': 'Positive rail (V+)', 'V-': 'Negative rail (V-)' },
+    lm13700: { 'V+': 'Positive rail (V+)', 'V-': 'Negative rail (V-)' },
   };
+
+  const inverter = /^(\d)(A|Y)$/.exec(label);
+  if (inverter && componentType === 'cd4049') return `Inverter ${inverter[1]} ${inverter[2] === 'A' ? 'input' : 'output'}`;
+  const amplifier = /^(\d)(-|\+|OUT)$/.exec(label);
+  if (amplifier && (componentType === 'lm324' || componentType === 'tl072')) {
+    return `Amplifier ${amplifier[1]} ${amplifier[2] === '-' ? 'inverting input' : amplifier[2] === '+' ? 'non-inverting input' : 'output'}`;
+  }
+  const flipFlop = /^(\/?)(D|CLK|SET|RST|Q)(\d)$/.exec(label);
+  if (flipFlop && componentType === 'cd4013') {
+    const what: Record<string, string> = {
+      D: 'data: what Q becomes when the clock rises', CLK: 'clock: takes D on its way up',
+      SET: 'set: high forces Q high', RST: 'reset: high forces Q low',
+      Q: flipFlop[1] ? 'inverted output: the opposite of Q' : 'output',
+    };
+    return `Flip-flop ${flipFlop[3]} ${what[flipFlop[2]]}`;
+  }
+  const ota = /^(\d)(\+|-|D|IABC|OUT|BIN|BOUT)$/.exec(label);
+  if (ota && componentType === 'lm13700') {
+    const what: Record<string, string> = {
+      '+': 'non-inverting input', '-': 'inverting input', D: 'linearising diodes (leave open if unused)',
+      IABC: 'bias current in: sets the gain. It sits two diode drops above V-, so feed it through a resistor',
+      OUT: 'output: a current, in or out', BIN: 'buffer input', BOUT: 'buffer output: needs a resistor to V-',
+    };
+    return `Amplifier ${ota[1]} ${what[ota[2]]}`;
+  }
 
   // CD40106 gate labels
   if (componentType === 'cd40106') {

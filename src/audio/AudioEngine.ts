@@ -4,6 +4,7 @@
  * runs the simulation at audio sample rate.
  */
 import type { LoadReport } from './loadStatus';
+import type { InstrumentReport, MeterTarget } from '@/simulation/worklet/Instruments';
 
 interface SerializedComponent {
   id: string;
@@ -42,6 +43,9 @@ export const LIVE_PARAMETERS: Record<string, readonly string[]> = {
   ldr: ['light'],
   'body-contact': ['touch'],
   lm386: ['gain'],
+  spdt: ['throw'],
+  'audio-input': ['level', 'wave', 'frequency', 'volts'],
+  piezo: ['tap'],
 };
 
 /** One end of a bend: a pin of a part. */
@@ -70,7 +74,8 @@ export class AudioEngine {
   private loadedStructure: string | null = null;
   private liveValues = new Map<string, number | string | boolean>();
   private onSamplesCallback: ((samples: Float32Array, probeData?: Float32Array[]) => void) | null = null;
-  private onLedStatesCallback: ((states: Record<string, boolean>) => void) | null = null;
+  private onInstrumentsCallback: ((report: InstrumentReport) => void) | null = null;
+  private meterTarget: MeterTarget | null = null;
   private onLoadCallback: ((report: LoadReport) => void) | null = null;
   private underrunSeen = 0;
   private settledAt = 0;
@@ -111,13 +116,15 @@ export class AudioEngine {
     this.outputGain.gain.value = this.targetGain();
     this.workletNode.connect(this.outputGain);
     this.outputGain.connect(this.context.destination);
+    // The meter may have been put on something before there was a worklet
+    if (this.meterTarget) this.workletNode.port.postMessage({ type: 'setMeter', target: this.meterTarget });
 
     // Listen for messages from worklet
     this.workletNode.port.onmessage = (event) => {
       if (event.data.type === 'samples' && this.onSamplesCallback) {
         this.onSamplesCallback(event.data.samples, event.data.probeData);
-      } else if (event.data.type === 'ledStates' && this.onLedStatesCallback) {
-        this.onLedStatesCallback(event.data.states);
+      } else if (event.data.type === 'instruments') {
+        this.onInstrumentsCallback?.(event.data);
       } else if (event.data.type === 'load') {
         const dropout = this.dropoutSinceLastReport();
         this.onLoadCallback?.({ load: event.data.load, dropout });
@@ -254,9 +261,21 @@ export class AudioEngine {
     this.workletNode.port.postMessage({ type: 'setProbes', probes });
   }
 
-  /** Register callback for LED state updates from worklet */
-  onLedStates(callback: (states: Record<string, boolean>) => void): void {
-    this.onLedStatesCallback = callback;
+  /**
+   * Hold the meter on a pin (a wire) or on a whole part, or take it away
+   * with null. Readings come back through onInstruments.
+   */
+  setMeter(target: MeterTarget | null): void {
+    this.meterTarget = target;
+    this.workletNode?.port.postMessage({ type: 'setMeter', target });
+  }
+
+  /**
+   * Register callback for what the worklet sees in the running circuit: the
+   * current through each LED, the overloaded parts, and the meter's readings.
+   */
+  onInstruments(callback: (report: InstrumentReport) => void): void {
+    this.onInstrumentsCallback = callback;
   }
 
   async close(): Promise<void> {

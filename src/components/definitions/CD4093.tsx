@@ -21,6 +21,7 @@ export const cd4093Definition: ComponentDefinition = {
   pins,
   defaultParameters: {},
   floatingPins: true,
-  shelf: { caption: 'NAND Schmitt ×4', keywords: ['4093', 'nand', 'schmitt', 'gate', 'gated', 'cmos', 'oscillator', 'logic', 'chip', 'ic'], art: chipArt(14, 'CD4093') },
+  through: [0, 8], // in by the first gate, out of it
+  shelf: { caption: 'NAND Schmitt ×4', keywords: ['4093', 'nand', 'schmitt', 'gate', 'gated', 'cmos', 'oscillator', 'logic', 'chip', 'ic'], art: chipArt(14, 'CD4093'), alike: ['gates'] },
   ...chipViews({ width: 80, height: 200, name: 'CD4093', lines: ['QUAD NAND', 'SCHMITT'], pins }),
 };

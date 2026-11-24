@@ -23,7 +23,8 @@ export const lm386Definition: ComponentDefinition = {
     { id: generatePinId('lm386', 4), label: 'VS', type: 'power', position: { x: 25, y: -11 } },
   ],
   defaultParameters: { gain: 20 },
-  shelf: { caption: 'Speaker amp', keywords: ['386', 'amplifier', 'amp', 'power amp', 'speaker', 'audio', 'chip', 'ic'], art: chipArt(8, 'LM386') },
+  through: [1, 3], // the + input to the output
+  shelf: { caption: 'Speaker amp', keywords: ['386', 'amplifier', 'amp', 'power amp', 'speaker', 'audio', 'chip', 'ic'], art: chipArt(8, 'LM386'), alike: ['amplifier'] },
   schematic: {
     symbol: {
       width: 70,

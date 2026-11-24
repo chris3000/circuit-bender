@@ -1,25 +1,33 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ReactFlow, {
   Background,
+  ConnectionMode,
   Controls,
   MiniMap,
   ReactFlowProvider,
+  useStoreApi,
   type Edge,
+  type Node,
   type ReactFlowInstance,
 } from 'reactflow';
 import { useCircuit } from '@/context/CircuitContext';
 import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
 import { createComponentFromDefinition } from '@/utils/componentFactory';
 import { pointToPolylineDistance } from '@/utils/wiring';
-import { generateConnectionId, generateNetId } from '@/utils/ids';
-import type { ComponentId, PinId } from '@/types/circuit';
+import { joinAtWire, rotateParts, spliceIntoWire, throughPins } from '@/utils/circuitEdits';
+import { isTextField } from '@/utils/keyboard';
+import type { Component, ComponentId, PinId, Position2D } from '@/types/circuit';
 import { useCircuitSync } from './useCircuitSync';
 import { nodeTypes } from './nodes';
 import { edgeTypes } from './edges';
 import { ConnectionLine } from './ConnectionLine';
-import { WireRoutesContext } from './routing/useWireRoutes';
+import { computeWireRoutes, WireRoutesContext, type WireRoutes } from './routing/useWireRoutes';
+import { SpliceTargetContext } from './edges/spliceTarget';
+import { placeOnWire, SPLICE_REACH } from './splice';
 import { Toolbar } from '@/views/SchematicView/Toolbar';
-import { readPartDrag } from '@/views/ComponentDrawer/dragData';
+import { partInTheAir, readPartDrag } from '@/views/ComponentDrawer/dragData';
+import { useReplacePart } from '@/views/ReplacePart/ReplacePartContext';
+import { ReplacePopover } from '@/views/ReplacePart/ReplacePopover';
 import { Inspector } from '@/views/Inspector/Inspector';
 import { EmptyState } from './EmptyState';
 import type { ActiveView } from '@/views/viewModes';
@@ -37,7 +45,8 @@ interface CircuitCanvasProps {
    * the size it is), so coming back finds it as it was left.
    */
   hidden?: boolean;
-  ledStates: Record<string, boolean>;
+  /** How brightly each LED is lit, 0 to 1, by part id. */
+  lights: Record<string, number>;
   onAddProbe?: (componentId: string, pinId: string, label: string) => void;
   /** Whether the circuit is running. */
   playing?: boolean;
@@ -46,15 +55,21 @@ interface CircuitCanvasProps {
 }
 
 function CircuitCanvasInner({
-  viewMode, activeView, onSelectView, hidden = false, ledStates, onAddProbe, playing = false, onBend,
+  viewMode, activeView, onSelectView, hidden = false, lights, onAddProbe, playing = false, onBend,
 }: CircuitCanvasProps) {
-  const { addComponent, addConnection, removeConnection, updateComponent, selectedComponents, undo, redo, canUndo, canRedo, circuit } = useCircuit();
+  const { addComponent, editCircuit, selectedComponents, undo, redo, canUndo, canRedo, circuit } = useCircuit();
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
+  const flow = useStoreApi();
+
+  // The wire a part held over the canvas would land in, shown while it is held,
+  // and the part itself when it is one already on the canvas
+  const [spliceWire, setSpliceWire] = useState<string | null>(null);
+  const [floating, setFloating] = useState<string | null>(null);
 
   const {
-    nodes, edges, routes, onNodesChange, onNodeDragStop, onSelectionDragStop, onEdgesChange, onConnect: onConnectSync,
-    isValidConnection, onSelectionChange, onNodesDelete, onEdgesDelete, deleteComponents,
-  } = useCircuitSync(viewMode, ledStates);
+    nodes, edges, routes, onNodesChange, onNodeDragStop: moveDragged, onSelectionDragStop, onEdgesChange, onConnect: onConnectSync,
+    isValidConnection, deleteComponents, deleteSelection,
+  } = useCircuitSync(viewMode, lights, floating);
   const routesRef = useRef(routes);
   routesRef.current = routes;
 
@@ -66,26 +81,138 @@ function CircuitCanvasInner({
   const toggleBend = useCallback(() => setBendMode((on) => !on), []);
   const stopBending = useCallback(() => setBendMode(false), []);
 
+  // --- A part let go of on a wire goes into the wire ---
+
+  /** Where the pointer is on the canvas, exactly: React Flow's own conversion snaps to the grid parts sit on. */
+  const canvasPoint = useCallback((clientX: number, clientY: number): Position2D | null => {
+    const { transform: [x, y, zoom], domNode } = flow.getState();
+    const box = (domNode ?? surface.current)?.getBoundingClientRect();
+    return box ? { x: (clientX - box.left - x) / zoom, y: (clientY - box.top - y) / zoom } : null;
+  }, [flow]);
+  /** How near a wire counts as on it: the same on screen however far the canvas is zoomed out. */
+  const reach = useCallback(() => SPLICE_REACH / Math.min(1, flow.getState().transform[2]), [flow]);
+
+  // The part coming off the shelf, made once per drag to try against the wires
+  const incoming = useRef<{ type: string; part: Component } | null>(null);
+
   const onDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+    const held = partInTheAir();
+    const definition = held && ComponentRegistry.getInstance().get(held.type);
+    const at = canvasPoint(e.clientX, e.clientY);
+    if (!held || !definition || !at) { setSpliceWire(null); return; }
+    if (incoming.current?.type !== held.type) {
+      incoming.current = { type: held.type, part: createComponentFromDefinition(definition, { x: 0, y: 0 }) };
+    }
+    setSpliceWire(placeOnWire(incoming.current.part, at, routesRef.current, reach())?.connectionId ?? null);
+  }, [canvasPoint, reach]);
+
+  const onDragLeave = useCallback((e: React.DragEvent) => {
+    // Leaving for good, not passing over something that lies on the canvas
+    if (!(e.relatedTarget instanceof Node) || !e.currentTarget.contains(e.relatedTarget)) setSpliceWire(null);
   }, []);
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    setSpliceWire(null);
+    incoming.current = null;
     const dropped = readPartDrag(e.dataTransfer);
-    if (!dropped || !reactFlowInstance.current) return;
+    const at = canvasPoint(e.clientX, e.clientY);
+    if (!dropped || !at) return;
     const registry = ComponentRegistry.getInstance();
     const definition = registry.get(dropped.type);
     if (!definition) return;
-    const position = reactFlowInstance.current.screenToFlowPosition({ x: e.clientX, y: e.clientY });
     // Parts sit on the same 20px grid they snap to when dragged, so pins line up
     const component = createComponentFromDefinition(definition, {
-      x: Math.round(position.x / 20) * 20,
-      y: Math.round(position.y / 20) * 20,
+      x: Math.round(at.x / 20) * 20,
+      y: Math.round(at.y / 20) * 20,
     }, dropped.parameters); // the value picked from the shelf
-    addComponent(component);
-  }, [addComponent]);
+    const place = placeOnWire(component, at, routesRef.current, reach());
+    if (!place) { addComponent(component); return; }
+    // On a wire: the wire is cut and the part goes between its ends, turned to lie along it
+    const lying = { ...component, position: place.position, rotation: place.rotation };
+    editCircuit((c) => {
+      const spliced = spliceIntoWire(c, lying, place.connectionId, place.swap);
+      return spliced === c ? c.addComponent(component) : spliced; // the wire went meanwhile: just the part
+    });
+  }, [addComponent, editCircuit, canvasPoint, reach]);
+
+  // A part with no wires on it yet, dragged onto a wire, goes into it the
+  // same way. Only such a part: one that is wired up is being moved about.
+  const loose = useRef<{ id: string; from: Position2D; routes: WireRoutes | null } | null>(null);
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
+
+  const onNodeDragStart = useCallback((_event: unknown, node: Node, dragged: Node[]) => {
+    loose.current = null;
+    const part = circuit.getComponent(node.id as ComponentId);
+    if (dragged.length !== 1 || !part || !throughPins(ComponentRegistry.getInstance().get(part.type))) return;
+    if (circuit.getConnections().some((c) => c.from.componentId === part.id || c.to.componentId === part.id)) return;
+    loose.current = { id: part.id, from: { ...node.position }, routes: null };
+  }, [circuit]);
+
+  /** The wire the part being dragged would land in, where it is now. */
+  const landing = useCallback((node: Node) => {
+    const held = loose.current;
+    const part = held && held.id === node.id ? circuit.getComponent(held.id as ComponentId) : undefined;
+    if (!held || !part) return null;
+    // Not a drag at all, only a click on a part that happens to lie by a wire
+    if (node.position.x === held.from.x && node.position.y === held.from.y) return null;
+    // The wires as they run without this part: held over one, it pushes the wire aside on screen
+    held.routes ??= computeWireRoutes(
+      nodesRef.current.filter((n) => n.id !== part.id).map((n) => ({ component: n.data.component, position: n.position })),
+      circuit.getConnections(), viewMode,
+    );
+    const place = placeOnWire(part, node.position, held.routes, reach());
+    return place && { part, place };
+  }, [circuit, viewMode, reach]);
+
+  const onNodeDrag = useCallback((_event: unknown, node: Node) => {
+    if (!loose.current) return;
+    const wire = landing(node)?.place.connectionId ?? null;
+    setSpliceWire(wire);
+    setFloating(wire ? node.id : null);
+  }, [landing]);
+
+  const onNodeDragStop = useCallback((event: unknown, node: Node, dragged: Node[]) => {
+    const landed = landing(node);
+    loose.current = null;
+    setSpliceWire(null);
+    setFloating(null);
+    if (!landed) { moveDragged(event, node, dragged); return; }
+    const { part, place } = landed;
+    const moved = { x: node.position.x, y: node.position.y };
+    editCircuit((c) => {
+      if (!c.getComponent(part.id)) return c;
+      const spliced = spliceIntoWire(c, { ...part, position: place.position, rotation: place.rotation }, place.connectionId, place.swap);
+      return spliced === c ? c.updateComponent(part.id, { position: moved }) : spliced;
+    });
+  }, [landing, moveDragged, editCircuit]);
+
+  // --- Delete, and double-click to swap a part ---
+
+  // The keys are heard here, not by React Flow: one press is one undo step,
+  // and a part that sat in a wire leaves the wire whole
+  useEffect(() => {
+    if (hidden || bending) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!DELETE_KEYS.includes(e.key) || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (isTextField(e.target) || document.querySelector('[aria-modal="true"]')) return;
+      deleteSelection();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [hidden, bending, deleteSelection]);
+
+  const { begin: beginReplace, cancel: cancelReplace, target: replacing } = useReplacePart();
+  const onNodeDoubleClick = useCallback((_event: unknown, node: Node) => {
+    if (!bending && node.type !== 'junction') beginReplace(node.id as ComponentId);
+  }, [bending, beginReplace]);
+  // Nothing is swapped on a canvas that is out of sight or being bent
+  useEffect(() => {
+    if ((hidden || bending) && replacing) cancelReplace();
+  }, [hidden, bending, replacing, cancelReplace]);
 
   const [flowReady, setFlowReady] = useState(false);
   const onInit = useCallback((instance: ReactFlowInstance) => {
@@ -100,11 +227,20 @@ function CircuitCanvasInner({
   // the moment it is dropped.
   const fitPending = useRef(circuit.getComponents().length > 0);
   const shownCircuit = useRef(circuit.id);
+  const emptied = useRef(false);
   if (shownCircuit.current !== circuit.id) {
     shownCircuit.current = circuit.id;
-    fitPending.current = true;
+    // An empty canvas has nothing to fit. Left pending, the fit would wait
+    // for the first part dropped on it and jump to that, zoomed right in.
+    fitPending.current = circuit.getComponents().length > 0;
+    emptied.current = !fitPending.current;
   }
   useEffect(() => {
+    // A new, empty canvas starts where an empty canvas starts, not wherever the last circuit was being looked at
+    if (emptied.current && reactFlowInstance.current) {
+      emptied.current = false;
+      reactFlowInstance.current.setViewport({ x: 0, y: 0, zoom: 1 });
+    }
     if (!fitPending.current || nodes.length === 0 || !reactFlowInstance.current) return;
     // ...and it is these parts on the canvas, not still the previous circuit's
     if (nodes.length !== circuit.getComponents().length) return;
@@ -131,23 +267,15 @@ function CircuitCanvasInner({
   }, [onConnectSync]);
 
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
-    else if ((e.metaKey || e.ctrlKey) && (e.key === 'Z' || e.key === 'y')) { e.preventDefault(); redo(); }
-    else if ((e.key === 'b' || e.key === 'B') && !e.metaKey && !e.ctrlKey && !e.altKey && onBend) { e.preventDefault(); setBendMode((on) => !on); }
-    else if (e.key === 'r' || e.key === 'R') {
-      // Rotate selected components 90° clockwise
-      if (selectedComponents.length > 0) {
-        e.preventDefault();
-        for (const compId of selectedComponents) {
-          const comp = circuit.getComponent(compId);
-          if (comp && comp.type !== 'junction') { // junctions don't rotate
-            const newRotation = ((comp.rotation || 0) + 90) % 360;
-            updateComponent(compId, { rotation: newRotation });
-          }
-        }
-      }
+    // Undo and redo are heard for the whole page (`useUndoShortcuts`), not here
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if ((e.key === 'b' || e.key === 'B') && onBend) { e.preventDefault(); setBendMode((on) => !on); }
+    else if ((e.key === 'r' || e.key === 'R') && selectedComponents.length > 0) {
+      // A quarter turn clockwise for everything selected, as one undo step
+      e.preventDefault();
+      editCircuit((c) => rotateParts(c, selectedComponents, 90));
     }
-  }, [undo, redo, selectedComponents, circuit, updateComponent, onBend]);
+  }, [selectedComponents, editCircuit, onBend]);
 
   const onConnectEnd = useCallback((event: MouseEvent | TouchEvent) => {
     // Dropped on a pin: the connection is already made
@@ -174,18 +302,10 @@ function CircuitCanvasInner({
     if (!junctionDef) return;
     const snapped = { x: Math.round(dropPos.x / 20) * 20, y: Math.round(dropPos.y / 20) * 20 };
     const junction = createComponentFromDefinition(junctionDef, snapped);
-    const junctionEnd = { componentId: junction.id as ComponentId, pinId: junction.pins[0].id as PinId };
 
-    // Split the wire at a junction dot and bring the dragged wire to it
-    addComponent(junction);
-    removeConnection(conn.id);
-    for (const end of [conn.from, conn.to, source]) {
-      addConnection({
-        id: generateConnectionId(), from: end, to: junctionEnd, net: generateNetId(),
-        ...(conn.color ? { color: conn.color } : {}), // the pieces of a colored wire keep its color
-      });
-    }
-  }, [addComponent, addConnection, removeConnection, circuit]);
+    // Split the wire at a junction dot and bring the dragged wire to it: one undo step
+    editCircuit((c) => joinAtWire(c, conn.id, junction, source));
+  }, [editCircuit, circuit]);
 
   // Right-click a wire to put an oscilloscope probe on it
   const onEdgeContextMenu = useCallback((event: React.MouseEvent, edge: Edge) => {
@@ -207,25 +327,35 @@ function CircuitCanvasInner({
         <BendTool surface={surface} viewMode={viewMode} routes={routes} playing={playing} onBend={onBend} onClose={stopBending} />
       )}
       <Inspector viewMode={viewMode} onDeleteComponents={deleteComponents} onAddProbe={onAddProbe} />
+      {!hidden && <ReplacePopover viewMode={viewMode} />}
       {nodes.length === 0 && circuit.getComponents().length === 0 && <EmptyState viewMode={viewMode} />}
       <WireRoutesContext.Provider value={routes}>
+      <SpliceTargetContext.Provider value={spliceWire}>
       <ReactFlow
         nodes={nodes} edges={edges}
         nodeTypes={nodeTypes} edgeTypes={edgeTypes}
         connectionLineComponent={ConnectionLine}
+        // A pin is one thing, not an output or an input: a wire may end on the
+        // pin itself. (React Flow's strict mode only takes a wire that ends
+        // near a pin, because what is under the pointer on it is the handle
+        // wires start from.)
+        connectionMode={ConnectionMode.Loose}
         isValidConnection={isValidConnection}
         onInit={onInit}
         onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
+        onNodeDragStart={onNodeDragStart} onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop} onSelectionDragStop={onSelectionDragStop}
+        onNodeDoubleClick={onNodeDoubleClick}
+        // A double-click is for the part or wire under it (swap it, put a dot on it), not for zooming
+        zoomOnDoubleClick={false}
         onEdgeContextMenu={onEdgeContextMenu}
-        onConnect={onConnect} onConnectStart={onConnectStart} onConnectEnd={onConnectEnd} onSelectionChange={onSelectionChange}
-        onNodesDelete={onNodesDelete} onEdgesDelete={onEdgesDelete}
-        onDrop={onDrop} onDragOver={onDragOver}
+        onConnect={onConnect} onConnectStart={onConnectStart} onConnectEnd={onConnectEnd}
+        onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave}
         nodesDraggable={!bending} nodesConnectable={!bending} elementsSelectable={!bending}
         snapToGrid={true} snapGrid={[20, 20]}
         nodeOrigin={[0.5, 0.5]}
-        // React Flow listens for these on the whole page: not while the canvas is out of sight
-        deleteKeyCode={hidden ? null : DELETE_KEYS}
+        // Deleting is done here (see the key handler above), in one step
+        deleteKeyCode={null}
         // Space plays and stops; the canvas already pans with a plain drag
         panActivationKeyCode={null}
         style={{ background: viewMode === 'schematic' ? '#ffffff' : '#1a6b3c' }}
@@ -242,6 +372,7 @@ function CircuitCanvasInner({
           maskColor={viewMode === 'schematic' ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.3)'}
         />
       </ReactFlow>
+      </SpliceTargetContext.Provider>
       </WireRoutesContext.Provider>
     </div>
   );

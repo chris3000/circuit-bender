@@ -17,7 +17,7 @@ function Spy() {
 }
 
 interface Options {
-  ledStates?: Record<string, boolean>;
+  lights?: Record<string, number>;
   playing?: boolean;
   levels?: LevelSource;
   onSelectView?: (view: ActiveView) => void;
@@ -31,7 +31,7 @@ function show(example: string | null, options: Options = {}) {
     <CircuitProvider initial={initial}>
       <Spy />
       <CoverView activeView="cover" onSelectView={options.onSelectView ?? (() => {})}
-        ledStates={options.ledStates ?? {}} playing={options.playing ?? false} levels={options.levels} />
+        lights={options.lights ?? {}} playing={options.playing ?? false} levels={options.levels} />
     </CircuitProvider>,
   );
 }
@@ -271,7 +271,7 @@ describe('the cover', () => {
     rerender(
       <CircuitProvider initial={{ circuit, dirty: false }}>
         <Spy />
-        <CoverView activeView="cover" onSelectView={() => {}} ledStates={{ [led.id]: true }} playing={true} />
+        <CoverView activeView="cover" onSelectView={() => {}} lights={{ [led.id]: 1 }} playing={true} />
       </CircuitProvider>,
     );
     expect(lamp()).toHaveAccessibleName('LED: on');
@@ -298,12 +298,14 @@ describe('the cover', () => {
     expect(onSelectView.mock.calls).toEqual([['board'], ['schematic']]);
   });
 
-  it('undoes and redoes from the keyboard', () => {
+  // The keys are heard for the whole page: tests/context/useUndoShortcuts.test.tsx
+  it('undoes and redoes from its toolbar', () => {
     show('Simple Oscillator');
+    expect(screen.getByLabelText('Undo')).toBeDisabled();
     fireEvent.click(toggle('SOUND'));
-    fireEvent.keyDown(screen.getByTestId('cover-view'), { key: 'z', metaKey: true });
+    fireEvent.click(screen.getByLabelText('Undo'));
     expect(partOf('switch').parameters.closed).toBe(1);
-    fireEvent.keyDown(screen.getByTestId('cover-view'), { key: 'Z', metaKey: true, shiftKey: true });
+    fireEvent.click(screen.getByLabelText('Redo'));
     expect(partOf('switch').parameters.closed).toBe(0);
   });
 });

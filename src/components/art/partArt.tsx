@@ -176,8 +176,19 @@ export const potentiometerArt: Art = () => (
 );
 
 /** A miniature toggle switch from the side, without its lugs. The blue body is 19 × 8.2, centred on (0, 2.7). */
-export const switchBody: Art = (params) => {
-  const on = Number(params.closed) >= 1;
+export const switchBody: Art = (params) => toggleBody(Number(params.closed) >= 1);
+
+/** The same switch with a third lug: its lever is over to one throw or the other. */
+export const changeoverBody: Art = (params) => toggleBody(Number(params.throw) >= 1);
+
+export const changeoverArt: Art = (params) => (
+  <g transform="translate(0 0.5)">
+    {[-7.4, -1.2, 5].map((x) => <rect key={x} x={x} y={6.4} width={2.4} height={5} rx={0.5} fill={METAL} stroke={METAL_DARK} strokeWidth={0.4} />)}
+    {changeoverBody(params)}
+  </g>
+);
+
+function toggleBody(on: boolean): ReactNode {
   return (
     <g>
       {/* The lever: thrown one way for off, the other for on */}
@@ -191,7 +202,7 @@ export const switchBody: Art = (params) => {
       <rect x={-8.6} y={4} width={17.2} height={2} rx={1} fill="black" opacity={0.16} />
     </g>
   );
-};
+}
 
 export const switchArt: Art = (params) => (
   <g transform="translate(0 0.5)">
@@ -245,6 +256,23 @@ export const diodeArt: Art = (params) => (
     <Lead x1={-23} x2={-8} y={0} />
     <Lead x1={8} x2={23} y={0} />
     {diodeBody(params)}
+  </g>
+);
+
+/** A 1 A rectifier: a black plastic barrel, the silver band at its cathode (the right-hand end). 19 × 9. */
+export const rectifierBody: Art = () => (
+  <g>
+    <rect x={-9.5} y={-4.5} width={19} height={9} rx={1.6} fill={BLACK} stroke="#0E0E0E" strokeWidth={0.6} />
+    <rect x={4.4} y={-4.5} width={3} height={9} fill="#D7DADD" />
+    <rect x={-8} y={-3.4} width={16} height={1.2} rx={0.6} fill="white" opacity={0.2} />
+  </g>
+);
+
+export const rectifierArt: Art = (params) => (
+  <g>
+    <Lead x1={-23} x2={-8.5} y={0} />
+    <Lead x1={8.5} x2={23} y={0} />
+    {rectifierBody(params)}
   </g>
 );
 
@@ -327,7 +355,21 @@ export const groundArt: Art = () => (
 );
 
 /** A panel-mount jack socket from the side, without its lugs: threaded sleeve and nut, black body. Spans x = -21 to 10.2. */
-export const jackBody: Art = () => (
+export const jackBody: Art = () => socketBody('OUT');
+
+/** The socket something is plugged into to feed the circuit: the same one, marked IN. */
+export const inputJackBody: Art = () => socketBody('IN');
+
+export const inputJackArt: Art = (params) => (
+  <g transform="translate(2.5 0)">
+    <rect x={10} y={-5} width={5.4} height={1.9} rx={0.5} fill={METAL} stroke={METAL_DARK} strokeWidth={0.4} />
+    <rect x={10} y={3.1} width={5.4} height={1.9} rx={0.5} fill={METAL} stroke={METAL_DARK} strokeWidth={0.4} />
+    {inputJackBody(params)}
+  </g>
+);
+
+function socketBody(marking: string): ReactNode {
+  return (
   <g>
     <rect x={-21} y={-4.3} width={10} height={8.6} rx={0.6} fill="#D7DADD" stroke={METAL_DARK} strokeWidth={0.5} />
     {[-19.2, -17.4, -15.6, -13.8].map((x) => <line key={x} x1={x} y1={-4.3} x2={x} y2={4.3} stroke="#9EA3A8" strokeWidth={0.5} />)}
@@ -335,9 +377,10 @@ export const jackBody: Art = () => (
     <rect x={-12.6} y={-6.8} width={3.4} height={13.6} rx={0.8} fill="#B4B9BE" stroke={METAL_DARK} strokeWidth={0.5} />
     <rect x={-9.4} y={-7.8} width={19.6} height={15.6} rx={1.6} fill={BLACK} stroke="#0E0E0E" strokeWidth={0.6} />
     <rect x={-7.8} y={-6.4} width={16.4} height={1.3} rx={0.65} fill="white" opacity={0.16} />
-    <Print x={0.4} y={2.2} size={5.4} fill="#C8C8C8">OUT</Print>
+    <Print x={0.4} y={2.2} size={5.4} fill="#C8C8C8">{marking}</Print>
   </g>
-);
+  );
+}
 
 export const jackArt: Art = (params) => (
   <g transform="translate(2.5 0)">
@@ -436,6 +479,49 @@ export const speakerArt: Art = (params) => (
     <rect x={11} y={-4.4} width={5.6} height={2.2} rx={0.5} fill={BRASS} stroke={BRASS_DARK} strokeWidth={0.4} />
     <rect x={11} y={2.2} width={5.6} height={2.2} rx={0.5} fill={BRASS} stroke={BRASS_DARK} strokeWidth={0.4} />
     {speakerBody(params)}
+  </g>
+);
+
+/** A piezo disc from the front: a brass plate with a white disc of ceramic on it, a blob of solder on each. 23 across. */
+export const piezoBody: Art = (params) => {
+  const tapped = Number(params.tap) >= 1;
+  return (
+    <g>
+      <circle cx={0} cy={0} r={11.5} fill={BRASS} stroke={BRASS_DARK} strokeWidth={0.6} />
+      <path d="M-9,-4.4 A10,10 0 0 1 -3,-9.6" fill="none" stroke="white" strokeWidth={1.1} strokeLinecap="round" opacity={0.7} />
+      <circle cx={0} cy={0} r={8} fill="#F4F1E8" stroke="#B9B4A2" strokeWidth={0.5} />
+      <path d="M-4.2,5.2 A6.6,6.6 0 0 0 6,2.4" fill="none" stroke="black" strokeWidth={1.2} strokeLinecap="round" opacity={0.1} />
+      <circle cx={2.6} cy={-2.2} r={1.5} fill={METAL} stroke={METAL_DARK} strokeWidth={0.3} />
+      <circle cx={8.6} cy={5.2} r={1.5} fill={METAL} stroke={METAL_DARK} strokeWidth={0.3} />
+      {tapped && <circle cx={0} cy={0} r={9.6} fill="#FF2D55" opacity={0.45} />}
+    </g>
+  );
+};
+
+export const piezoArt: Art = (params) => (
+  <g transform="translate(-6 0)">
+    <path d="M2.6,-2.2 Q14,-7 27,-3.4" fill="none" stroke="#D0342C" strokeWidth={1.3} strokeLinecap="round" />
+    <path d="M8.6,5.2 Q18,7.6 27,3.4" fill="none" stroke="#333" strokeWidth={1.3} strokeLinecap="round" />
+    {piezoBody(params)}
+  </g>
+);
+
+/** An opto-coupler: a short black tube with an LED sealed in one end and a photocell in the other. 22 × 10. */
+export const optoBody: Art = () => (
+  <g>
+    <rect x={-11} y={-5} width={22} height={10} rx={2.4} fill={BLACK} stroke="#0E0E0E" strokeWidth={0.6} />
+    <rect x={-9.4} y={-3.8} width={18.8} height={1.2} rx={0.6} fill="white" opacity={0.18} />
+    {/* Which end is which: a red dot at the LED, the cell's colour at the other */}
+    <circle cx={-7} cy={1} r={1.7} fill="#F0314F" />
+    <rect x={4.6} y={-0.8} width={4.2} height={3.6} rx={0.8} fill="#EFE3C2" />
+  </g>
+);
+
+export const optoArt: Art = (params) => (
+  <g>
+    {[-2.6, 2.6].map((y) => <Lead key={`l${y}`} x1={-23} x2={-10} y={y} />)}
+    {[-2.6, 2.6].map((y) => <Lead key={`r${y}`} x1={10} x2={23} y={y} />)}
+    {optoBody(params)}
   </g>
 );
 

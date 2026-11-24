@@ -34,7 +34,8 @@ export const transistor2N3904Definition: ComponentDefinition = {
     beta: 100,
     vbeThreshold: 0.7,
   },
-  shelf: { title: '2N3904', caption: 'Transistor', keywords: ['npn', 'bjt', '3904'], art: transistorArt(['2N', '3904']) },
+  through: [1, 2], // collector to emitter, the path it switches
+  shelf: { title: '2N3904', caption: 'Transistor', keywords: ['npn', 'bjt', '3904', 'noise'], art: transistorArt(['2N', '3904']), alike: ['transistor'] },
   schematic: {
     symbol: {
       width: 50,

@@ -1,6 +1,8 @@
 import { exampleCircuits } from '@/examples/circuits';
 import { exampleToCircuit } from '@/examples/load';
 import { useReplaceCircuit } from '@/views/ReplaceGuard';
+import { useClasses } from '@/views/Classes/ClassesContext';
+import { CLASSES } from '@/classes';
 
 const FONT = "'Courier New', Courier, monospace";
 
@@ -13,6 +15,9 @@ export function EmptyState({ viewMode }: { viewMode: 'schematic' | 'board' }) {
     exampleCircuits.find((e) => e.name.includes('Weird')) ?? exampleCircuits[exampleCircuits.length - 1],
   ].filter((e, i, all) => e && all.indexOf(e) === i);
   const onBoard = viewMode === 'board';
+  // In a class the panel beside the canvas says what to do next
+  const classes = useClasses();
+  const first = CLASSES[0];
 
   return (
     // Lets drops and drags through to the canvas everywhere but on the buttons
@@ -27,6 +32,8 @@ export function EmptyState({ viewMode }: { viewMode: 'schematic' | 'board' }) {
         <p style={{ fontSize: 12, lineHeight: 1.6, color: onBoard ? '#d4ecd4' : '#666', margin: '10px 0 18px' }}>
           Pull parts in from the left, drag from pin to pin to wire them, then press ▶ to hear the circuit.
         </p>
+        {!classes.open && (
+        <>
         <div style={{ fontSize: 10, fontWeight: 'bold', letterSpacing: 1, color: onBoard ? '#d4ecd4' : '#666', marginBottom: 8 }}>
           OR START FROM AN EXAMPLE
         </div>
@@ -41,6 +48,18 @@ export function EmptyState({ viewMode }: { viewMode: 'schematic' | 'board' }) {
             </button>
           ))}
         </div>
+        {first && (
+          <div style={{ marginTop: 18, pointerEvents: 'auto' }}>
+            <button data-testid="empty-first-class" onClick={() => classes.start(first)} style={{
+              background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: FONT, fontSize: 11,
+              color: onBoard ? 'white' : '#222', textDecoration: 'underline',
+            }}>
+              Never built a circuit? Take class {first.number}: {first.title}
+            </button>
+          </div>
+        )}
+        </>
+        )}
       </div>
     </div>
   );

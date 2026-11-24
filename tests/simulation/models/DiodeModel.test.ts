@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { DiodeModel, DIODE_1N914_PARAMS, DIODE_LED_RED_PARAMS } from '@/simulation/models/DiodeModel';
 
+/** An ideal junction: nothing in series with it. */
+const BARE_JUNCTION = { Is: 1e-14, n: 1, Rs: 0 };
+
 describe('DiodeModel', () => {
   describe('1N914', () => {
     it('has 1 internal node (series resistance)', () => {
@@ -57,19 +60,18 @@ describe('DiodeModel', () => {
     const withRs = new DiodeModel(DIODE_1N914_PARAMS);
     withRs.init([0, 1], 2, 0, {});
     expect(withRs.getNonlinearNodes()).toEqual([2, 1]);
-    const led = new DiodeModel(DIODE_LED_RED_PARAMS);
-    led.init([0, 1], 0, 0, {});
-    expect(led.getNonlinearNodes()).toEqual([0, 1]);
+    const bare = new DiodeModel(BARE_JUNCTION);
+    bare.init([0, 1], 2, 0, {});
+    expect(bare.getNonlinearNodes()).toEqual([0, 1]);
   });
 
-  describe('LED (Rs=0)', () => {
+  describe('a junction with no series resistance', () => {
     it('has 0 internal nodes', () => {
-      const m = new DiodeModel(DIODE_LED_RED_PARAMS);
-      expect(m.getInternalNodeCount()).toBe(0);
+      expect(new DiodeModel(BARE_JUNCTION).getInternalNodeCount()).toBe(0);
     });
 
     it('stamps junction directly between anode and cathode', () => {
-      const m = new DiodeModel(DIODE_LED_RED_PARAMS);
+      const m = new DiodeModel(BARE_JUNCTION);
       m.init([0, 1], 0, 0, {});
       const G = [new Float64Array(2), new Float64Array(2)];
       const b = new Float64Array(2);
@@ -78,6 +80,28 @@ describe('DiodeModel', () => {
       m.stampNonlinear(G, b, x, 1 / 48000);
       expect(G[0][0]).toBeGreaterThan(0);
       expect(G[1][1]).toBeGreaterThan(0);
+    });
+  });
+
+  describe('LED', () => {
+    it('has a few ohms of its own, so its current is finite with no resistor', () => {
+      expect(DIODE_LED_RED_PARAMS.Rs).toBeGreaterThan(0);
+      expect(new DiodeModel(DIODE_LED_RED_PARAMS).getInternalNodeCount()).toBe(1);
+    });
+
+    it('says what current it passes, and how that compares with what it stands', () => {
+      const m = new DiodeModel(DIODE_LED_RED_PARAMS);
+      m.init([0, 1], 2, 0, {});
+      // 2.1 V across the junction itself (node 2 is between it and the series resistance)
+      const { Is, n } = DIODE_LED_RED_PARAMS;
+      const amps = Is * (Math.exp(2.1 / (n * 0.02585)) - 1);
+      const x = Float64Array.from([2.2, 0, 2.1]);
+      expect(m.current(x)).toBeCloseTo(amps, 9);
+      expect(m.strain(x)).toBeCloseTo(amps / 0.03, 6);
+      // Reversed it passes nothing and is under no strain
+      const reversed = Float64Array.from([-9, 0, -9]);
+      expect(Math.abs(m.current(reversed))).toBeLessThan(1e-12);
+      expect(m.strain(reversed)).toBe(0);
     });
   });
 });

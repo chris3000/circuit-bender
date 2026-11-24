@@ -7,6 +7,7 @@ import type { Side } from '../routing/router';
 import { pinTooltip } from './pinTooltip';
 import { RotateButton, ROTATE_BUTTON_SIZE } from './RotateButton';
 import { NodeLabel } from './NodeLabel';
+import { OVERLOADED, useInstruments } from '@/views/Instruments';
 
 const HANDLE_POSITION: Record<Side, Position> = {
   left: Position.Left, right: Position.Right, top: Position.Top, bottom: Position.Bottom,
@@ -17,7 +18,6 @@ interface NodeFrameProps {
   viewMode: ViewMode;
   selected: boolean;
   cursor?: string;
-  onDoubleClick?: (e: React.MouseEvent) => void;
   onSymbolClick?: (e: React.MouseEvent) => void;
   /** SVG drawn behind the symbol, not rotated with it. */
   underlay?: ReactNode;
@@ -29,9 +29,10 @@ interface NodeFrameProps {
 
 /** What every part on the canvas has: its symbol, selection outline, rotate button, name and pins. */
 export function NodeFrame({
-  component, viewMode, selected, cursor = 'grab', onDoubleClick, onSymbolClick, underlay, overlay, children,
+  component, viewMode, selected, cursor = 'grab', onSymbolClick, underlay, overlay, children,
 }: NodeFrameProps) {
   const definition = useMemo(() => ComponentRegistry.getInstance().get(component.type), [component.type]);
+  const overloaded = useInstruments().overloaded.has(component.id);
   if (!definition) return null;
   const symbol = definition[viewMode].symbol;
   const raw = definition[viewMode].dimensions;
@@ -54,7 +55,7 @@ export function NodeFrame({
   }
 
   return (
-    <div style={{ width, height, position: 'relative', cursor }} onDoubleClick={onDoubleClick}>
+    <div style={{ width, height, position: 'relative', cursor }}>
       {rotateButton}
       <svg
         width={width} height={height}
@@ -74,6 +75,17 @@ export function NodeFrame({
         {overlay}
       </svg>
       {children}
+      {overloaded && (
+        // Driven harder than a real one would stand: the app carries on, and says so
+        <div role="img" data-testid="overload-mark" aria-label={`Overloaded. ${definition.overload ?? OVERLOADED}`}
+          title={definition.overload ?? OVERLOADED}
+          style={{
+            position: 'absolute', left: -9, top: -11, width: 16, height: 16, borderRadius: '50%', zIndex: 5,
+            background: '#FF2D55', color: 'white', border: '1.5px solid white', boxSizing: 'border-box',
+            font: "bold 11px/13px 'Courier New', Courier, monospace", textAlign: 'center',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.35)', cursor: 'help',
+          }}>!</div>
+      )}
       <NodeLabel component={component} viewMode={viewMode} selected={selected} width={width} height={height} />
       {pinLayout(component, viewMode).flatMap((p, index) => {
         const pin = component.pins[index];

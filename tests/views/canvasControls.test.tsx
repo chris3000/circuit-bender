@@ -36,7 +36,7 @@ function onCanvas(type: string, viewMode: 'schematic' | 'board' = 'schematic') {
     canUndo = state.canUndo;
     const component = state.circuit.getComponent(part.id);
     if (!component) return null;
-    const props = { id: part.id, data: { component, viewMode, ledOn: false }, selected: false } as unknown as NodeProps<CircuitNodeData>;
+    const props = { id: part.id, data: { component, viewMode, light: 0 }, selected: false } as unknown as NodeProps<CircuitNodeData>;
     return <ControlNode {...props} />;
   }
   const view = render(

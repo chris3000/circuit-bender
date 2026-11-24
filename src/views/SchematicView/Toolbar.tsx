@@ -1,6 +1,13 @@
 import React from 'react';
 import { VIEWS, type ActiveView } from '@/views/viewModes';
+import { shortcutName } from '@/utils/keyboard';
 import styles from './Toolbar.module.css';
+
+/** The arrow that turns back on itself, in a 16 px box. Redo is its mirror image. */
+const UNDO_ARROW = (
+  <path d="M6,2.5 L2.5,6 L6,9.5 M2.5,6 H9.5 A3.75,3.75 0 0 1 9.5,13.5 H6.5"
+    fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+);
 
 interface ToolbarProps {
   onUndo?: () => void;
@@ -36,25 +43,21 @@ export const Toolbar = React.memo(function Toolbar({
       <button
         className={styles.toolButton}
         aria-label="Undo"
-        title="Undo (Ctrl+Z)"
+        title={`Undo (${shortcutName('Z')})`}
         disabled={!canUndo}
         onClick={onUndo}
       >
-        <svg width="14" height="14" viewBox="0 0 14 14">
-          <path d="M4,5 L1,2 L4,2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M2,2 Q2,10 10,10 L12,10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">{UNDO_ARROW}</svg>
       </button>
       <button
         className={styles.toolButton}
         aria-label="Redo"
-        title="Redo (Ctrl+Shift+Z)"
+        title={`Redo (${shortcutName('Z', { shift: true })})`}
         disabled={!canRedo}
         onClick={onRedo}
       >
-        <svg width="14" height="14" viewBox="0 0 14 14">
-          <path d="M10,5 L13,2 L10,2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M12,2 Q12,10 4,10 L2,10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+          <g transform="translate(16 0) scale(-1 1)">{UNDO_ARROW}</g>
         </svg>
       </button>
 

@@ -18,7 +18,7 @@ export const ldrDefinition: ComponentDefinition = {
     { id: generatePinId('ldr', 1), label: '2', type: 'bidirectional', position: { x: 30, y: 0 } },
   ],
   defaultParameters: { light: 0.5 },
-  shelf: { title: 'LDR', caption: 'Light sensor', keywords: ['ldr', 'photocell', 'photoresistor', 'light', 'cds', 'sensor', 'theremin', 'optical'], art: ldrArt },
+  shelf: { title: 'LDR', caption: 'Light sensor', keywords: ['ldr', 'photocell', 'photoresistor', 'light', 'cds', 'sensor', 'theremin', 'optical'], art: ldrArt, alike: ['resistance'] },
   control: { kind: 'dial', parameter: 'light', name: 'Light', at: { x: 20, y: -19 }, rest: 0.5 },
   cover: { control: 'knob', parameter: 'light', name: 'LIGHT' },
   schematic: {

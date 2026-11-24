@@ -54,6 +54,9 @@ export class CapacitorModel implements ComponentModel {
     return v0 - v1;
   }
 
+  /** The current charging it over the step just taken. */
+  current(_x: Float64Array): number { return this.iPrev; }
+
   convergenceError(_xOld: Float64Array, _xNew: Float64Array): number { return 0; }
 
   reset(): void {

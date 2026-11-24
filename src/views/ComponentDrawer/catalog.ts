@@ -3,7 +3,8 @@
  * for a part with nothing to choose, one per stocked value for a part that
  * comes in values. Nothing here knows about any particular part.
  */
-import type { ComponentDefinition, ComponentParameters } from '@/types/circuit';
+import type { Component, ComponentDefinition, ComponentParameters } from '@/types/circuit';
+import { similarParts } from '@/utils/circuitEdits';
 import { formatValue } from '@/utils/parameterParser';
 import { parseTypedValue, sameValue, valueParameters } from '@/utils/partValue';
 
@@ -82,6 +83,46 @@ export function resolveItem(key: string, definitions: ComponentDefinition[]): Sh
   if (!definition.value || !(value > 0)) return null;
   const stocked = stockOf(definition)?.some((s) => sameValue(s, value)) ?? false;
   return valueItem(definition, order, value, !stocked);
+}
+
+/** The item for a value someone typed ("4k7") for a part that comes in values; null if it is not a value of that kind. */
+export function typedValueItem(definition: ComponentDefinition, definitions: ComponentDefinition[], text: string): ShelfItem | null {
+  if (!definition.value) return null;
+  const value = parseTypedValue(text, definition.value.kind);
+  if (value === null) return null;
+  const stocked = stockOf(definition)?.some((s) => sameValue(s, value)) ?? false;
+  return valueItem(definition, definitions.indexOf(definition), value, !stocked);
+}
+
+/**
+ * What a part on the canvas can be swapped for at a click: the other common
+ * values of its own kind, and the parts that are like it (`shelf.alike`). A
+ * like part that comes in values is offered in the stock value nearest the
+ * part's own (a 4.7 kΩ resistor: a 5 kΩ pot), when they are values of the
+ * same kind.
+ */
+export function replacementsFor(part: Component, definitions: ComponentDefinition[]): { values: ShelfItem[]; similar: ShelfItem[] } {
+  const order = definitions.findIndex((d) => d.type === part.type);
+  if (order < 0) return { values: [], similar: [] };
+  const own = definitions[order];
+  const has = own.value ? Number(part.parameters[own.value.parameter]) : NaN;
+
+  const stock = stockOf(own);
+  const offered = stock && own.shelf?.common?.length ? own.shelf.common : stock ?? [];
+  const values = offered.filter((value) => !sameValue(value, has)).map((value) => valueItem(own, order, value));
+
+  const similar = similarParts(own, definitions).map((other): ShelfItem => {
+    const at = definitions.indexOf(other);
+    const theirs = stockOf(other);
+    if (!theirs) return buildCatalog([other]).map((item) => ({ ...item, order: at }))[0];
+    const usual = Number(other.defaultParameters[other.value!.parameter]);
+    const wanted = own.value?.kind === other.value!.kind && has > 0 ? has : usual;
+    // Nearest as values go: by ratio, not by difference
+    const nearest = theirs.reduce((best, value) =>
+      (Math.abs(Math.log(value / wanted)) < Math.abs(Math.log(best / wanted)) ? value : best));
+    return valueItem(other, at, wanted > 0 ? nearest : theirs[0]);
+  });
+  return { values, similar };
 }
 
 /** Every word an item can be found by, lower case. */

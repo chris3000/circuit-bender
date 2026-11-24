@@ -12,10 +12,13 @@ export function playbackWarnings(circuit: Circuit): string[] {
   if (!components.some((c) => c.type === 'power')) {
     warnings.push('No power supply, so nothing will run. Add a +9V supply.');
   }
-  // What can be heard: the audio output, or a speaker
-  const jacks = components.filter((c) => c.type === 'audio-output' || c.type === 'speaker');
+  // What can be heard: the audio output, a speaker, or a piezo disc
+  const jacks = components.filter((c) => c.type === 'audio-output' || c.type === 'speaker' || c.type === 'piezo');
   if (jacks.length === 0) {
-    warnings.push('No audio output, so you will not hear anything. Add an Audio Out or a speaker.');
+    // A circuit of lights is something to play too: it is watched, not heard
+    if (!components.some((c) => c.type === 'led')) {
+      warnings.push('No audio output, so you will not hear anything. Add an Audio Out or a speaker.');
+    }
   } else {
     const connections = circuit.getConnections();
     const wired = jacks.some((jack) =>

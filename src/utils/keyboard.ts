@@ -23,3 +23,38 @@ export function isPlayShortcut(event: KeyboardEvent): boolean {
   if (document.querySelector('[aria-modal="true"]')) return false;
   return !isTextField(event.target);
 }
+
+/**
+ * Whether a key pressed here goes to text with an undo of its own: a text box
+ * or editable text that is being typed in. A list has none. Nor has a box
+ * whose text is what the circuit already holds (`data-settled`, the
+ * inspector's fields once Enter is pressed): there Ctrl+Z means the circuit.
+ */
+function hasOwnUndo(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.tagName === 'SELECT' || !isTextField(target)) return false;
+  return target.dataset.settled !== 'true';
+}
+
+/**
+ * Whether this key press asks to undo or redo an edit to the circuit:
+ * Ctrl/Cmd+Z, and Ctrl/Cmd+Shift+Z or Ctrl+Y to redo. Not while text is
+ * being typed (the text box undoes its own typing) and not while a dialog is
+ * asking something.
+ */
+export function undoShortcut(event: KeyboardEvent): 'undo' | 'redo' | null {
+  if (!(event.metaKey || event.ctrlKey) || event.altKey) return null;
+  const key = event.key.toLowerCase();
+  const step = key === 'z' ? (event.shiftKey ? 'redo' : 'undo')
+    : key === 'y' && event.ctrlKey && !event.shiftKey ? 'redo'
+    : null;
+  if (!step) return null;
+  if (document.querySelector('[aria-modal="true"]') || hasOwnUndo(event.target)) return null;
+  return step;
+}
+
+/** How a shortcut is written on this computer: "⌘Z" on a Mac, "Ctrl+Z" elsewhere. */
+export function shortcutName(key: string, { shift = false } = {}): string {
+  const mac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform ?? '');
+  return mac ? `${shift ? '⇧' : ''}⌘${key}` : `Ctrl+${shift ? 'Shift+' : ''}${key}`;
+}

@@ -3,7 +3,7 @@
  * parts and for a part that says nothing about its place on the shelf.
  */
 import { describe, it, expect } from 'vitest';
-import { buildCatalog, groupItems, resolveItem, searchCatalog, type ShelfItem } from '@/views/ComponentDrawer/catalog';
+import { buildCatalog, groupItems, replacementsFor, resolveItem, searchCatalog, typedValueItem, type ShelfItem } from '@/views/ComponentDrawer/catalog';
 import { readPartDrag, writePartDrag } from '@/views/ComponentDrawer/dragData';
 import { createComponentFromDefinition } from '@/utils/componentFactory';
 import type { ComponentDefinition } from '@/types/circuit';
@@ -21,8 +21,9 @@ const find = (query: string) => keys(searchCatalog(catalog, query));
 describe('the catalog', () => {
   it('has one item for a part with nothing to choose and one per stocked value for the rest', () => {
     expect(keys(catalog).filter((k) => !k.includes('@')).sort()).toEqual(
-      ['1n914', '2n3904', 'audio-output', 'body-contact', 'cd40106', 'cd4017', 'cd4040', 'cd4093', 'ground', 'junction',
-        'ldr', 'led', 'lm386', 'lm741', 'ne555', 'power', 'pushbutton', 'speaker', 'switch']);
+      ['1n4004', '1n914', '2n3904', '2n3906', '2n5457', 'audio-input', 'audio-output', 'body-contact', 'cd40106', 'cd4013',
+        'cd4017', 'cd4040', 'cd4049', 'cd4093', 'ground', 'junction', 'ldr', 'led', 'lm13700', 'lm324', 'lm386', 'lm741',
+        'ne555', 'optocoupler', 'piezo', 'power', 'pushbutton', 'spdt', 'speaker', 'switch', 'tl072']);
     expect(catalog.filter((i) => i.definition === resistorDefinition)).toHaveLength(73);
     expect(catalog.filter((i) => i.definition === capacitorDefinition)).toHaveLength(49);
     expect(catalog.filter((i) => i.definition === potentiometerDefinition)).toHaveLength(8);
@@ -64,7 +65,7 @@ describe('the catalog', () => {
     const item = items.find((i) => i.key === 'mystery')!;
     expect(item.title).toBe('Mystery Part');
     expect(keys(searchCatalog(items, 'myst'))).toEqual(['mystery']);
-    expect(groupItems(items).find((s) => s.category === 'active')!.count).toBe(4);
+    expect(groupItems(items).find((s) => s.category === 'active')!.count).toBe(8);
   });
 });
 
@@ -73,7 +74,7 @@ describe('the shelf layout', () => {
 
   it('starts with what every circuit needs', () => {
     expect(sections.map((s) => s.category)).toEqual(['power', 'passive', 'ic', 'active', 'control']);
-    expect(keys(sections[0].blocks[0].items)).toEqual(['power', 'ground', 'audio-output', 'speaker']);
+    expect(keys(sections[0].blocks[0].items)).toEqual(['power', 'ground', 'audio-output', 'speaker', 'audio-input', 'piezo']);
   });
 
   it('keeps the values of a part together and stand-alone parts in runs', () => {
@@ -95,34 +96,45 @@ describe('searching', () => {
     expect(find('cd40106')).toEqual(['cd40106']);
     expect(find('40106')).toEqual(['cd40106']);
     expect(find('schmitt')).toEqual(['cd40106', 'cd4093']);
-    expect(find('op amp')).toEqual(['lm741']);
-    expect(find('opamp')).toEqual(['lm741']);
-    expect(find('chip')).toEqual(['cd40106', 'lm741', 'ne555', 'cd4093', 'cd4040', 'cd4017', 'lm386']);
+    expect(find('op amp')).toEqual(['lm741', 'lm324', 'tl072']);
+    expect(find('opamp')).toEqual(['lm741', 'lm324', 'tl072']);
+    expect(find('chip')).toEqual(['cd40106', 'lm741', 'ne555', 'cd4093', 'cd4040', 'cd4017', 'lm386', 'cd4049', 'cd4013', 'lm324', 'tl072', 'lm13700']);
     expect(find('gnd')).toEqual(['ground']);
-    expect(find('battery')).toEqual(['power']);
-    expect(find('speaker')).toEqual(['audio-output', 'lm386', 'speaker']);
+    expect(find('battery')).toEqual(['power', '1n4004']);
+    expect(find('speaker')).toEqual(['audio-output', 'lm386', 'speaker', 'piezo']);
     expect(find('555')).toEqual(['ne555']);
-    expect(find('divider')).toEqual(['cd4040', 'cd4017']);
+    expect(find('divider')).toEqual(['cd4040', 'cd4017', 'cd4013']);
     expect(find('nand')).toEqual(['cd4093']);
     expect(find('button')).toEqual(['pushbutton']);
     expect(find('touch')).toEqual(['body-contact']);
-    expect(find('photocell')).toEqual(['ldr']);
+    expect(find('photocell')).toEqual(['ldr', 'optocoupler']);
     expect(find('starve')).toEqual(['power']);
     expect(find('npn')).toEqual(['2n3904']);
     expect(find('2n3904')).toEqual(['2n3904']);
     expect(find('1n914')).toEqual(['1n914']);
-    expect(find('LED')).toEqual(['led']);
-    expect(find('toggle')).toEqual(['switch']);
+    expect(find('LED')).toEqual(['led', 'optocoupler']);
+    expect(find('toggle')).toEqual(['switch', 'spdt']);
+    expect(find('pnp')).toEqual(['2n3906']);
+    expect(find('jfet')).toEqual(['2n5457']);
+    expect(find('vactrol')).toEqual(['optocoupler']);
+    expect(find('contact mic')).toEqual(['piezo']);
+    expect(find('ota')).toEqual(['lm13700']);
+    expect(find('flip flop')).toEqual(['cd4013']);
+    expect(find('flipflop')).toEqual(['cd4013']);
+    expect(find('distortion')).toEqual(['cd4049']);
+    expect(find('guitar')).toEqual(['audio-input']);
+    expect(find('rectifier')).toEqual(['1n914', '1n4004']);
   });
 
   it('finds a whole category', () => {
-    expect(find('semiconductors')).toEqual(['2n3904', '1n914', 'led']);
+    expect(find('semiconductors')).toEqual(['2n3904', '1n914', 'led', 'optocoupler', '1n4004', '2n5457', '2n3906']);
   });
 
   it('finds every value of a part by its name', () => {
-    // every resistor, and then the pots, which are "variable resistors", and the light-dependent one
+    // every resistor, and then the pots, which are "variable resistors", the light-dependent one,
+    // and the two parts that are described by the resistor they need or are (the CD4049, the JFET)
     expect(find('resistor').slice(0, 73).every((k) => k.startsWith('resistor@'))).toBe(true);
-    expect(find('resistor')).toHaveLength(73 + 8 + 1);
+    expect(find('resistor')).toHaveLength(73 + 8 + 1 + 2);
     expect(find('pot')).toHaveLength(8);
     expect(find('cap')).toHaveLength(49);
   });
@@ -219,5 +231,62 @@ describe('dragging a part off the shelf', () => {
     expect(readPartDrag(data)!.parameters).toEqual({ resistance: 220 });
     data.setData('application/circuit-parameters', 'not json');
     expect(readPartDrag(data)).toEqual({ type: 'resistor', parameters: {} });
+  });
+});
+
+describe('what a part on the canvas can be swapped for', () => {
+  const part = (type: string, parameters = {}) =>
+    createComponentFromDefinition(ALL_PARTS.find((d) => d.type === type)!, { x: 0, y: 0 }, parameters);
+  const offer = (type: string, parameters = {}) => {
+    const { values, similar } = replacementsFor(part(type, parameters), ALL_PARTS);
+    return { values: keys(values), similar: keys(similar) };
+  };
+
+  it('is its other common values, without the one it has', () => {
+    const { values } = offer('resistor', { resistance: 4700, value: '4.7kΩ' });
+    expect(values).toHaveLength(11);
+    expect(values).toContain('resistor@1000');
+    expect(values).not.toContain('resistor@4700');
+    // A value that is not a common one leaves all the common ones on offer
+    expect(offer('resistor', { resistance: 33200 }).values).toHaveLength(12);
+  });
+
+  it('is the parts like it, a valued one in the stock value nearest its own', () => {
+    expect(offer('resistor', { resistance: 4700 }).similar).toEqual(['potentiometer@5000', 'ldr', 'body-contact', 'optocoupler']);
+    expect(offer('resistor', { resistance: 10 }).similar[0]).toBe('potentiometer@1000');
+    expect(offer('resistor', { resistance: 22e6 }).similar[0]).toBe('potentiometer@1000000');
+    // Nearest by ratio: 30 kΩ is nearer 50 kΩ than 10 kΩ
+    expect(offer('resistor', { resistance: 30000 }).similar[0]).toBe('potentiometer@50000');
+    expect(offer('potentiometer', { maxResistance: 100000 }).similar[0]).toBe('resistor@100000');
+  });
+
+  it('pairs the parts that do the same job', () => {
+    expect(offer('switch').similar).toEqual(['pushbutton', 'body-contact', 'spdt']);
+    expect(offer('led').similar).toEqual(['1n914', '1n4004']);
+    expect(offer('cd40106').similar).toEqual(['cd4093', 'cd4049']);
+    expect(offer('cd4040').similar).toEqual(['cd4017', 'cd4013']);
+    expect(offer('lm386').similar).toEqual(['lm741', 'lm324', 'tl072', 'lm13700']);
+    expect(offer('speaker').similar).toEqual(['audio-output', 'piezo']);
+    expect(offer('2n3904').similar).toEqual(['2n5457', '2n3906']);
+  });
+
+  it('is nothing for a part like no other', () => {
+    for (const type of ['ne555', 'power', 'ground', 'capacitor', 'audio-input', 'junction']) {
+      expect(offer(type).similar, type).toEqual([]);
+    }
+    expect(offer('ne555').values).toEqual([]);
+    expect(offer('capacitor').values.length).toBeGreaterThan(0);
+    expect(replacementsFor({ ...part('resistor'), type: 'unheard-of' }, ALL_PARTS)).toEqual({ values: [], similar: [] });
+  });
+
+  it('reads a typed value however it is written, stocked or not', () => {
+    const typed = (text: string) => typedValueItem(resistorDefinition, ALL_PARTS, text);
+    expect(typed('4k7')!.parameters).toMatchObject({ resistance: 4700, value: '4.7kΩ' });
+    expect(typed('4k7')!.key).toBe('resistor@4700');
+    expect(typed('33.2k')!.parameters.resistance).toBe(33200);
+    expect(typedValueItem(capacitorDefinition, ALL_PARTS, '100n')!.parameters.capacitance).toBeCloseTo(1e-7, 12);
+    expect(typed('banana')).toBeNull();
+    expect(typed('')).toBeNull();
+    expect(typedValueItem(cd40106Definition, ALL_PARTS, '4k7')).toBeNull();
   });
 });

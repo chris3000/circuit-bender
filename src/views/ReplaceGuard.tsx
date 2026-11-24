@@ -2,7 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { useCircuit } from '@/context/CircuitContext';
 import type { Circuit } from '@/models/Circuit';
 
-type Replace = (next: Circuit) => void;
+/** `unsaved`: the new circuit is work that has not been kept anywhere yet (a class's circuit), not a file that was opened. */
+type Replace = (next: Circuit, options?: { unsaved?: boolean }) => void;
 
 const ReplaceContext = createContext<Replace>(() => {});
 
@@ -18,17 +19,18 @@ const FONT = "'Courier New', Courier, monospace";
 
 export function ReplaceGuard({ children }: { children: ReactNode }) {
   const { circuit, isDirty, loadCircuit } = useCircuit();
-  const [pending, setPending] = useState<Circuit | null>(null);
+  const [pending, setPending] = useState<{ circuit: Circuit; unsaved: boolean } | null>(null);
 
-  const replace = useCallback((next: Circuit) => {
+  const replace = useCallback<Replace>((next, options) => {
+    const unsaved = options?.unsaved === true;
     // An emptied canvas has nothing left to lose
-    if (isDirty && circuit.getComponents().length > 0) setPending(next);
-    else loadCircuit(next);
+    if (isDirty && circuit.getComponents().length > 0) setPending({ circuit: next, unsaved });
+    else loadCircuit(next, { dirty: unsaved });
   }, [circuit, isDirty, loadCircuit]);
 
   const cancel = useCallback(() => setPending(null), []);
   const confirm = useCallback(() => {
-    if (pending) loadCircuit(pending);
+    if (pending) loadCircuit(pending.circuit, { dirty: pending.unsaved });
     setPending(null);
   }, [pending, loadCircuit]);
 
@@ -57,7 +59,7 @@ export function ReplaceGuard({ children }: { children: ReactNode }) {
             </div>
             <p id="replace-text" style={{ color: '#ddd', fontSize: 12, lineHeight: 1.5, margin: '10px 0 16px' }}>
               <b style={{ color: 'white' }}>{circuit.name}</b> has changes that are not saved.
-              Opening <b style={{ color: 'white' }}>{pending.name}</b> replaces it.
+              Opening <b style={{ color: 'white' }}>{pending.circuit.name}</b> replaces it.
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button autoFocus onClick={cancel} style={{

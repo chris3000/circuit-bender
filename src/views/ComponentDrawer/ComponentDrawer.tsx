@@ -6,6 +6,8 @@ import {
 } from './catalog';
 import { ShelfTile } from './ShelfTile';
 import { MAX_RECENT, toggled, useShelfPrefs } from './shelfPrefs';
+import { useReplacePart } from '@/views/ReplacePart/ReplacePartContext';
+import { partTitle } from '@/views/ReplacePart/partTitle';
 import styles from './ComponentDrawer.module.css';
 
 const isTextField = (el: EventTarget | null) =>
@@ -16,6 +18,10 @@ const isTextField = (el: EventTarget | null) =>
  * part definitions, a part that comes in values shows its common ones until
  * the rest are asked for, and the search finds a part by name, by what it is
  * for, or by value — including values that are not stocked.
+ *
+ * While a part on the canvas is being swapped for "any part" the shelf is
+ * where the choosing is done: its tiles are clicked instead of dragged, and
+ * those with too few legs for the part's wires are greyed out.
  */
 export function ComponentDrawer() {
   const registry = ComponentRegistry.getInstance();
@@ -39,6 +45,25 @@ export function ComponentDrawer() {
     setPrefs((p) => ({ ...p, recent: [key, ...p.recent.filter((k) => k !== key)].slice(0, MAX_RECENT) }));
   }, [setPrefs]);
 
+  // A part on the canvas being swapped for one of these
+  const replace = useReplacePart();
+  const replacing = replace.wide ? replace.target : null;
+  const { replaceWith, cancel: cancelReplace } = replace;
+  const pick = useCallback((item: ShelfItem) => replaceWith(item.definition, item.parameters), [replaceWith]);
+  const tile = (item: ShelfItem, compact = false) => (
+    <ShelfTile key={item.key} item={item} onUsed={used} compact={compact}
+      onPick={replacing ? pick : undefined}
+      unfit={replacing && !replace.fits(item.definition) ? 'too few legs for the wires on the part being replaced' : undefined} />
+  );
+  const replacingId = replacing?.id;
+  useEffect(() => {
+    if (!replacingId) return;
+    setWantSearch(true); // the quickest way to a part is to type its name
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') cancelReplace(); };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [replacingId, cancelReplace]);
+
   // "/" goes to the search from anywhere, unfolding the shelf if need be
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -57,7 +82,7 @@ export function ComponentDrawer() {
     setWantSearch(false);
   }, [wantSearch]);
 
-  if (prefs.hidden) {
+  if (prefs.hidden && !replacing) {
     return (
       <aside className={styles.strip} data-testid="component-drawer" aria-label="Parts">
         <button className={styles.stripButton} aria-expanded={false} aria-label="Show the parts shelf" title="Show parts ( / )"
@@ -73,7 +98,7 @@ export function ComponentDrawer() {
     if (b.kind === 'parts') {
       return (
         <div className={styles.parts} role="list" key={b.items[0].key}>
-          {b.items.map((item) => <ShelfTile key={item.key} item={item} onUsed={used} />)}
+          {b.items.map((item) => tile(item))}
         </div>
       );
     }
@@ -94,7 +119,7 @@ export function ComponentDrawer() {
           )}
         </div>
         <div className={styles.grid} role="list">
-          {shown.map((item) => <ShelfTile key={item.key} item={item} onUsed={used} />)}
+          {shown.map((item) => tile(item))}
         </div>
       </div>
     );
@@ -130,6 +155,15 @@ export function ComponentDrawer() {
           <button className={styles.fold} aria-expanded aria-label="Hide the parts shelf" title="Hide parts"
             onClick={() => setPrefs((p) => ({ ...p, hidden: true }))}>&laquo;</button>
         </div>
+        {replacing && (
+          <div className={styles.replacing} role="status" data-testid="shelf-replacing">
+            <span className={styles.replacingText}>
+              <b>Replacing</b>
+              {partTitle(replacing)}. Click the part to put in its place.
+            </span>
+            <button className={styles.replacingCancel} onClick={cancelReplace} title="Leave the part as it is (Esc)">Cancel</button>
+          </div>
+        )}
         <div className={styles.search}>
           <input ref={searchBox} type="text" value={query} aria-label="Search parts"
             placeholder="Find a part or value: 47k" spellCheck={false} autoComplete="off"
@@ -162,7 +196,7 @@ export function ComponentDrawer() {
                 <h3 className={styles.sectionTitle}><span className={styles.sectionHead}>Recent</span></h3>
                 <div className={styles.body}>
                   <div className={styles.mixed} role="list">
-                    {recent.map((item) => <ShelfTile key={item.key} item={item} onUsed={used} compact />)}
+                    {recent.map((item) => tile(item, true))}
                   </div>
                 </div>
               </section>

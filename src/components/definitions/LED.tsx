@@ -28,8 +28,9 @@ export const ledDefinition: ComponentDefinition = {
     color: 'red',
     forwardVoltage: 2.0,
   },
-  shelf: { caption: 'Red', keywords: ['light', 'lamp', 'indicator'], art: ledArt },
+  shelf: { caption: 'Red', keywords: ['light', 'lamp', 'indicator'], art: ledArt, alike: ['diode'] },
   cover: { control: 'lamp', name: 'LED' },
+  overload: 'Too much current: a real LED would burn out. Put a resistor in line with it.',
   schematic: {
     symbol: {
       width: 40,

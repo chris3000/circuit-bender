@@ -127,6 +127,11 @@ export interface ComponentShelf {
   stock?: number[];
   /** and the ones common enough to show before the rest. */
   common?: number[];
+  /**
+   * The kinds of thing this part is ("resistance", "switch"). Parts that
+   * share one are offered in place of each other when a part is swapped.
+   */
+  alike?: string[];
 }
 
 /**
@@ -194,10 +199,21 @@ export interface ComponentDefinition {
   pins: PinDefinition[];
   defaultParameters: ComponentParameters;
   value?: ComponentValue;
+  /**
+   * For a part with more than two legs: the two (by position among `pins`) a
+   * wire most likely goes in and out by, which are the ones wired up when the
+   * part is dropped onto a wire. A part with two legs needs none.
+   */
+  through?: [number, number];
   shelf?: ComponentShelf;
   /** One thing on the cover, or several. */
   cover?: ComponentCover | ComponentCover[];
   control?: ComponentControl;
+  /**
+   * What would happen to a real one driven as hard as its model's `strain`
+   * says this one is: shown with the "!" the canvas puts beside it.
+   */
+  overload?: string;
   /**
    * A leg with nothing wired to it is not connected to anything inside the
    * part either, as far as the simulation goes (logic chips, whose model sets

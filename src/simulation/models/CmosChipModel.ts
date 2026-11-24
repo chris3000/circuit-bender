@@ -231,6 +231,44 @@ export class NandSchmittModel extends CmosChipModel {
 }
 
 /**
+ * CD4013: two D-type flip-flops. Each takes the level on D at the moment its
+ * clock rises and holds it on Q (with the opposite on Q̄) until the next.
+ * SET high forces Q high and RESET high forces it low, whatever the clock is
+ * doing; with both high, Q and Q̄ are both high, as on the real chip.
+ * Pins: D1 CLK1 SET1 RST1 D2 CLK2 SET2 RST2 (0–7), Q1 Q̄1 Q2 Q̄2 (8–11), VDD (12), VSS (13).
+ */
+export class DFlipFlopModel extends CmosChipModel {
+  readonly type = 'cd4013';
+  private q = [false, false];
+
+  constructor() {
+    super({ inputs: range(0, 8), thresholds: range(0, 8).map(() => PLAIN), outputs: range(8, 4), vdd: 12, vss: 13 });
+  }
+
+  protected powerUp(): void {
+    this.q = [false, false];
+    this.show(0);
+    this.show(1);
+  }
+
+  protected inputChanged(index: number): void {
+    const half = index >> 2;
+    const [data, clock, set, reset] = this.level.slice(half * 4, half * 4 + 4);
+    if (set || reset) this.q[half] = set;
+    else if (index % 4 === 1 && clock) this.q[half] = data;
+    this.show(half);
+  }
+
+  private show(half: number): void {
+    const [, , set, reset] = this.level.slice(half * 4, half * 4 + 4);
+    this.high[half * 2] = this.q[half];
+    this.high[half * 2 + 1] = set && reset ? true : !this.q[half];
+  }
+
+  isSet(half: number): boolean { return this.q[half]; }
+}
+
+/**
  * CD4040: 12-stage binary ripple counter. It counts on the falling edge of
  * the clock; RESET high holds it at zero.
  * Pins: CLK (0), RST (1), Q1–Q12 (2–13), VDD (14), VSS (15).

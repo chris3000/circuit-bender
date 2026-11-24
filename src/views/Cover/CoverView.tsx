@@ -10,8 +10,8 @@ import styles from './Cover.module.css';
 interface CoverViewProps {
   activeView: ActiveView;
   onSelectView: (view: ActiveView) => void;
-  /** Which LEDs are lit, by part id (from the running simulation). */
-  ledStates: Record<string, boolean>;
+  /** How brightly each LED is lit, 0 to 1, by part id (from the running simulation). */
+  lights: Record<string, number>;
   /** Whether the circuit is running: the pilot light. */
   playing: boolean;
   /** The output's loudness as it plays, for the level meter. */
@@ -50,7 +50,7 @@ const count = (n: number, one: string, many = `${one}S`) => `${n} ${n === 1 ? on
  * and nothing else. It is the same circuit as the other two views, so a knob
  * turned here is turned there, and plays through the same simulation.
  */
-export function CoverView({ activeView, onSelectView, ledStates, playing, levels }: CoverViewProps) {
+export function CoverView({ activeView, onSelectView, lights, playing, levels }: CoverViewProps) {
   const { circuit, updateComponent, undo, redo, canUndo, canRedo } = useCircuit();
   const layout = useMemo(() => coverLayout(circuit.getComponents()), [circuit]);
   const { stage, scale } = useFit(layout.width, layout.height);
@@ -62,18 +62,12 @@ export function CoverView({ activeView, onSelectView, ledStates, playing, levels
     updateComponent(item.component.id, { label: name || undefined });
   }, [updateComponent]);
 
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (!(e.metaKey || e.ctrlKey)) return;
-    if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
-    else if (e.key === 'Z' || e.key === 'y') { e.preventDefault(); redo(); }
-  };
-
   const parts = circuit.getComponents().filter((c) => c.type !== 'junction').length;
   const inputs = layout.items.filter((item) => isCoverInput(item.control)).length;
   const footnote = parts === 0 ? 'NOTHING INSIDE YET' : `${count(parts, 'PART')} INSIDE`;
 
   return (
-    <div className={styles.cover} data-testid="cover-view" tabIndex={-1} onKeyDown={onKeyDown}>
+    <div className={styles.cover} data-testid="cover-view" tabIndex={-1}>
       <Toolbar onUndo={undo} onRedo={redo} canUndo={canUndo} canRedo={canRedo} activeView={activeView} onSelectView={onSelectView} />
       <div className={styles.stage} ref={stage}>
         <div className={styles.fit} style={{ width: layout.width * scale, height: layout.height * scale }}>
@@ -87,7 +81,7 @@ export function CoverView({ activeView, onSelectView, ledStates, playing, levels
                 case 'toggle': return <Toggle key={item.id} {...shared} onChange={setParameters} />;
                 case 'button': return <PushButton key={item.id} {...shared} onChange={setParameters} />;
                 case 'pad': return <TouchPad key={item.id} {...shared} onChange={setParameters} />;
-                case 'lamp': return <Lamp key={item.id} {...shared} lit={ledStates[item.component.id] ?? false} />;
+                case 'lamp': return <Lamp key={item.id} {...shared} level={lights[item.component.id] ?? 0} />;
                 case 'pilot': return <Pilot key={item.id} {...shared} lit={playing} />;
                 case 'speaker': return <Speaker key={item.id} {...shared} levels={levels} />;
                 default: return <Jack key={item.id} {...shared} levels={levels} />;

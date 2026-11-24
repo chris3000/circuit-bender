@@ -3,8 +3,8 @@
 import { MNASolver } from '../solver/MNASolver';
 import type { SerializedComponent } from '../solver/MNASolver';
 import { createStandardModels } from '../models/standardModels';
-import type { DiodeModel } from '../models/DiodeModel';
 import { RenderLoad } from './RenderLoad';
+import { Instruments } from './Instruments';
 
 class CircuitSimulationProcessor extends AudioWorkletProcessor {
   private solver: MNASolver;
@@ -12,18 +12,20 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
   private components: SerializedComponent[] = [];
   private probes: Array<{ componentId: string; pinId: string }> = [];
   private probeSampleBuffers: Float32Array[] = [];
-  private ledFrameCount = 0;
   private load = new RenderLoad(sampleRate);
+  private instruments: Instruments;
 
   constructor() {
     super();
     this.solver = new MNASolver(createStandardModels());
+    this.instruments = new Instruments(this.solver, sampleRate);
 
     this.port.onmessage = (event: MessageEvent) => {
       const msg = event.data;
       if (msg.type === 'loadCircuit') {
         this.components = msg.components;
         this.solver.loadCircuit(msg.components, msg.connections);
+        this.instruments.load(msg.components);
         this.load.reset();
       } else if (msg.type === 'setParam') {
         const comp = this.components.find((c: SerializedComponent) => c.id === msg.componentId);
@@ -39,6 +41,10 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
         this.probes = msg.probes || [];
         this.probeSampleBuffers = this.probes.map(() => new Float32Array(128));
         this.solver.setProbes(this.probes);
+        this.instruments.setProbes(this.probes.length);
+      } else if (msg.type === 'setMeter') {
+        // What the meter is held on: a pin, a part, or nothing (null)
+        this.instruments.setTarget(msg.target ?? null);
       } else if (msg.type === 'setOversampling') {
         this.solver.setOversampling(msg.count);
       } else if (msg.type === 'start') {
@@ -47,6 +53,7 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
       } else if (msg.type === 'stop') {
         this.running = false;
         this.solver.resetState();
+        this.instruments.reset();
       }
     };
   }
@@ -64,6 +71,7 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
         for (let p = 0; p < this.probes.length; p++) {
           this.probeSampleBuffers[p][i] = this.solver.getProbeSample(p);
         }
+        this.instruments.sample();
       } else {
         channel[i] = 0;
         for (let p = 0; p < this.probes.length; p++) {
@@ -83,22 +91,9 @@ class CircuitSimulationProcessor extends AudioWorkletProcessor {
       }
       this.port.postMessage(msg);
 
-      this.ledFrameCount += channel.length;
-      if (this.ledFrameCount >= 800) {
-        this.ledFrameCount = 0;
-        const ledStates: Record<string, boolean> = {};
-        for (const comp of this.components) {
-          if (comp.type === 'led') {
-            const model = this.solver.getModel(comp.id);
-            if (model && 'isLit' in model) {
-              ledStates[comp.id] = (model as DiodeModel).isLit();
-            }
-          }
-        }
-        if (Object.keys(ledStates).length > 0) {
-          this.port.postMessage({ type: 'ledStates', states: ledStates });
-        }
-      }
+      // LED brightness, overloaded parts and the meter, each as often as it is due
+      const report = this.instruments.report();
+      if (report) this.port.postMessage({ type: 'instruments', ...report });
 
       // How much of the time there was to compute this sound it took
       const load = this.load.end(channel.length);

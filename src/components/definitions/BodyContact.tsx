@@ -20,7 +20,7 @@ export const bodyContactDefinition: ComponentDefinition = {
     { id: generatePinId('body-contact', 1), label: '2', type: 'bidirectional', position: { x: 25, y: 0 } },
   ],
   defaultParameters: { touch: 0 },
-  shelf: { title: 'Body contacts', caption: 'Touch to play', keywords: ['touch', 'finger', 'skin', 'body', 'contact', 'pad', 'plate', 'bend'], art: touchPadsArt },
+  shelf: { title: 'Body contacts', caption: 'Touch to play', keywords: ['touch', 'finger', 'skin', 'body', 'contact', 'pad', 'plate', 'bend'], art: touchPadsArt, alike: ['resistance', 'switch'] },
   control: { kind: 'hold', parameter: 'touch', name: 'Touch', held: 0.6 },
   cover: { control: 'pad', parameter: 'touch', name: 'TOUCH' },
   schematic: {

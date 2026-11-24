@@ -1,5 +1,5 @@
 import type { ComponentModel } from './ComponentModel';
-import { stampConductance } from './stampUtils';
+import { nodeVoltage, stampConductance } from './stampUtils';
 
 /**
  * A small loudspeaker: its voice coil's resistance between the two terminals
@@ -32,6 +32,10 @@ export class SpeakerModel implements ComponentModel {
   /** What is heard: the voltage from the first node to the second. */
   audioTap(): { positive: number; negative: number } {
     return { positive: this.nPos, negative: this.nNeg };
+  }
+
+  current(x: Float64Array): number {
+    return (nodeVoltage(x, this.nPos) - nodeVoltage(x, this.nNeg)) * this.conductance;
   }
 
   convergenceError(_xOld: Float64Array, _xNew: Float64Array): number { return 0; }

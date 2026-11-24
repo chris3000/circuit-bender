@@ -21,3 +21,8 @@ export function stampCurrentSource(b: Float64Array, nPos: number, nNeg: number, 
   if (nPos >= 0) b[nPos] += I;
   if (nNeg >= 0) b[nNeg] -= I;
 }
+
+/** The voltage of node n in the solution x (ground, −1, is 0 V). */
+export function nodeVoltage(x: Float64Array, n: number): number {
+  return n >= 0 ? x[n] : 0;
+}

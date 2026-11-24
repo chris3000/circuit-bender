@@ -16,7 +16,7 @@ function getDefinition(type: string) {
   return def;
 }
 
-function connect(
+export function connect(
   from: Component, fromPinIndex: number,
   to: Component, toPinIndex: number,
 ): Connection {
@@ -32,7 +32,7 @@ function connect(
  * A named switch. Every example has one, so its cover has something to flip;
  * each starts in the position that plays the example as described.
  */
-function namedSwitch(name: string, x: number, y: number, closed: boolean): Component {
+export function namedSwitch(name: string, x: number, y: number, closed: boolean): Component {
   const part = createComponentFromDefinition(getDefinition('switch'), { x, y });
   part.label = name;
   part.parameters = { ...part.parameters, closed: closed ? 1 : 0 };
@@ -40,20 +40,20 @@ function namedSwitch(name: string, x: number, y: number, closed: boolean): Compo
 }
 
 /** A part of the given kind at (x, y), turned and named if asked. */
-function place(type: string, x: number, y: number, options: { rotation?: number; label?: string; parameters?: Component['parameters'] } = {}): Component {
+export function place(type: string, x: number, y: number, options: { rotation?: number; label?: string; parameters?: Component['parameters'] } = {}): Component {
   const part = createComponentFromDefinition(getDefinition(type), { x, y }, options.parameters);
   if (options.rotation) part.rotation = options.rotation;
   if (options.label) part.label = options.label;
   return part;
 }
 
-const resistor = (ohms: number, x: number, y: number, rotation = 0) =>
+export const resistor = (ohms: number, x: number, y: number, rotation = 0) =>
   place('resistor', x, y, { rotation, parameters: { resistance: ohms, value: formatValue(ohms, 'resistance') } });
 const capacitor = (farads: number, x: number, y: number, rotation = 0) =>
   place('capacitor', x, y, { rotation, parameters: { capacitance: farads, value: formatValue(farads, 'capacitance') } });
 const pot = (name: string, ohms: number, position: number, x: number, y: number) =>
   place('potentiometer', x, y, { label: name, parameters: { maxResistance: ohms, value: formatValue(ohms, 'resistance'), position } });
-const ground = (x: number, y: number) => place('ground', x, y);
+export const ground = (x: number, y: number) => place('ground', x, y);
 
 /** Pins of the chips by name, in the order their definitions (and models) have them. */
 const NE555 = { TRIG: 0, THRES: 1, RESET: 2, CTRL: 3, DISCH: 4, OUT: 5, VCC: 6, GND: 7 };

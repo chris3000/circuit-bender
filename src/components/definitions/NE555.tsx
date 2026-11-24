@@ -24,6 +24,7 @@ export const ne555Definition: ComponentDefinition = {
   },
   pins,
   defaultParameters: {},
+  through: [0, 5], // trigger in, output out
   shelf: { caption: 'Timer', keywords: ['555', 'timer', 'astable', 'monostable', 'oscillator', 'atari punk', 'chip', 'ic'], art: chipArt(8, 'NE555') },
   ...chipViews({ width: 80, height: 120, name: 'NE555', lines: ['TIMER'], pins }),
 };

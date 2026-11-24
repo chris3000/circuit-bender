@@ -21,6 +21,18 @@ import { ldrDefinition } from '@/components/definitions/LightDependentResistor';
 import { speakerDefinition } from '@/components/definitions/Speaker';
 import { pushButtonDefinition } from '@/components/definitions/PushButton';
 import { bodyContactDefinition } from '@/components/definitions/BodyContact';
+import { audioInputDefinition } from '@/components/definitions/AudioInput';
+import { cd4049Definition } from '@/components/definitions/CD4049';
+import { cd4013Definition } from '@/components/definitions/CD4013';
+import { lm324Definition } from '@/components/definitions/LM324';
+import { tl072Definition } from '@/components/definitions/TL072';
+import { lm13700Definition } from '@/components/definitions/LM13700';
+import { switchSpdtDefinition } from '@/components/definitions/SwitchSPDT';
+import { optoCouplerDefinition } from '@/components/definitions/OptoCoupler';
+import { piezoDefinition } from '@/components/definitions/Piezo';
+import { diode1N4004Definition } from '@/components/definitions/Diode1N4004';
+import { jfet2N5457Definition } from '@/components/definitions/JFET2N5457';
+import { transistor2N3906Definition } from '@/components/definitions/Transistor2N3906';
 
 /** In the order main.tsx registers them. */
 export const ALL_PARTS: ComponentDefinition[] = [
@@ -29,5 +41,7 @@ export const ALL_PARTS: ComponentDefinition[] = [
   audioOutputJackDefinition, ledDefinition, switchDefinition, junctionDefinition,
   ne555Definition, cd4093Definition, cd4040Definition, cd4017Definition, lm386Definition,
   ldrDefinition, speakerDefinition, pushButtonDefinition, bodyContactDefinition,
+  audioInputDefinition, cd4049Definition, cd4013Definition, lm324Definition, tl072Definition, lm13700Definition,
+  switchSpdtDefinition, optoCouplerDefinition, piezoDefinition, diode1N4004Definition, jfet2N5457Definition, transistor2N3906Definition,
 ];
 

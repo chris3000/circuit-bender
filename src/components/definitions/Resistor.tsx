@@ -25,6 +25,7 @@ export const resistorDefinition: ComponentDefinition = {
       position: { x: 30, y: 0 },
     },
   ],
+  overload: 'More than a quarter of a watt: a real resistor this size would be too hot to touch.',
   defaultParameters: {
     resistance: 1000, // ohms
     value: '1kΩ',
@@ -34,6 +35,7 @@ export const resistorDefinition: ComponentDefinition = {
     keywords: ['ohm', 'ohms', 'r'],
     art: resistorArt,
     // The E12 series from 10 Ω to 10 MΩ
+    alike: ['resistance'],
     stock: [...standardValues(10, 8.2e6), 10e6],
     common: [100, 220, 470, 1e3, 2.2e3, 4.7e3, 10e3, 22e3, 47e3, 100e3, 470e3, 1e6],
   },

@@ -46,8 +46,8 @@ describe('what is on the cover', () => {
   it('is the knobs, switches, buttons, touch plates, lights, supply and speakers, and nothing else', () => {
     const layout = coverLayout(ALL_PARTS.map((d) => part(d.type)));
     expect(layout.items.map((i) => `${i.component.type}:${i.control}`).sort()).toEqual([
-      'audio-output:speaker', 'body-contact:pad', 'ldr:knob', 'led:lamp', 'potentiometer:knob',
-      'power:knob', 'power:pilot', 'pushbutton:button', 'speaker:speaker', 'switch:toggle',
+      'audio-input:knob', 'audio-output:speaker', 'body-contact:pad', 'ldr:knob', 'led:lamp', 'piezo:button', 'potentiometer:knob',
+      'power:knob', 'power:pilot', 'pushbutton:button', 'spdt:toggle', 'speaker:speaker', 'switch:toggle',
     ]);
     expect(new Set(layout.items.map((i) => i.id)).size).toBe(layout.items.length);
   });

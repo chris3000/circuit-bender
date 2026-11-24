@@ -7,10 +7,19 @@ export interface DiodeParams {
   n: number;
   Rs: number;
   Vt?: number;
+  /** The forward current a real one stands for as long as it likes, in amps. */
+  maxCurrent?: number;
 }
 
-export const DIODE_1N914_PARAMS: DiodeParams = { Is: 2.52e-9, n: 1.752, Rs: 0.568 };
-export const DIODE_LED_RED_PARAMS: DiodeParams = { Is: 1e-20, n: 2.0, Rs: 0 };
+export const DIODE_1N914_PARAMS: DiodeParams = { Is: 2.52e-9, n: 1.752, Rs: 0.568, maxCurrent: 0.2 };
+/** A 1 A rectifier: the diode put across a power supply against a battery connected backwards. */
+export const DIODE_1N4004_PARAMS: DiodeParams = { Is: 14.11e-9, n: 1.984, Rs: 0.0339, maxCurrent: 1 };
+/**
+ * A standard red LED: 2.0 V at 2 mA, 2.2 V at 20 mA. Its few ohms of series
+ * resistance are what keep the current finite (an amp or so, on 9 V) when it
+ * is wired with no resistor, which the junction alone would not.
+ */
+export const DIODE_LED_RED_PARAMS: DiodeParams = { Is: 3.9e-20, n: 2.0, Rs: 5, maxCurrent: 0.03 };
 
 export class DiodeModel implements ComponentModel {
   readonly type = 'diode';
@@ -100,6 +109,16 @@ export class DiodeModel implements ComponentModel {
   private junctionVoltage(x: Float64Array): number {
     const nPos = this.junctionPos();
     return (nPos >= 0 ? x[nPos] : 0) - (this.nCathode >= 0 ? x[this.nCathode] : 0);
+  }
+
+  /** Anode to cathode: what the junction passes at the voltage it has in x. */
+  current(x: Float64Array): number {
+    const { Is, n } = this.params;
+    return linearizeJunction(this.junctionVoltage(x), Is, n, this.params.Vt ?? BOLTZMANN_VOLTAGE).Id;
+  }
+
+  strain(x: Float64Array): number {
+    return this.params.maxCurrent ? Math.max(0, this.current(x)) / this.params.maxCurrent : 0;
   }
 
   reset(): void { this.vdLin = 0; this.idLin = 0; this.gdLin = 0; this.lastId = 0; }

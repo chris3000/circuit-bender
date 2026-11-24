@@ -59,11 +59,28 @@ export interface ComponentModel {
   /** Commit an accepted solve of length dt as the new history state. */
   postStep?(x: Float64Array, dt: number, be?: boolean): void;
   /**
+   * For a part that has gain round a node of its own (an op-amp's gain node).
+   * Called before each step with a function that says how a node answers a
+   * current pushed into it, with the circuit in its present state and at the
+   * step about to be taken (volts per amp). A healthy node answers with a
+   * positive number. A negative one means the feedback round the node is
+   * positive and faster than the step: the true circuit would run away from
+   * where it is, and backward Euler would instead hold it there for good. The
+   * part must then make the move itself, as an event (see OpAmpModel).
+   */
+  watchFeedback?(response: (node: number) => number): void;
+
+  /**
    * The solution was moved to x by interpolation (to an event instant), not by
    * a solve. Update voltage history; currents are re-established by the
    * backward-Euler step the solver takes next.
+   *
+   * `elapsed` is how much time went by in getting there (seconds; it may be
+   * 0), for models that keep a clock of their own: a signal source, anything
+   * with a lag. It is left out when the circuit is being put at its starting
+   * point, which is no time at all.
    */
-  syncState?(x: Float64Array): void;
+  syncState?(x: Float64Array, elapsed?: number): void;
 
   /**
    * Integer signature of the discrete state that stampMatrix/stampRhs depend
@@ -81,4 +98,16 @@ export interface ComponentModel {
 
   convergenceError(xOld: Float64Array, xNew: Float64Array): number;
   reset(): void;
+
+  /**
+   * For a part with two legs: the current through it at the solution x, from
+   * its first pin to its second, in amps. What a meter in line with it reads.
+   */
+  current?(x: Float64Array): number;
+  /**
+   * How hard the part is being driven at x, as a fraction of what a real one
+   * stands: held above 1 it would be damaged. Nothing in the simulation
+   * depends on it; the "!" beside a part on the canvas is drawn from it.
+   */
+  strain?(x: Float64Array): number;
 }

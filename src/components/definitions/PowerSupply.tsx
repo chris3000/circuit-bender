@@ -35,6 +35,7 @@ export const powerSupplyDefinition: ComponentDefinition = {
   shelf: { title: 'Power', caption: '+9 V supply', keywords: ['battery', 'vcc', 'vdd', '9v', 'dc', 'source', 'starve', 'sag'], art: batteryArt },
   // The pilot light: on while the circuit is running
   control: { kind: 'dial', parameter: 'starve', name: 'Starve', at: { x: 28, y: -4 }, print: 'STARVE', rest: 0 },
+  overload: 'More than an amp: the supply is shorted, or nearly. A real battery would get hot and go flat in minutes.',
   cover: [
     { control: 'pilot', name: 'POWER', detail: (p) => `${p.voltage}V DC` },
     // Voltage starve: a resistance in series with the supply, from none to 1 MΩ

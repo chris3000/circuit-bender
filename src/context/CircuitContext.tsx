@@ -33,6 +33,12 @@ interface CircuitContextType {
   moveComponents: (moves: ComponentMove[]) => void;
   /** Parts and the wires that go with them, as one undo step. */
   addParts: (components: Component[], connections: Connection[]) => void;
+  /**
+   * Any change that takes several steps (a part dropped into a wire, a part
+   * swapped for another), as one undo step: `edit` is given the circuit and
+   * returns the next one. Returning the same circuit changes nothing.
+   */
+  editCircuit: (edit: (circuit: Circuit) => Circuit) => void;
   addConnection: (connection: Connection) => void;
   removeConnection: (connectionId: ConnectionId) => void;
   updateConnection: (connectionId: ConnectionId, updates: Partial<Connection>) => void;
@@ -72,6 +78,7 @@ type CircuitAction =
   | { type: 'UPDATE_COMPONENT'; componentId: ComponentId; updates: Partial<Component>; record: boolean }
   | { type: 'MOVE_COMPONENTS'; moves: ComponentMove[] }
   | { type: 'ADD_PARTS'; components: Component[]; connections: Connection[] }
+  | { type: 'EDIT'; edit: (circuit: Circuit) => Circuit }
   | { type: 'ADD_CONNECTION'; connection: Connection }
   | { type: 'REMOVE_CONNECTION'; connectionId: ConnectionId }
   | { type: 'UPDATE_CONNECTION'; connectionId: ConnectionId; updates: Partial<Connection> }
@@ -139,6 +146,11 @@ function circuitReducer(state: CircuitState, action: CircuitAction): CircuitStat
       let circuit = state.circuit;
       for (const component of action.components) circuit = circuit.addComponent(component);
       for (const connection of action.connections) circuit = circuit.addConnection(connection);
+      if (circuit === state.circuit) return state;
+      return { ...state, undoStack: pushUndoStack(state.undoStack, state.circuit), redoStack: [], circuit };
+    }
+    case 'EDIT': {
+      const circuit = action.edit(state.circuit);
       if (circuit === state.circuit) return state;
       return { ...state, undoStack: pushUndoStack(state.undoStack, state.circuit), redoStack: [], circuit };
     }
@@ -280,6 +292,10 @@ export function CircuitProvider({ children, initial }: { children: React.ReactNo
     dispatch({ type: 'ADD_PARTS', components, connections });
   }, []);
 
+  const editCircuit = useCallback((edit: (circuit: Circuit) => Circuit) => {
+    dispatch({ type: 'EDIT', edit });
+  }, []);
+
   const addConnection = useCallback((connection: Connection) => {
     dispatch({ type: 'ADD_CONNECTION', connection });
   }, []);
@@ -330,6 +346,7 @@ export function CircuitProvider({ children, initial }: { children: React.ReactNo
     updateComponent,
     moveComponents,
     addParts,
+    editCircuit,
     addConnection,
     removeConnection,
     updateConnection,
@@ -345,7 +362,7 @@ export function CircuitProvider({ children, initial }: { children: React.ReactNo
     redo,
     canUndo: state.undoStack.length > 0,
     canRedo: state.redoStack.length > 0,
-  }), [state, addComponent, removeComponent, updateComponent, moveComponents, addParts, addConnection, removeConnection, updateConnection, setWireColor, loadCircuit, markSaved, setSelection, clearSelection, undo, redo]);
+  }), [state, addComponent, removeComponent, updateComponent, moveComponents, addParts, editCircuit, addConnection, removeConnection, updateConnection, setWireColor, loadCircuit, markSaved, setSelection, clearSelection, undo, redo]);
 
   return (
     <CircuitContext.Provider value={value}>{children}</CircuitContext.Provider>

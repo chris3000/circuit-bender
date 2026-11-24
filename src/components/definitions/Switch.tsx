@@ -15,7 +15,7 @@ export const switchDefinition: ComponentDefinition = {
     { id: generatePinId('switch', 1), label: '2', type: 'bidirectional', position: { x: 25, y: 0 } },
   ],
   defaultParameters: { closed: 0, value: 'SPST' },
-  shelf: { caption: 'On / off', keywords: ['spst', 'toggle'], art: switchArt },
+  shelf: { caption: 'On / off', keywords: ['spst', 'toggle'], art: switchArt, alike: ['switch'] },
   cover: { control: 'toggle', parameter: 'closed', name: 'SWITCH' },
   schematic: {
     symbol: {

@@ -1,5 +1,5 @@
 import type { ComponentModel } from './ComponentModel';
-import { stampConductance } from './stampUtils';
+import { nodeVoltage, stampConductance } from './stampUtils';
 
 const unit = (value: number) => (Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0);
 
@@ -54,6 +54,10 @@ export class VariableResistorModel implements ComponentModel {
   }
 
   getResistance(): number { return 1 / this.conductance; }
+
+  current(x: Float64Array): number {
+    return (nodeVoltage(x, this.n0) - nodeVoltage(x, this.n1)) * this.conductance;
+  }
 
   convergenceError(_xOld: Float64Array, _xNew: Float64Array): number { return 0; }
   reset(): void {}

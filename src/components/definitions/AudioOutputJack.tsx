@@ -20,7 +20,7 @@ export const audioOutputJackDefinition: ComponentDefinition = {
     },
   ],
   defaultParameters: {},
-  shelf: { title: 'Audio out', caption: 'Hear it here', keywords: ['jack', 'speaker', 'sound', 'line', 'socket', 'output', 'listen'], art: jackArt },
+  shelf: { title: 'Audio out', caption: 'Hear it here', keywords: ['jack', 'speaker', 'sound', 'line', 'socket', 'output', 'listen'], art: jackArt, alike: ['sound out'] },
   // A socket with a speaker behind it: the speaker plays unless the signal is sent on somewhere else
   cover: [
     { control: 'speaker', name: 'OUT', when: (p) => audioDestination(p) === 'speaker' },

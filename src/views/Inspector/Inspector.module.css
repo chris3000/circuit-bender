@@ -191,3 +191,56 @@
     white;
 }
 
+
+/* The meter: what the selected wire or part reads while the circuit runs */
+.meter {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 9px;
+  background: #222;
+  border-radius: 8px;
+  color: white;
+}
+
+.reading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #999;
+}
+
+.reading strong {
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: white;
+  white-space: nowrap;
+}
+
+.warning {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+  font-size: 10px;
+  line-height: 1.4;
+  color: #222;
+}
+
+.mark {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #FF2D55;
+  color: white;
+  font-weight: bold;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+}

@@ -17,8 +17,8 @@ import { KNOB_MIN_ANGLE, KNOB_SWEEP } from '@/components/art/knob';
 import { formatValue } from '@/utils/parameterParser';
 import {
   BLACK, BRASS, BRASS_DARK, METAL, METAL_DARK, METAL_LIGHT, PRINT_FONT, Print,
-  capacitorBody, capacitorKind, diodeBody, groundArt, jackBody, ldrBody, ledBody, pushButtonBody, resistorBody,
-  speakerBody, switchBody, touchPadsBody, transistorBody,
+  capacitorBody, capacitorKind, changeoverBody, diodeBody, groundArt, inputJackBody, jackBody, ldrBody, ledBody, optoBody,
+  piezoBody, pushButtonBody, rectifierBody, resistorBody, speakerBody, switchBody, touchPadsBody, transistorBody,
 } from './partArt';
 
 type Art = (params: ComponentParameters) => ReactNode;
@@ -84,6 +84,16 @@ export const diodeBoard: Art = (params) => (
   </g>
 );
 
+/** Rectifier: anode at (-20, 0), cathode (the banded end) at (20, 0). */
+export const rectifierBoard: Art = (params) => (
+  <g>
+    <Leg from={[-20, 0]} to={[-11, 0]} />
+    <Leg from={[20, 0]} to={[11, 0]} />
+    <g transform="scale(1.3)">{rectifierBody(params)}</g>
+    <Silk y={17} size={7}>1N4004</Silk>
+  </g>
+);
+
 /** How far above the pins the middle of the LED's dome is (for its glow). */
 export const LED_DOME_CENTRE = -9;
 
@@ -120,6 +130,17 @@ export const switchBoard: Art = (params) => (
   </g>
 );
 
+/** Changeover switch: the common at (-25, 0), the two throws at (25, -10) and (25, 10). */
+export const changeoverBoard: Art = (params) => (
+  <g>
+    <Leg from={[-25, 0]} to={[-12, 0]} />
+    <Leg from={[25, -10]} to={[12, -10]} />
+    <Leg from={[25, 10]} to={[12, 10]} />
+    <g transform="translate(0 -3.8) scale(1.4)">{changeoverBody(params)}</g>
+    <Silk y={24}>{Number(params.throw) >= 1 ? 'B' : 'A'}</Silk>
+  </g>
+);
+
 /** The supply: a 9 V battery stood on end, + at (0, -30) and − at (0, 30). */
 export const batteryBoard: Art = (params) => (
   <g>
@@ -152,6 +173,36 @@ export const jackBoard: Art = (params) => (
   <g>
     <Leg from={[0, -20]} to={[0, -5]} />
     <g transform="translate(5.4 3)">{jackBody(params)}</g>
+  </g>
+);
+
+/** Audio in: the same socket marked IN, its pin at (0, -20). */
+export const inputJackBoard: Art = (params) => (
+  <g>
+    <Leg from={[0, -20]} to={[0, -5]} />
+    <g transform="translate(5.4 3)">{inputJackBody(params)}</g>
+  </g>
+);
+
+/** Piezo disc: + at (-30, -10) and − at (-30, 10), a wire to each. */
+export const piezoBoard: Art = (params) => (
+  <g>
+    <Leg from={[-30, -10]} to={[-14, -10]} />
+    <Leg from={[-30, 10]} to={[-14, 10]} />
+    <g transform="translate(5 0) scale(2.1)">{piezoBody(params)}</g>
+    <text x={-24} y={-15} textAnchor="middle" fontSize={8} fontWeight="bold" fill="#D4ECD4" opacity={0.85} fontFamily={PRINT_FONT}>+</text>
+  </g>
+);
+
+/** Opto-coupler: the LED's legs at (-30, ∓10), the cell's at (30, ∓10). */
+export const optoBoard: Art = (params) => (
+  <g>
+    <Leg from={[-30, -10]} to={[-18, -10]} />
+    <Leg from={[-30, 10]} to={[-18, 10]} />
+    <Leg from={[30, -10]} to={[18, -10]} />
+    <Leg from={[30, 10]} to={[18, 10]} />
+    <g transform="scale(2 2.6)">{optoBody(params)}</g>
+    <Silk y={24} size={7}>LED · CELL</Silk>
   </g>
 );
 

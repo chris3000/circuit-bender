@@ -17,6 +17,12 @@ export function starveOhms(starve: number): number {
   return STARVE_MAX_OHMS * (Math.pow(10, STARVE_DECADES * s) - 1) / (Math.pow(10, STARVE_DECADES) - 1);
 }
 
+/**
+ * More than this and a 9 V battery is being shorted, or nearly: it sags, gets
+ * hot and is flat in minutes.
+ */
+export const SUPPLY_MAX_AMPS = 1;
+
 /** The decoupling capacitor every board has across its supply. */
 const DECOUPLING_FARADS = 100e-9;
 
@@ -89,6 +95,11 @@ export class PowerSourceModel implements ComponentModel {
     if (key === 'voltage') this.voltage = value;
     else if (key === 'starve') this.series = starveOhms(value);
   }
+
+  /** From + to − through the supply itself: negative while it is feeding the circuit. */
+  current(x: Float64Array): number { return x[this.br]; }
+
+  strain(x: Float64Array): number { return Math.abs(x[this.br]) / SUPPLY_MAX_AMPS; }
 
   convergenceError(_xOld: Float64Array, _xNew: Float64Array): number { return 0; }
   reset(): void { this.vPrev = 0; }

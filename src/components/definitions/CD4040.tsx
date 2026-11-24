@@ -21,6 +21,7 @@ export const cd4040Definition: ComponentDefinition = {
   pins,
   defaultParameters: {},
   floatingPins: true,
-  shelf: { caption: 'Divider ÷2 … ÷4096', keywords: ['4040', 'counter', 'divider', 'binary', 'ripple', 'octave', 'sub', 'cmos', 'logic', 'chip', 'ic'], art: chipArt(16, 'CD4040') },
+  through: [0, 2], // clock in, the first division out
+  shelf: { caption: 'Divider ÷2 … ÷4096', keywords: ['4040', 'counter', 'divider', 'binary', 'ripple', 'octave', 'sub', 'cmos', 'logic', 'chip', 'ic'], art: chipArt(16, 'CD4040'), alike: ['counter'] },
   ...chipViews({ width: 80, height: 280, name: 'CD4040', lines: ['12-STAGE', 'COUNTER'], pins }),
 };

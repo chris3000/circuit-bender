@@ -48,7 +48,8 @@ export const lm741Definition: ComponentDefinition = {
     },
   ],
   defaultParameters: {},
-  shelf: { caption: 'Op-amp', keywords: ['741', 'opamp', 'amplifier', 'chip', 'ic'], art: chipArt(8, 'LM741') },
+  through: [1, 3], // the + input to the output
+  shelf: { caption: 'Op-amp', keywords: ['741', 'opamp', 'amplifier', 'chip', 'ic'], art: chipArt(8, 'LM741'), alike: ['amplifier'] },
   schematic: {
     symbol: {
       width: 70,

@@ -4,9 +4,10 @@ import { useCircuit } from '@/context/CircuitContext';
 import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
 import { createComponentFromDefinition } from '@/utils/componentFactory';
 import { buildRoundedPath, generateSmartPath } from '@/utils/wiring';
-import { generateConnectionId, generateNetId } from '@/utils/ids';
-import type { ComponentId, PinId } from '@/types/circuit';
+import { joinAtWire } from '@/utils/circuitEdits';
+import type { ConnectionId } from '@/types/circuit';
 import { useWireRoute } from '../routing/useWireRoutes';
+import { useIsSpliceTarget } from './spliceTarget';
 
 // Shared hovered net state — when one wire is hovered, all wires sharing
 // an endpoint highlight. Simple module-level state since edges are all in
@@ -31,7 +32,7 @@ function useHoveredNet(): Set<string> | null {
 export const SchematicEdge = memo(function SchematicEdge({
   id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected, data,
 }: EdgeProps) {
-  const { addComponent, addConnection, removeConnection, circuit } = useCircuit();
+  const { editCircuit, circuit } = useCircuit();
   const { screenToFlowPosition } = useReactFlow();
   // The router's path avoids parts and other wires; until it has one (the
   // first frame of a new wire) draw a plain path between the two pins
@@ -50,36 +51,18 @@ export const SchematicEdge = memo(function SchematicEdge({
     const pos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
     const snapped = { x: Math.round(pos.x / 20) * 20, y: Math.round(pos.y / 20) * 20 };
     const junction = createComponentFromDefinition(junctionDef, snapped);
-    const junctionPinId = junction.pins[0].id;
-
-    // Find the original connection
-    const conn = circuit.getConnections().find(c => c.id === (data?.connectionId as string));
-    if (!conn) return;
-
-    // Add junction, remove original wire, create two new wires through junction
-    addComponent(junction);
-    removeConnection(conn.id);
-    const color = conn.color ? { color: conn.color } : {}; // both halves keep the wire's color
-    addConnection({
-      id: generateConnectionId(),
-      from: conn.from,
-      to: { componentId: junction.id as ComponentId, pinId: junctionPinId as PinId },
-      net: generateNetId(),
-      ...color,
-    });
-    addConnection({
-      id: generateConnectionId(),
-      from: { componentId: junction.id as ComponentId, pinId: junctionPinId as PinId },
-      to: conn.to,
-      net: generateNetId(),
-      ...color,
-    });
-  }, [data, circuit, addComponent, addConnection, removeConnection, screenToFlowPosition]);
+    const connectionId = data?.connectionId as ConnectionId | undefined;
+    if (!connectionId) return;
+    // The wire is cut at the dot and both halves go to it: one undo step
+    editCircuit((c) => joinAtWire(c, connectionId, junction));
+  }, [data, editCircuit, screenToFlowPosition]);
 
   // Net highlighting: this edge's endpoints as keys
   const edgeSourcePin = `${(data as Record<string, unknown>)?.sourceComp}::${(data as Record<string, unknown>)?.sourcePin}`;
   const edgeTargetPin = `${(data as Record<string, unknown>)?.targetComp}::${(data as Record<string, unknown>)?.targetPin}`;
 
+  // A part is held over this wire: let go, and it goes in here
+  const taking = useIsSpliceTarget(id);
   const hovered = useHoveredNet();
   const isNetHighlighted = hovered !== null && (hovered.has(edgeSourcePin) || hovered.has(edgeTargetPin));
 
@@ -119,8 +102,9 @@ export const SchematicEdge = memo(function SchematicEdge({
   return (
     <g onDoubleClick={handleDoubleClick} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
       <path d={pathData} fill="none" stroke="transparent" strokeWidth={12} style={{ cursor: 'pointer' }} />
-      {selected && userColor && (
-        <path d={pathData} fill="none" stroke="#FF2D55" strokeOpacity={0.35} strokeWidth={strokeW + 6} strokeLinecap="round" />
+      {((selected && userColor) || taking) && (
+        <path d={pathData} fill="none" stroke="#FF2D55" strokeOpacity={0.35} strokeWidth={strokeW + (taking ? 10 : 6)} strokeLinecap="round"
+          data-testid={taking ? 'splice-target' : undefined} />
       )}
       <path id={id} d={pathData} fill="none" stroke={strokeColor} strokeWidth={strokeW} strokeLinecap="round" />
       {/* A dot where wires join, so a junction cannot be mistaken for a crossing */}

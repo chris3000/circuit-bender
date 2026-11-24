@@ -276,11 +276,14 @@ describe('nonlinear circuits', () => {
     for (let i = 0; i < 2000; i++) solver.step(DT);
     const vLed = solver.getNodeVoltageByPin('led', 'a');
     const iResistor = (9 - vLed) / 1000;
-    const iDiode = 1e-20 * (Math.exp(vLed / (2 * 0.02585)) - 1);
+    // The junction has what is left once the LED's own series resistance has had its share
+    const { Is, n, Rs } = DIODE_LED_RED_PARAMS;
+    const iDiode = Is * (Math.exp((vLed - iResistor * Rs) / (n * 0.02585)) - 1);
     expect(vLed).toBeGreaterThan(1.5);
     expect(vLed).toBeLessThan(2.5);
     expect(Math.abs(iDiode / iResistor - 1)).toBeLessThan(0.01);
     const model = solver.getModel('led') as DiodeModel;
+    expect(model.current(solver.getSolutionVector())).toBeCloseTo(iResistor, 6);
     expect(model.isLit()).toBe(true);
   });
 });

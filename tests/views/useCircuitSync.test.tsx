@@ -23,7 +23,7 @@ const wrapper = ({ children }: { children: ReactNode }) => <CircuitProvider>{chi
 
 function setup(viewMode: 'schematic' | 'board' = 'schematic') {
   const hook = renderHook(
-    ({ mode, leds }: { mode: 'schematic' | 'board'; leds: Record<string, boolean> }) =>
+    ({ mode, leds }: { mode: 'schematic' | 'board'; leds: Record<string, number> }) =>
       ({ circuit: useCircuit(), sync: useCircuitSync(mode, leds) }),
     { wrapper, initialProps: { mode: viewMode, leds: {} } },
   );
@@ -214,6 +214,60 @@ describe('selecting wires', () => {
   });
 });
 
+describe('selecting parts', () => {
+  const selected = (hook: ReturnType<typeof setup>['hook']) => hook.result.current.sync.nodes.filter((n) => n.selected).map((n) => n.id);
+
+  it('selects the part React Flow says was clicked, and tells the circuit', () => {
+    const { hook, r1, r2 } = setup();
+    act(() => hook.result.current.sync.onNodesChange([{ id: r1.id, type: 'select', selected: true }]));
+    expect(selected(hook)).toEqual([r1.id]);
+    expect(hook.result.current.circuit.selectedComponents).toEqual([r1.id]);
+    // Clicking another: it is selected and the first is not
+    act(() => hook.result.current.sync.onNodesChange([
+      { id: r2.id, type: 'select', selected: true }, { id: r1.id, type: 'select', selected: false },
+    ]));
+    expect(selected(hook)).toEqual([r2.id]);
+  });
+
+  it('stays selected when the click also changed the circuit (a switch, a knob)', () => {
+    // The selection and the edit arrive in one go; neither may undo the other
+    const { hook, pot } = setup();
+    act(() => {
+      hook.result.current.sync.onNodesChange([{ id: pot.id, type: 'select', selected: true }]);
+      hook.result.current.circuit.updateComponent(pot.id, { parameters: { ...pot.parameters, position: 0.9 } });
+    });
+    expect(selected(hook)).toEqual([pot.id]);
+    expect(hook.result.current.circuit.selectedComponents).toEqual([pot.id]);
+    expect(hook.result.current.circuit.circuit.getComponent(pot.id)!.parameters.position).toBe(0.9);
+  });
+
+  it('a part picked while a wire was selected leaves only the part selected', () => {
+    const { hook, r1, r2 } = setup();
+    act(() => hook.result.current.circuit.addConnection({
+      id: 'w' as never, net: 'n' as never,
+      from: { componentId: r1.id, pinId: r1.pins[1].id },
+      to: { componentId: r2.id, pinId: r2.pins[0].id },
+    }));
+    act(() => hook.result.current.sync.onEdgesChange([{ id: 'w', type: 'select', selected: true }]));
+    // One click: React Flow reports the part selected and the wire not, one after the other
+    act(() => {
+      hook.result.current.sync.onNodesChange([{ id: r1.id, type: 'select', selected: true }]);
+      hook.result.current.sync.onEdgesChange([{ id: 'w', type: 'select', selected: false }]);
+    });
+    expect(hook.result.current.circuit.selectedComponents).toEqual([r1.id]);
+    expect(hook.result.current.circuit.selectedConnections).toEqual([]);
+  });
+
+  it('a part that is deleted is no longer selected', () => {
+    const { hook, r1, r2 } = setup();
+    act(() => hook.result.current.sync.onNodesChange([{ id: r1.id, type: 'select', selected: true }]));
+    act(() => hook.result.current.sync.deleteComponents([r1.id]));
+    expect(hook.result.current.circuit.selectedComponents).toEqual([]);
+    act(() => hook.result.current.sync.onNodesChange([{ id: r2.id, type: 'select', selected: true }]));
+    expect(hook.result.current.circuit.selectedComponents).toEqual([r2.id]);
+  });
+});
+
 describe('deleting parts', () => {
   it('removes a part and the wires on it', () => {
     const { hook, r1, r2 } = setup();
@@ -289,3 +343,71 @@ describe('coloring wires', () => {
   });
 });
 
+
+describe('deleting', () => {
+  /** r1, r2 and the pot's end and wiper in a row: r1 - r2 - pot. */
+  function row() {
+    const ctx = setup();
+    const { hook, r1, r2, pot } = ctx;
+    const wire = (id: string, from: { componentId: ComponentId; pinId: never }, to: { componentId: ComponentId; pinId: never }) =>
+      act(() => hook.result.current.circuit.addConnection({ id: id as never, net: `n-${id}` as never, from, to }));
+    wire('a', { componentId: r1.id, pinId: r1.pins[1].id as never }, { componentId: r2.id, pinId: r2.pins[0].id as never });
+    wire('b', { componentId: r2.id, pinId: r2.pins[1].id as never }, { componentId: pot.id, pinId: pot.pins[0].id as never });
+    const circuit = () => hook.result.current.circuit.circuit;
+    const wires = () => circuit().getConnections().map((c) => `${c.from.componentId === r1.id ? 'r1' : c.from.componentId === r2.id ? 'r2' : 'pot'}-${c.to.componentId === r1.id ? 'r1' : c.to.componentId === r2.id ? 'r2' : 'pot'}`);
+    return { ...ctx, circuit, wires };
+  }
+
+  it('closes the wire a part sat in, as one undo step', () => {
+    const { hook, r2, circuit, wires } = row();
+    act(() => hook.result.current.sync.deleteComponents([r2.id]));
+    expect(circuit().getComponent(r2.id)).toBeUndefined();
+    expect(wires()).toEqual(['r1-pot']);
+
+    act(() => hook.result.current.circuit.undo());
+    expect(circuit().getComponent(r2.id)).toBeDefined();
+    expect(wires().sort()).toEqual(['r1-r2', 'r2-pot']);
+  });
+
+  it('deletes what is selected, parts and wires together, in one step', () => {
+    const { hook, r2, circuit, wires, undoAll } = row();
+    act(() => hook.result.current.circuit.setSelection([r2.id], ['a' as never]));
+    act(() => hook.result.current.sync.deleteSelection());
+    // The wire was asked to go too, so there is nothing to close
+    expect(circuit().getComponent(r2.id)).toBeUndefined();
+    expect(wires()).toEqual([]);
+    // 3 parts, 2 wires, 1 delete
+    expect(undoAll()).toBe(6);
+  });
+
+  it('does nothing, and records nothing, with nothing selected', () => {
+    const { hook, circuit, undoAll } = row();
+    act(() => hook.result.current.sync.deleteSelection());
+    expect(circuit().getComponents()).toHaveLength(3);
+    expect(undoAll()).toBe(5);
+  });
+});
+
+describe('a part held over a wire it is about to go into', () => {
+  it('is left out of the routing, so the wire stays under it', () => {
+    const dark = {};
+    const hook = renderHook(
+      ({ floating }: { floating: string | null }) => ({ circuit: useCircuit(), sync: useCircuitSync('schematic', dark, floating) }),
+      { wrapper, initialProps: { floating: null as string | null } },
+    );
+    const r1 = createComponentFromDefinition(resistorDefinition, { x: 100, y: 100 });
+    const r2 = createComponentFromDefinition(resistorDefinition, { x: 500, y: 100 });
+    const loose = createComponentFromDefinition(resistorDefinition, { x: 300, y: 100 });
+    act(() => {
+      for (const part of [r1, r2, loose]) hook.result.current.circuit.addComponent(part);
+      hook.result.current.circuit.addConnection({
+        id: 'w' as never, net: 'n' as never,
+        from: { componentId: r1.id, pinId: r1.pins[1].id }, to: { componentId: r2.id, pinId: r2.pins[0].id },
+      });
+    });
+    const straight = () => hook.result.current.sync.routes.get('w')!.points.every((p) => p.y === 100);
+    expect(straight()).toBe(false); // the wire goes round the part in its way
+    hook.rerender({ floating: loose.id });
+    expect(straight()).toBe(true);
+  });
+});

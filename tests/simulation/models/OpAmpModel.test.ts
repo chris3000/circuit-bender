@@ -96,4 +96,102 @@ describe('OpAmpModel', () => {
     const m = makeModel();
     expect(m.findEvent(state(4.5, 4.5001, 4), state(4.5, 4.4999, 5))).toBe(Infinity);
   });
+
+  describe('with positive feedback round it (told so by the solver)', () => {
+    const SLEW_UP = 2, SLEW_DOWN = 0; // getDiscreteState with no clamp on
+    const runaway = (m: OpAmpModel) => m.watchFeedback(() => -1);
+    // Where a gain node at v volts is at rest: the input difference that holds it there
+    const balanced = (v: number) => state(4.5, 4.5 + v / Aol, v);
+
+    it('takes no notice while its gain node answers as a healthy one does', () => {
+      const m = makeModel();
+      m.watchFeedback(() => 1);
+      expect(m.findEvent(balanced(4), balanced(4))).toBe(Infinity);
+    });
+
+    it('snaps at once, the way its gain node is being pushed', () => {
+      const up = makeModel();
+      runaway(up);
+      expect(up.findEvent(state(4.5, 4.5 + vClip / 2, 4), state(4.5, 4.5, 4))).toBe(0);
+      up.applyEvent(0);
+      expect(up.getDiscreteState()).toBe(SLEW_UP);
+
+      const down = makeModel();
+      runaway(down);
+      expect(down.findEvent(state(4.5, 4.5 - vClip / 2, 4), state(4.5, 4.5, 4))).toBe(0);
+      down.applyEvent(0);
+      expect(down.getDiscreteState()).toBe(SLEW_DOWN);
+    });
+
+    it('leaves the balance point upwards when nothing says which way', () => {
+      const m = makeModel();
+      runaway(m);
+      expect(m.findEvent(balanced(4), balanced(4))).toBe(0);
+      m.applyEvent(0);
+      expect(m.getDiscreteState()).toBe(SLEW_UP);
+    });
+
+    it('leaves a rail it was resting on for the other one', () => {
+      const m = makeModel();
+      const rail = 9 - headroom;
+      // Up onto the positive rail, then let go of it with the inputs level
+      m.applyEvent(m.findEvent(state(0, 0, rail - 0.1), state(0, 0, rail + 0.1)));
+      m.applyEvent(m.findEvent(state(0, 0, rail + 0.1), state(0, 0, rail - 0.1)));
+      runaway(m);
+      expect(m.findEvent(balanced(rail - 0.1), balanced(rail - 0.1))).toBe(0);
+      m.applyEvent(0);
+      expect(m.getDiscreteState()).toBe(SLEW_DOWN);
+    });
+
+    it('keeps going once it has snapped, although its inputs are still close together', () => {
+      const m = makeModel();
+      runaway(m);
+      m.findEvent(balanced(4), balanced(4));
+      m.applyEvent(0);
+      // Slewing up with the inputs only a little apart: an amplifier that was merely slewing would stop here
+      m.watchFeedback(() => 1);
+      expect(m.findEvent(state(4.5, 4.5 + vClip / 10, 4), state(4.5, 4.5 + vClip / 5, 4.2))).toBe(Infinity);
+      expect(m.getDiscreteState()).toBe(SLEW_UP);
+    });
+
+    it('turns round if it is pushed the other way before it gets there', () => {
+      const m = makeModel();
+      runaway(m);
+      m.findEvent(balanced(4), balanced(4));
+      m.applyEvent(0);
+      m.watchFeedback(() => 1);
+      const f = m.findEvent(state(4.5, 4.5 + vClip / 10, 4), state(4.5, 4.5 - vClip / 2, 4.2));
+      expect(f).toBeGreaterThan(0);
+      expect(f).toBeLessThan(1);
+      m.applyEvent(f);
+      expect(m.getDiscreteState()).toBe(SLEW_DOWN);
+    });
+
+    it('ends on the rail, and from there follows its inputs again', () => {
+      const m = makeModel();
+      const rail = 9 - headroom;
+      runaway(m);
+      m.findEvent(balanced(4), balanced(4));
+      m.applyEvent(0);
+      m.watchFeedback(() => 1);
+      // It reaches the rail with its inputs still close: the clamp takes over...
+      const f = m.findEvent(state(4.5, 4.5 + vClip / 10, rail - 0.1), state(4.5, 4.5 + vClip / 10, rail + 0.1));
+      expect(f).toBeCloseTo(0.5, 2);
+      m.applyEvent(f);
+      expect(m.getDiscreteState() & 4).toBe(4);
+      // ...and the input stage, no longer snapping, goes back to linear at once
+      expect(m.findEvent(state(4.5, 4.5 + vClip / 10, rail), state(4.5, 4.5 + vClip / 10, rail))).toBe(0);
+      m.applyEvent(0);
+      expect(m.getDiscreteState()).toBe(1 | 4);
+    });
+
+    it('goes straight to the rail when the step is the endless one that finds the resting point', () => {
+      const m = makeModel();
+      m.stampRhs(new Float64Array(6), Infinity, true);
+      runaway(m);
+      m.findEvent(balanced(4), balanced(4));
+      m.applyEvent(0);
+      expect(m.getDiscreteState()).toBe(SLEW_UP | 4);
+    });
+  });
 });

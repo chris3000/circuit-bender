@@ -315,41 +315,44 @@ export function TouchPad({ item, onRename, onChange }: ControlProps & { onChange
 
 // --- Lights ---
 
-/** A jewel in a chrome bezel. */
-function Jewel({ lit, glow, dark, bright }: { lit: boolean; glow: string; dark: string; bright: string }) {
+/** A jewel in a chrome bezel, lit from not at all (0) to fully (1). */
+function Jewel({ level, glow, dark, bright }: { level: number; glow: string; dark: string; bright: string }) {
+  const lit = level > 0;
   return (
     <>
       {lit && (
         <>
-          <circle r="29" fill={glow} opacity="0.05" />
-          <circle r="24" fill={glow} opacity="0.08" />
-          <circle r="19.5" fill={glow} opacity="0.16" />
+          <circle r="29" fill={glow} opacity={0.05 * level} />
+          <circle r="24" fill={glow} opacity={0.08 * level} />
+          <circle r="19.5" fill={glow} opacity={0.16 * level} />
         </>
       )}
       <circle cx="1.2" cy="2" r="14.5" fill="#000" opacity="0.35" />
       <circle r="14.5" fill={METAL} stroke={METAL_DARK} strokeWidth="1" />
       <path d="M -11.2 -4 A 12 12 0 0 1 -4 -11.2" fill="none" stroke={METAL_LIGHT} strokeWidth="1.5" strokeLinecap="round" />
       <circle r="10.5" fill="#3A3A3A" />
-      <circle r="9" fill={lit ? glow : dark} />
-      {lit && <circle r="5.5" fill={bright} />}
-      <ellipse cx="-3.2" cy="-3.6" rx="2.6" ry="1.8" fill="#fff" opacity={lit ? 0.85 : 0.3} transform="rotate(-40 -3.2 -3.6)" />
+      <circle r="9" fill={dark} />
+      {lit && <circle r="9" fill={glow} opacity={0.25 + 0.75 * level} />}
+      {lit && <circle r="5.5" fill={bright} opacity={level} />}
+      <ellipse cx="-3.2" cy="-3.6" rx="2.6" ry="1.8" fill="#fff" opacity={0.3 + 0.55 * level} transform="rotate(-40 -3.2 -3.6)" />
     </>
   );
 }
 
 /** What a light is doing, for whoever cannot see it (the drawing itself is decoration). */
-function LightState({ item, lit }: { item: CoverItem; lit: boolean }) {
-  const state = `${item.name}: ${lit ? 'on' : 'off'}`;
-  return <div className={styles.light} role="img" aria-label={state} title={state} data-lit={lit} style={{ top: ROW_CENTRE }} />;
+function LightState({ item, level }: { item: CoverItem; level: number }) {
+  const state = `${item.name}: ${level >= 0.5 ? 'on' : level > 0 ? 'dim' : 'off'}`;
+  return <div className={styles.light} role="img" aria-label={state} title={state} data-lit={level > 0} data-level={level} style={{ top: ROW_CENTRE }} />;
 }
 
-export function Lamp({ item, onRename, lit }: ControlProps & { lit: boolean }) {
+/** An LED: as bright as the current through it makes it (`level`, 0 to 1). */
+export function Lamp({ item, onRename, level }: ControlProps & { level: number }) {
   return (
     <Cell item={item} onRename={onRename}>
       <Art item={item} centre={ROW_CENTRE}>
-        <Jewel lit={lit} glow={PINK} dark="#5A1426" bright="#FF93A8" />
+        <Jewel level={level} glow={PINK} dark="#5A1426" bright="#FF93A8" />
       </Art>
-      <LightState item={item} lit={lit} />
+      <LightState item={item} level={level} />
     </Cell>
   );
 }
@@ -360,9 +363,9 @@ export function Pilot({ item, onRename, lit }: ControlProps & { lit: boolean }) 
     <Cell item={item} onRename={onRename}>
       <Art item={item} centre={ROW_CENTRE}>
         {item.detail && <text x="0" y="-41" textAnchor="middle" {...SMALL_PRINT}>{item.detail}</text>}
-        <Jewel lit={lit} glow="#FFFFFF" dark="#555555" bright="#FFFFFF" />
+        <Jewel level={lit ? 1 : 0} glow="#FFFFFF" dark="#555555" bright="#FFFFFF" />
       </Art>
-      <LightState item={item} lit={lit} />
+      <LightState item={item} level={lit ? 1 : 0} />
     </Cell>
   );
 }

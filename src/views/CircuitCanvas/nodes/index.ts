@@ -2,14 +2,13 @@ import type { NodeTypes } from 'reactflow';
 import { CircuitNode } from './CircuitNode';
 import { LEDNode } from './LEDNode';
 import { PotentiometerNode } from './PotentiometerNode';
-import { EditableNode } from './EditableNode';
 import { SwitchNode } from './SwitchNode';
 import { JunctionNode } from './JunctionNode';
 import { ControlNode } from './ControlNode';
 
 export const nodeTypes: NodeTypes = {
-  resistor: EditableNode,
-  capacitor: EditableNode,
+  resistor: CircuitNode,
+  capacitor: CircuitNode,
   potentiometer: PotentiometerNode,
   led: LEDNode,
   cd40106: CircuitNode,
@@ -30,4 +29,16 @@ export const nodeTypes: NodeTypes = {
   ldr: ControlNode,
   pushbutton: ControlNode,
   'body-contact': ControlNode,
+  'audio-input': ControlNode,
+  cd4049: CircuitNode,
+  cd4013: CircuitNode,
+  lm324: CircuitNode,
+  tl072: CircuitNode,
+  lm13700: CircuitNode,
+  spdt: SwitchNode,
+  optocoupler: CircuitNode,
+  piezo: ControlNode,
+  '1n4004': CircuitNode,
+  '2n5457': CircuitNode,
+  '2n3906': CircuitNode,
 };

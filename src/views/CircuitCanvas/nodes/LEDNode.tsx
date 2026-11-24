@@ -5,11 +5,12 @@ import type { CircuitNodeData } from '../useCircuitSync';
 import { rotatePin } from '../routing/layout';
 import { NodeFrame } from './NodeFrame';
 
+/** An LED glows as brightly as the current through it makes it (`light`, 0 to 1). */
 export const LEDNode = memo(function LEDNode({ data, selected }: NodeProps<CircuitNodeData>) {
-  const { component, viewMode, ledOn } = data;
+  const { component, viewMode, light } = data;
   // On the board the light comes from the dome, which stands above the pins
   const at = viewMode === 'board' ? rotatePin(0, LED_DOME_CENTRE, component.rotation || 0) : { x: 0, y: 0 };
-  const glow = !ledOn ? null : viewMode === 'board' ? (
+  const glow = light <= 0 ? null : viewMode === 'board' ? (
     // Red light on a green board goes muddy unless it fades out softly
     <>
       <defs>
@@ -17,7 +18,8 @@ export const LEDNode = memo(function LEDNode({ data, selected }: NodeProps<Circu
           <feGaussianBlur stdDeviation="6" />
         </filter>
       </defs>
-      <circle cx={at.x} cy={at.y} r="15" fill="#FF4D6D" opacity="0.75" filter="url(#ledGlowBoard)" />
+      <circle data-testid="led-glow" data-light={light} cx={at.x} cy={at.y} r={8 + 7 * light} fill="#FF4D6D"
+        opacity={0.2 + 0.55 * light} filter="url(#ledGlowBoard)" />
     </>
   ) : (
     <>
@@ -27,13 +29,14 @@ export const LEDNode = memo(function LEDNode({ data, selected }: NodeProps<Circu
           <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
       </defs>
-      <circle cx="0" cy="0" r="20" fill="#FF2D55" opacity="0.15" filter="url(#ledGlow)" />
-      <circle cx="0" cy="0" r="12" fill="#FF2D55" opacity="0.3" />
+      {/* A dim LED is a small pale disc; a bright one is larger, stronger and has a halo */}
+      <circle cx="0" cy="0" r={12 + 10 * light} fill="#FF2D55" opacity={0.18 * light} filter="url(#ledGlow)" />
+      <circle data-testid="led-glow" data-light={light} cx="0" cy="0" r={9 + 4 * light} fill="#FF2D55" opacity={0.08 + 0.3 * light} />
     </>
   );
   // ...and the dome itself brightens
-  const shine = ledOn && viewMode === 'board' ? (
-    <circle cx={at.x} cy={at.y} r="5.5" fill="#FFE1E7" opacity="0.75" pointerEvents="none" />
+  const shine = light > 0 && viewMode === 'board' ? (
+    <circle cx={at.x} cy={at.y} r="5.5" fill="#FFE1E7" opacity={0.15 + 0.6 * light} pointerEvents="none" />
   ) : null;
   return <NodeFrame component={component} viewMode={viewMode} selected={selected} underlay={glow} overlay={shine} />;
 });

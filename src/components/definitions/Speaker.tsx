@@ -20,7 +20,7 @@ export const speakerDefinition: ComponentDefinition = {
     { id: generatePinId('speaker', 1), label: '−', type: 'bidirectional', position: { x: -30, y: 10 } },
   ],
   defaultParameters: { impedance: 8 },
-  shelf: { caption: '8 Ω', keywords: ['loudspeaker', 'sound', 'cone', 'driver', '8 ohm', 'output'], art: speakerArt },
+  shelf: { caption: '8 Ω', keywords: ['loudspeaker', 'sound', 'cone', 'driver', '8 ohm', 'output'], art: speakerArt, alike: ['sound out'] },
   cover: { control: 'speaker', name: 'SPEAKER' },
   schematic: {
     symbol: {

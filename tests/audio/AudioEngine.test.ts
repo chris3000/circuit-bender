@@ -278,6 +278,39 @@ describe('AudioEngine', () => {
       expect(mockClose).toHaveBeenCalled();
     });
   });
+  describe('instruments', () => {
+    const fromWorklet = (data: unknown) =>
+      (mockWorkletNode.port as unknown as { onmessage: (event: { data: unknown }) => void }).onmessage({ data });
+
+    it('passes on what the worklet sees in the running circuit', async () => {
+      const heard = vi.fn();
+      engine.onInstruments(heard);
+      await engine.initialize();
+      const report = { type: 'instruments', lights: { led: 0.0145 }, overloaded: ['led'] };
+      fromWorklet(report);
+      expect(heard).toHaveBeenCalledWith(report);
+    });
+
+    it('holds the meter on a part or a pin, and takes it away', async () => {
+      await engine.initialize();
+      engine.setMeter({ componentId: 'r1' });
+      engine.setMeter({ componentId: 'r1', pinId: 'p' });
+      engine.setMeter(null);
+      expect(mockPostMessage.mock.calls.map(([m]) => m)).toEqual([
+        { type: 'setMeter', target: { componentId: 'r1' } },
+        { type: 'setMeter', target: { componentId: 'r1', pinId: 'p' } },
+        { type: 'setMeter', target: null },
+      ]);
+    });
+
+    it('a meter put on something before there is a worklet is sent once there is', async () => {
+      engine.setMeter({ componentId: 'r1' });
+      expect(mockPostMessage).not.toHaveBeenCalled();
+      await engine.initialize();
+      expect(mockPostMessage).toHaveBeenCalledWith({ type: 'setMeter', target: { componentId: 'r1' } });
+    });
+  });
+
   describe('load', () => {
     /** What the worklet says, as the engine hears it. */
     const fromWorklet = (data: unknown) =>

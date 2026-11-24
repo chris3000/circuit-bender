@@ -17,11 +17,20 @@ import { playbackWarnings } from './utils/circuitChecks';
 import { CoverView } from './views/Cover/CoverView';
 import { nextView, type ActiveView } from './views/viewModes';
 import { isPlayShortcut } from './utils/keyboard';
-import type { Circuit } from './models/Circuit';
+import { useUndoShortcuts } from './context/useUndoShortcuts';
+import { serializeCircuit } from './utils/serializeCircuit';
 import type { Bend } from './views/CircuitCanvas/BendTool';
+import { InstrumentsContext, type InstrumentsValue, type MeterReport } from './views/Instruments';
+import { ledBrightness } from './utils/ledLight';
+import { meterTargetOf } from './utils/meterTarget';
+import { ClassesProvider } from './views/Classes/ClassesContext';
+import { ClassesMenu } from './views/Classes/ClassesMenu';
+import { ClassPanel } from './views/Classes/ClassPanel';
+import { ReplacePartProvider } from './views/ReplacePart/ReplacePartContext';
 
 export function AppContent() {
-  const { circuit, isDirty } = useCircuit();
+  const { circuit, isDirty, selectedComponents, selectedConnections } = useCircuit();
+  useUndoShortcuts();
   const [activeView, setActiveView] = useState<ActiveView>('schematic');
   // Behind the cover the canvas stays as it was last drawn
   const canvasView = useRef<'schematic' | 'board'>('schematic');
@@ -47,7 +56,15 @@ export function AppContent() {
     return () => { loadListeners.current.delete(listener); };
   }, []);
   const [overload, setOverload] = useState<OverloadCause | null>(null);
-  const [ledStates, setLedStates] = useState<Record<string, boolean>>({});
+  // How brightly each LED is lit (0 to 1), and which parts are being overdriven
+  const [lights, setLights] = useState<Record<string, number>>({});
+  const [overloaded, setOverloaded] = useState<ReadonlySet<string>>(() => new Set());
+  // Whoever shows the meter's readings (the inspector, the scope's probes)
+  const meterListeners = useRef(new Set<(report: MeterReport) => void>());
+  const meterSource = useCallback((listener: (report: MeterReport) => void) => {
+    meterListeners.current.add(listener);
+    return () => { meterListeners.current.delete(listener); };
+  }, []);
   const [probes, setProbes] = useState<Array<{ componentId: string; pinId: string; label: string }>>([]);
   const [startError, setStartError] = useState<string | null>(null);
   const [dismissedNotice, setDismissedNotice] = useState('');
@@ -73,21 +90,6 @@ export function AppContent() {
   // A reason for not starting is out of date once the circuit has been edited
   useEffect(() => setStartError(null), [circuit]);
 
-  const serializeCircuit = useCallback((c: Circuit) => {
-    const components = c.getComponents().map(comp => ({
-      id: comp.id,
-      type: comp.type,
-      pins: comp.pins.map(p => ({ id: p.id, label: p.label, type: p.type })),
-      parameters: { ...comp.parameters },
-    }));
-    const connections = c.getConnections().map(conn => ({
-      id: conn.id,
-      from: { componentId: conn.from.componentId, pinId: conn.from.pinId },
-      to: { componentId: conn.to.componentId, pinId: conn.to.pinId },
-    }));
-    return { components, connections };
-  }, []);
-
   useEffect(() => {
     const audioEngine = new AudioEngine();
     audioEngineRef.current = audioEngine;
@@ -99,12 +101,21 @@ export function AppContent() {
         for (const listener of levelListeners.current) listener(peak);
       }
     });
-    // The worklet reports LED states many times a second; only a change needs a render
-    audioEngine.onLedStates((states) => setLedStates((prev) => {
-      const ids = Object.keys(states);
-      const same = ids.length === Object.keys(prev).length && ids.every((id) => prev[id] === states[id]);
-      return same ? prev : states;
-    }));
+    audioEngine.onInstruments((report) => {
+      // The LEDs' currents arrive sixty times a second; only a change in how bright one looks needs a render
+      const amps = report.lights;
+      if (amps) {
+        setLights((prev) => {
+          const ids = Object.keys(amps);
+          const next: Record<string, number> = {};
+          for (const id of ids) next[id] = ledBrightness(amps[id]);
+          const same = ids.length === Object.keys(prev).length && ids.every((id) => prev[id] === next[id]);
+          return same ? prev : next;
+        });
+      }
+      if (report.overloaded) setOverloaded(new Set(report.overloaded));
+      if (report.meter) for (const listener of meterListeners.current) listener(report.meter);
+    });
     audioEngine.onLoad((report) => {
       const status = loadWatch.current.add(report);
       for (const listener of loadListeners.current) listener(status);
@@ -125,13 +136,29 @@ export function AppContent() {
       const { components, connections } = serializeCircuit(circuit);
       audioEngineRef.current.updateCircuit(components, connections);
     }
-  }, [circuit, audioStarted, serializeCircuit]);
+  }, [circuit, audioStarted]);
 
   useEffect(() => {
     if (audioEngineRef.current && audioStarted) {
       audioEngineRef.current.setProbes(probes.map(p => ({ componentId: p.componentId, pinId: p.pinId })));
     }
   }, [probes, audioStarted]);
+
+  // The meter is held on whatever is selected: a wire, or a part with two legs
+  const meterTarget = useMemo(
+    () => meterTargetOf(circuit, selectedComponents, selectedConnections),
+    [circuit, selectedComponents, selectedConnections],
+  );
+  const meterKey = meterTarget ? `${meterTarget.componentId}:${meterTarget.pinId ?? ''}` : '';
+  useEffect(() => {
+    audioEngineRef.current?.setMeter(audioStarted ? meterTarget : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the key says all there is to say about the target
+  }, [meterKey, audioStarted]);
+
+  const instruments = useMemo<InstrumentsValue>(
+    () => ({ playing: audioStarted, overloaded, meter: meterSource }),
+    [audioStarted, overloaded, meterSource],
+  );
 
   const handleAddProbe = useCallback((componentId: string, pinId: string, label: string) => {
     setProbes(prev => {
@@ -184,13 +211,16 @@ export function AppContent() {
       const reason = err instanceof Error && err.message ? ` (${err.message})` : '';
       setStartError(`The audio engine could not start${reason}. Check that this tab is allowed to play sound, then press play again.`);
     }
-  }, [circuit, serializeCircuit]);
+  }, [circuit]);
 
   const handleStopAudio = useCallback(() => {
     audioEngineRef.current?.stopSimulation();
     audioEngineRef.current?.suspend();
     setAudioStarted(false);
     setOverload(null);
+    // Nothing is lit and nothing is strained in a circuit that is not running
+    setLights({});
+    setOverloaded(new Set());
   }, []);
 
   // Space plays and stops, wherever the mouse last clicked, unless it is
@@ -227,10 +257,12 @@ export function AppContent() {
   }, []);
 
   return (
+    <InstrumentsContext.Provider value={instruments}>
     <div className="app">
       <header className="app-header">
         <h1>Circuit Bender</h1>
         <div style={{ width: '1px', height: '18px', background: '#444' }} />
+        <ClassesMenu />
         <ExamplesMenu />
         <SaveLoadControls />
         <CircuitTitle />
@@ -262,16 +294,17 @@ export function AppContent() {
             activeView={activeView}
             onSelectView={setActiveView}
             hidden={activeView === 'cover'}
-            ledStates={ledStates}
+            lights={lights}
             onAddProbe={handleAddProbe}
             playing={audioStarted}
             onBend={handleBend}
           />
           {activeView === 'cover' && (
             <CoverView activeView={activeView} onSelectView={setActiveView}
-              ledStates={ledStates} playing={audioStarted} levels={levels} />
+              lights={lights} playing={audioStarted} levels={levels} />
           )}
         </div>
+        <ClassPanel playing={audioStarted} view={activeView} />
       </main>
       <OscilloscopePanel
         onRegisterSampleCallback={useCallback((cb: (samples: Float32Array, probeData?: Float32Array[]) => void) => {
@@ -281,6 +314,7 @@ export function AppContent() {
         onRemoveProbe={handleRemoveProbe}
       />
     </div>
+    </InstrumentsContext.Provider>
   );
 }
 
@@ -290,7 +324,11 @@ function App() {
   return (
     <CircuitProvider initial={restored}>
       <ReplaceGuard>
-        <AppContent />
+        <ClassesProvider>
+          <ReplacePartProvider>
+            <AppContent />
+          </ReplacePartProvider>
+        </ClassesProvider>
       </ReplaceGuard>
     </CircuitProvider>
   );

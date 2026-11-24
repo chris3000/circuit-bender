@@ -15,7 +15,7 @@ export const pushButtonDefinition: ComponentDefinition = {
     { id: generatePinId('pushbutton', 1), label: '2', type: 'bidirectional', position: { x: 25, y: 0 } },
   ],
   defaultParameters: { closed: 0 },
-  shelf: { title: 'Push button', caption: 'On while held', keywords: ['momentary', 'button', 'tact', 'trigger', 'key', 'press', 'switch'], art: pushButtonArt },
+  shelf: { title: 'Push button', caption: 'On while held', keywords: ['momentary', 'button', 'tact', 'trigger', 'key', 'press', 'switch'], art: pushButtonArt, alike: ['switch'] },
   control: { kind: 'hold', parameter: 'closed', name: 'Button' },
   cover: { control: 'button', parameter: 'closed', name: 'BUTTON' },
   schematic: {

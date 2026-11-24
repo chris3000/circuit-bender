@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { type EdgeProps, getSmoothStepPath } from 'reactflow';
 import { buildRoundedPath } from '@/utils/wiring';
 import { useWireRoute } from '../routing/useWireRoutes';
+import { useIsSpliceTarget } from './spliceTarget';
 
 const WIRE_WIDTH = { power: 3, ground: 2.5, signal: 2 } as const;
 
@@ -16,6 +17,8 @@ export const BoardEdge = memo(function BoardEdge({
   // Selected, a colored wire keeps its color and gets a halo, so the color being chosen can be seen
   const color = selected && !userColor ? '#FF2D55' : wireColor;
 
+  // A part is held over this wire: let go, and it goes in here
+  const taking = useIsSpliceTarget(id);
   const route = useWireRoute(id);
   const edgePath = route
     ? buildRoundedPath(route.points, 8)
@@ -26,8 +29,9 @@ export const BoardEdge = memo(function BoardEdge({
   return (
     <g>
       <path d={edgePath} fill="none" stroke="transparent" strokeWidth={12} style={{ cursor: 'pointer' }} />
-      {selected && userColor && (
-        <path d={edgePath} fill="none" stroke="#FF2D55" strokeOpacity={0.55} strokeWidth={strokeWidth + 6} strokeLinecap="round" />
+      {((selected && userColor) || taking) && (
+        <path d={edgePath} fill="none" stroke="#FF2D55" strokeOpacity={0.55} strokeWidth={strokeWidth + (taking ? 10 : 6)} strokeLinecap="round"
+          data-testid={taking ? 'splice-target' : undefined} />
       )}
       <path id={id} d={edgePath} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" opacity={0.85} />
       {route?.dots.map((dot) => (

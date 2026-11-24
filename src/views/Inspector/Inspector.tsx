@@ -3,16 +3,24 @@ import { useCircuit } from '@/context/CircuitContext';
 import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
 import { parseValue } from '@/utils/parameterParser';
 import { valueParameters } from '@/utils/partValue';
+import { rotateParts } from '@/utils/circuitEdits';
+import { SIGNAL_WAVE_NAMES } from '@/components/definitions/AudioInput';
 import { MAX_PART_NAME_LENGTH } from '@/utils/partNames';
 import { resolveWireColors, WIRE_COLORS } from '@/utils/wireColors';
-import type { Component, ComponentId, ComponentParameters, Connection } from '@/types/circuit';
+import type { Component, ComponentId, ComponentParameters, Connection, ConnectionId } from '@/types/circuit';
+import type { MeterReading, MeterTarget } from '@/simulation/worklet/Instruments';
+import { OVERLOADED, useInstruments } from '@/views/Instruments';
+import { useReplacePart } from '@/views/ReplacePart/ReplacePartContext';
+import { meterTargetOf, sameTarget } from '@/utils/meterTarget';
+import { formatAmps, formatHertz, formatRange, formatVolts } from '@/utils/readings';
 import styles from './Inspector.module.css';
 
 interface InspectorProps {
   /** Wire colors are shown in the shade they have in this view. */
   viewMode: 'schematic' | 'board';
   /** Remove parts from the circuit (the canvas knows how to heal a wire when a junction goes). */
-  onDeleteComponents: (ids: ComponentId[]) => void;
+  /** Delete these parts and wires, as one step. */
+  onDeleteComponents: (ids: ComponentId[], wires?: ConnectionId[]) => void;
   onAddProbe?: (componentId: string, pinId: string, label: string) => void;
 }
 
@@ -24,10 +32,11 @@ function partName(component: Component): string {
 /**
  * Everything that can be changed about what is selected, in one visible
  * place: a part's name, value, controls and rotation, or a wire's probe.
- * The same edits exist as gestures on the canvas (double-click, R, right-click).
+ * The same edits exist as gestures on the canvas (double-click to swap or rename, R, right-click, Delete).
  */
 export function Inspector({ viewMode, onDeleteComponents, onAddProbe }: InspectorProps) {
-  const { circuit, selectedComponents, selectedConnections, updateComponent, removeConnection, setWireColor, clearSelection } = useCircuit();
+  const { circuit, selectedComponents, selectedConnections, editCircuit, setWireColor, clearSelection } = useCircuit();
+  const { begin: beginReplace } = useReplacePart();
 
   const parts = selectedComponents
     .map((id) => circuit.getComponent(id))
@@ -36,18 +45,15 @@ export function Inspector({ viewMode, onDeleteComponents, onAddProbe }: Inspecto
     .map((id) => circuit.getConnections().find((c) => c.id === id))
     .filter((c): c is Connection => c !== undefined);
 
+  // However many parts are selected, a turn is one undo step
   const rotate = useCallback((by: number) => {
-    for (const part of parts) {
-      if (part.type === 'junction') continue; // a dot looks the same any way up
-      updateComponent(part.id, { rotation: ((part.rotation || 0) + by + 360) % 360 });
-    }
-  }, [parts, updateComponent]);
+    editCircuit((c) => rotateParts(c, parts.map((p) => p.id), by));
+  }, [parts, editCircuit]);
 
   const remove = useCallback(() => {
-    for (const wire of wires) removeConnection(wire.id);
-    if (parts.length > 0) onDeleteComponents(parts.map((p) => p.id));
+    onDeleteComponents(parts.map((p) => p.id), wires.map((w) => w.id));
     clearSelection();
-  }, [parts, wires, removeConnection, onDeleteComponents, clearSelection]);
+  }, [parts, wires, onDeleteComponents, clearSelection]);
 
   if (parts.length === 0 && wires.length === 0) return null;
 
@@ -110,6 +116,9 @@ export function Inspector({ viewMode, onDeleteComponents, onAddProbe }: Inspecto
     );
   }
 
+  // A wire, or a part with two legs, can be read like a meter while the circuit runs
+  const meterTarget = meterTargetOf(circuit, selectedComponents, selectedConnections);
+
   const canRotate = parts.some((p) => p.type !== 'junction');
   const angle = parts.length === 1 ? `${parts[0].rotation || 0}°` : '';
 
@@ -117,6 +126,8 @@ export function Inspector({ viewMode, onDeleteComponents, onAddProbe }: Inspecto
     <aside className={styles.panel} aria-label="Selection" data-testid="inspector"
       onKeyDown={keepKeys} onKeyUp={keepKeys}>
       {body}
+      {parts.length === 1 && <Overload part={parts[0]} />}
+      {meterTarget && <Meter key={`${meterTarget.componentId}:${meterTarget.pinId ?? ''}`} target={meterTarget} />}
       {colorField}
       {canRotate && (
         <div className={styles.field}>
@@ -132,10 +143,68 @@ export function Inspector({ viewMode, onDeleteComponents, onAddProbe }: Inspecto
           </div>
         </div>
       )}
+      {parts.length === 1 && wires.length === 0 && parts[0].type !== 'junction' && (
+        <button className={styles.button} style={{ flex: 'none' }} data-testid="inspector-replace"
+          title="Swap this part for another, keeping its wires (or double-click the part)"
+          onClick={() => beginReplace(parts[0].id)}>
+          Replace
+        </button>
+      )}
       <button className={`${styles.button} ${styles.danger}`} style={{ flex: 'none' }} onClick={remove}>
         Delete <span className={styles.key}>⌫</span>
       </button>
     </aside>
+  );
+}
+
+/** Why a part has a "!" beside it. */
+function Overload({ part }: { part: Component }) {
+  const { overloaded } = useInstruments();
+  if (!overloaded.has(part.id)) return null;
+  return (
+    <div className={styles.warning} role="status" data-testid="inspector-overload">
+      <span className={styles.mark} aria-hidden="true">!</span>
+      {ComponentRegistry.getInstance().get(part.type)?.overload ?? OVERLOADED}
+    </div>
+  );
+}
+
+/**
+ * The meter: what is selected, read as the circuit runs. A wire has a
+ * voltage (measured from ground, like every voltage here); a part with two
+ * legs has a current through it and a voltage across it.
+ */
+function Meter({ target }: { target: MeterTarget }) {
+  const { playing, meter } = useInstruments();
+  const [reading, setReading] = useState<MeterReading | null>(null);
+  useEffect(() => {
+    if (!playing) { setReading(null); return; }
+    return meter((report) => { if (sameTarget(report.target?.target ?? null, target)) setReading(report.target); });
+  }, [playing, meter, target]);
+
+  const onPin = target.pinId !== undefined;
+  if (!playing) {
+    return <div className={styles.description} data-testid="inspector-meter">Press play to read its {onPin ? 'voltage' : 'voltage and current'}.</div>;
+  }
+  // Which way round a part is drawn says nothing a beginner needs: sizes only
+  const size = (r: { mean: number; min: number; max: number }) => {
+    const a = Math.abs(r.min), b = Math.abs(r.max);
+    return r.min < 0 && r.max > 0 ? { mean: Math.abs(r.mean), min: 0, max: Math.max(a, b) }
+      : { mean: Math.abs(r.mean), min: Math.min(a, b), max: Math.max(a, b) };
+  };
+  const volts = reading?.volts ? formatRange(onPin ? reading.volts : size(reading.volts), formatVolts) : '…';
+  return (
+    <div className={styles.meter} data-testid="inspector-meter" aria-live="off">
+      {!onPin && reading?.amps && (
+        <div className={styles.reading}><span>Current</span><strong data-testid="meter-amps">{formatRange(size(reading.amps), formatAmps)}</strong></div>
+      )}
+      <div className={styles.reading}>
+        <span>{onPin ? 'Voltage' : 'Voltage across'}</span><strong data-testid="meter-volts">{volts}</strong>
+      </div>
+      {reading?.volts && reading.volts.hertz !== null && (
+        <div className={styles.reading}><span>Frequency</span><strong data-testid="meter-hertz">{formatHertz(reading.volts.hertz)}</strong></div>
+      )}
+    </div>
   );
 }
 
@@ -225,6 +294,37 @@ function PartFields({ part }: { part: Component }) {
           value={Number(part.parameters.closed) >= 1} onChange={(on) => setParameters({ closed: on ? 1 : 0 })} />
       )}
 
+      {part.type === 'spdt' && (
+        <TwoWay label="Common goes to" group="Switch position" off="A" on="B"
+          value={Number(part.parameters.throw) >= 1} onChange={(on) => setParameters({ throw: on ? 1 : 0 })} />
+      )}
+
+      {part.type === 'audio-input' && (
+        <>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="inspector-wave">Signal</label>
+            <select id="inspector-wave" className={styles.input} value={Number(part.parameters.wave ?? 0)}
+              onChange={(e) => setParameters({ wave: Number(e.target.value) })}>
+              {SIGNAL_WAVE_NAMES.map((name, wave) => <option key={name} value={wave}>{name}</option>)}
+            </select>
+          </div>
+          <TextField label="Pitch" value={`${part.parameters.frequency ?? 220}Hz`} hint="Hertz, from 0.1 to 20000: 220, 1k"
+            onCommit={(raw) => {
+              const hertz = parseValue(raw.trim().replace(/hz$/i, ''));
+              if (!Number.isFinite(hertz) || hertz < 0.1 || hertz > 20000) return false;
+              if (hertz !== part.parameters.frequency) setParameters({ frequency: hertz });
+              return true;
+            }} />
+          <TextField label="Size at full level" value={`${part.parameters.volts ?? 1}V`} hint="Volts at its peak, up to 10: 0.1 for a guitar, 1 for a line"
+            onCommit={(raw) => {
+              const volts = parseValue(raw.trim().replace(/v$/i, ''));
+              if (!Number.isFinite(volts) || volts <= 0 || volts > 10) return false;
+              if (volts !== part.parameters.volts) setParameters({ volts });
+              return true;
+            }} />
+        </>
+      )}
+
       {/* The control the part has on the canvas, whatever it is: here it stays where it is put */}
       {control?.kind === 'dial' && (
         <SliderField label={control.name} min={0} max={1} step={0.01}
@@ -298,6 +398,8 @@ function TextField({ label, value, placeholder, maxLength, hint, onCommit }: Tex
       <span className={styles.label}>{label}</span>
       <input className={`${styles.input} ${invalid ? styles.invalid : ''}`} type="text" value={draft}
         placeholder={placeholder} maxLength={maxLength} spellCheck={false} aria-invalid={invalid}
+        // Nothing typed that is not already in the circuit: Ctrl+Z here undoes the circuit
+        data-settled={draft === value}
         onChange={(e) => { setDraft(e.target.value); setInvalid(false); }}
         onBlur={commit}
         onKeyDown={(e) => {

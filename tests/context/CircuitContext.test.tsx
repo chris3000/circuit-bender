@@ -75,3 +75,31 @@ describe('CircuitContext', () => {
     expect(screen.getByTestId('count')).toHaveTextContent('0');
   });
 });
+
+describe('editCircuit', () => {
+  let state: ReturnType<typeof useCircuit>;
+  function Watch() { state = useCircuit(); return null; }
+  const part = (id: string): Component => ({
+    id: id as ComponentId, type: 'resistor', position: { x: 0, y: 0 }, rotation: 0, parameters: {}, pins: [],
+    state: { voltages: new Map(), currents: new Map() },
+  });
+
+  it('makes a change of several parts one undo step', () => {
+    render(<CircuitProvider><Watch /></CircuitProvider>);
+    act(() => state.editCircuit((c) => c.addComponent(part('a')).addComponent(part('b'))));
+    expect(state.circuit.getComponents()).toHaveLength(2);
+    expect(state.isDirty).toBe(true);
+    act(() => state.undo());
+    expect(state.circuit.getComponents()).toHaveLength(0);
+    expect(state.canUndo).toBe(false);
+    act(() => state.redo());
+    expect(state.circuit.getComponents()).toHaveLength(2);
+  });
+
+  it('records nothing for an edit that changes nothing', () => {
+    render(<CircuitProvider><Watch /></CircuitProvider>);
+    act(() => state.editCircuit((c) => c));
+    expect(state.canUndo).toBe(false);
+    expect(state.isDirty).toBe(false);
+  });
+});

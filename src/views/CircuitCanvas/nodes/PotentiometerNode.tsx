@@ -1,12 +1,10 @@
 import { memo, useCallback, useState } from 'react';
 import type { NodeProps } from 'reactflow';
 import { useCircuit } from '@/context/CircuitContext';
-import { parseValue, formatValue } from '@/utils/parameterParser';
 import { KNOB_MIN_ANGLE, KNOB_SWEEP, knobPositionAt } from '@/components/art/knob';
 import type { CircuitNodeData } from '../useCircuitSync';
 import { rotatePin } from '../routing/layout';
 import { NodeFrame } from './NodeFrame';
-import { ValueEditor } from './ValueEditor';
 
 /** Where the schematic symbol's little knob sits, relative to the part's centre (before rotation). */
 const KNOB = { x: 18, y: -14, r: 7 };
@@ -22,7 +20,6 @@ const KNOB_TRAVEL = 150;
 export const PotentiometerNode = memo(function PotentiometerNode({ data, selected }: NodeProps<CircuitNodeData>) {
   const { component, viewMode } = data;
   const { updateComponent } = useCircuit();
-  const [editing, setEditing] = useState(false);
   const [turning, setTurning] = useState(false);
   const position = Math.max(0, Math.min(1, (component.parameters.position as number) ?? 0.5));
 
@@ -63,17 +60,6 @@ export const PotentiometerNode = memo(function PotentiometerNode({ data, selecte
     startTurn(e, (move) => from + ((move.clientX - x0) - (move.clientY - y0)) / KNOB_TRAVEL);
   }, [startTurn, position]);
 
-  const handleDoubleClick = useCallback((e: React.MouseEvent) => { e.stopPropagation(); setEditing(true); }, []);
-  const handleConfirm = useCallback((raw: string) => {
-    const parsed = parseValue(raw);
-    if (!isNaN(parsed)) {
-      const display = formatValue(parsed, 'resistance');
-      updateComponent(component.id, { parameters: { ...component.parameters, maxResistance: parsed, value: display } });
-    }
-    setEditing(false);
-  }, [component, updateComponent]);
-  const handleCancel = useCallback(() => setEditing(false), []);
-
   const percent = `${Math.round(position * 100)}%`;
   const knob = rotatePin(KNOB.x, KNOB.y, component.rotation || 0);
   const pointer = ((KNOB_MIN_ANGLE + position * KNOB_SWEEP) * Math.PI) / 180;
@@ -92,11 +78,7 @@ export const PotentiometerNode = memo(function PotentiometerNode({ data, selecte
   ) : null;
 
   return (
-    <NodeFrame component={component} viewMode={viewMode} selected={selected}
-      onDoubleClick={handleDoubleClick} overlay={schematicKnob}>
-      {editing && (
-        <ValueEditor value={String(component.parameters.value || '')} onConfirm={handleConfirm} onCancel={handleCancel} />
-      )}
+    <NodeFrame component={component} viewMode={viewMode} selected={selected} overlay={schematicKnob}>
       {viewMode === 'board' ? (
         <div className="nodrag" onPointerDown={handleDialDrag} title={`Drag around the dial to turn (${percent})`}
           style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: 48, height: 48, borderRadius: '50%', cursor: 'grab' }} />

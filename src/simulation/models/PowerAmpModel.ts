@@ -74,6 +74,13 @@ export class PowerAmpModel implements ComponentModel {
     if (this.nOut >= 0) {
       G[this.nOut][this.nOut] += 1 / R_OUT;
       G[this.nOut][g] -= 1 / R_OUT;
+      // The speaker's current comes from the supply pins, half from each (see OpAmpModel)
+      const half = 0.5 / R_OUT;
+      for (const rail of [this.nVs, this.nGnd]) {
+        if (rail < 0) continue;
+        G[rail][g] += half;
+        G[rail][this.nOut] -= half;
+      }
     }
   }
 

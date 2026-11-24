@@ -22,6 +22,7 @@ export const cd4017Definition: ComponentDefinition = {
   pins,
   defaultParameters: {},
   floatingPins: true,
-  shelf: { caption: 'Counter 1 of 10', keywords: ['4017', 'counter', 'decade', 'sequencer', 'divider', 'johnson', 'step', 'cmos', 'logic', 'chip', 'ic'], art: chipArt(16, 'CD4017') },
+  through: [0, 3], // clock in, the first step out
+  shelf: { caption: 'Counter 1 of 10', keywords: ['4017', 'counter', 'decade', 'sequencer', 'divider', 'johnson', 'step', 'cmos', 'logic', 'chip', 'ic'], art: chipArt(16, 'CD4017'), alike: ['counter'] },
   ...chipViews({ width: 80, height: 260, name: 'CD4017', lines: ['DECADE', 'COUNTER'], pins }),
 };

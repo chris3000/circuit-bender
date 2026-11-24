@@ -93,6 +93,11 @@ export class MNASolver {
   private nonlinearModels: ComponentModel[] = [];
   private eventModels: ComponentModel[] = [];
   private syncModels: ComponentModel[] = [];
+  /** Models that want to know how their own nodes answer (see ComponentModel.watchFeedback). */
+  private feedbackModels: ComponentModel[] = [];
+  private feedbackInverse: Float64Array = new Float64Array(0);
+  private readonly feedbackResponse = (node: number): number =>
+    node >= 0 && node < this.size ? this.feedbackInverse[node * this.size + node] : 1;
 
   // System size and pre-allocated work arrays
   private size = 0;
@@ -413,6 +418,7 @@ export class MNASolver {
     this.nonlinearModels = this.modelList.filter(m => m.nonlinear && m.stampNonlinear && m.getNonlinearNodes);
     this.eventModels = this.modelList.filter(m => m.findEvent && m.applyEvent && m.getDiscreteState);
     this.syncModels = this.modelList.filter(m => m.syncState);
+    this.feedbackModels = this.modelList.filter(m => m.watchFeedback);
 
     // --- Pre-allocate matrices ---
     this.allocateMatrices();
@@ -659,7 +665,7 @@ export class MNASolver {
       // Unusable solution: hold the last good state for a full step, and put
       // the models' iteration state back on it
       const syncModels = this.syncModels;
-      for (let i = 0; i < syncModels.length; i++) syncModels[i].syncState!(x0);
+      for (let i = 0; i < syncModels.length; i++) syncModels[i].syncState!(x0, this.h);
       this.needsRestart = true;
       this.emitSegment(this.cellsPerStep, x0);
       return;
@@ -693,7 +699,8 @@ export class MNASolver {
       // The abandoned solve left the models' iteration state at its own
       // solution; put it on the point the next step starts from
       const syncModels = this.syncModels;
-      for (let i = 0; i < syncModels.length; i++) syncModels[i].syncState!(x0);
+      const elapsed = theta > 0 ? theta * dt : 0;
+      for (let i = 0; i < syncModels.length; i++) syncModels[i].syncState!(x0, elapsed);
       for (let i = 0; i < eventModels.length; i++) eventModels[i].applyEvent!(theta);
       this.stateDirty = true;
       // The circuit just changed discontinuously: capacitor currents from
@@ -763,6 +770,10 @@ export class MNASolver {
       entry.valid[m] = true;
     }
     const inv = entry.inv[m];
+    if (this.feedbackModels.length > 0) {
+      this.feedbackInverse = inv;
+      for (let i = 0; i < this.feedbackModels.length; i++) this.feedbackModels[i].watchFeedback!(this.feedbackResponse);
+    }
 
     // Right-hand side: sources and companion-model history
     const b = this.b;
@@ -1006,6 +1017,14 @@ export class MNASolver {
     if (node === undefined || node < 0) return 0;
     if (node >= this.x.length) return 0;
     return this.x[node];
+  }
+
+  /**
+   * The node a pin is on, for getNodeVoltage: −1 for ground, and for a pin
+   * that is unknown or has no node (which then reads 0 V).
+   */
+  pinNode(componentId: string, pinId: string): number {
+    return this.nodeOfPin({ componentId, pinId }) ?? -1;
   }
 
   getNodeVoltage(node: number): number {

@@ -4,6 +4,7 @@ import { applyNodeChanges } from 'reactflow';
 import { useCircuit } from '@/context/CircuitContext';
 import { validateConnection } from '@/utils/wiring';
 import { generateConnectionId, generateNetId } from '@/utils/ids';
+import { removeFromCircuit } from '@/utils/circuitEdits';
 import { getWireColor, getWireType } from './edges/wireUtils';
 import { resolveWireColors } from '@/utils/wireColors';
 import type { Component, ComponentId, PinId, ConnectionId } from '@/types/circuit';
@@ -12,23 +13,27 @@ import { useWireRoutes, type PlacedComponent } from './routing/useWireRoutes';
 export interface CircuitNodeData {
   component: Component;
   viewMode: 'schematic' | 'board';
-  ledOn: boolean;
+  /** For an LED: how brightly it is lit, 0 to 1. */
+  light: number;
 }
 
 export function useCircuitSync(
   viewMode: 'schematic' | 'board',
-  ledStates: Record<string, boolean>,
+  lights: Record<string, number>,
+  /**
+   * A part held over a wire it is about to go into: wires are drawn as if it
+   * were not there, so the wire stays under it instead of running round it.
+   */
+  floating: string | null = null,
 ) {
   const {
     circuit,
     addConnection,
-    removeComponent,
-    removeConnection,
+    editCircuit,
     moveComponents,
     selectedComponents,
     selectedConnections,
     setSelection,
-    clearSelection,
   } = useCircuit();
 
   const components = useMemo(() => circuit.getComponents(), [circuit]);
@@ -45,10 +50,10 @@ export function useCircuitSync(
       data: {
         component: comp,
         viewMode,
-        ledOn: ledStates[comp.id] ?? false,
+        light: lights[comp.id] ?? 0,
       },
     }));
-  }, [components, viewMode, ledStates, selectedComponents]);
+  }, [components, viewMode, lights, selectedComponents]);
 
   // Use state for nodes so React Flow can apply drag changes
   const [nodes, setNodes] = useState<Node<CircuitNodeData>[]>(derivedNodes);
@@ -120,17 +125,51 @@ export function useCircuitSync(
 
   // --- Upstream: React Flow -> Circuit ---
 
+  // What is selected lives in the circuit's context, and React Flow is told
+  // through the nodes and edges it is given. The other way, a click on the
+  // canvas reaches the context through the change React Flow reports for it
+  // (here and in onEdgesChange), taken up at once. Not through React Flow's
+  // onSelectionChange: that also fires when the selection it is *given*
+  // changes, and a part that changes the circuit when it is clicked (a
+  // switch) then has two versions of the selection chasing each other for good.
+  const selection = useRef({ components: selectedComponents, connections: selectedConnections });
+  selection.current = { components: selectedComponents, connections: selectedConnections };
+  /** Apply the 'select' changes among `changes` to one of the two lists; true if it changed. */
+  const takeUpSelection = useCallback((changes: Array<NodeChange | EdgeChange>, of: 'components' | 'connections') => {
+    const selected = new Set<string>(selection.current[of]);
+    let changed = false;
+    for (const change of changes) {
+      if (change.type !== 'select' || change.selected === selected.has(change.id)) continue;
+      if (change.selected) selected.add(change.id);
+      else selected.delete(change.id);
+      changed = true;
+    }
+    if (!changed) return;
+    // Both lists can change in one click (a part picked while a wire was): the
+    // second to be taken up must see what the first did, before any render
+    selection.current = { ...selection.current, [of]: [...selected] };
+    setSelection(selection.current.components as ComponentId[], selection.current.connections as ConnectionId[]);
+  }, [setSelection]);
+
+  // What is no longer on the canvas (deleted, or undone away) is no longer selected
+  useEffect(() => {
+    const parts = selectedComponents.filter((id) => circuit.getComponent(id) !== undefined);
+    const wires = selectedConnections.filter((id) => connections.some((c) => c.id === id));
+    if (parts.length !== selectedComponents.length || wires.length !== selectedConnections.length) setSelection(parts, wires);
+  }, [circuit, connections, selectedComponents, selectedConnections, setSelection]);
+
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     for (const change of changes) {
       if (change.type !== 'position') continue;
       if (change.dragging) draggingIds.current.add(change.id);
       else draggingIds.current.delete(change.id);
     }
+    takeUpSelection(changes, 'components');
     // Only the canvas's own copy changes here. The circuit hears about a move
     // once, when the drag ends (onNodeDragStop): a state updater must not
     // reach into another component's state, and one drag is one undo step.
     setNodes((nds) => applyNodeChanges(changes, nds));
-  }, []);
+  }, [takeUpSelection]);
 
   /** A drag ended: move the dragged parts in the circuit, as a single undo step. */
   const onNodeDragStop = useCallback((_event: unknown, _node: Node, dragged: Node[]) => {
@@ -150,8 +189,8 @@ export function useCircuitSync(
   // --- Wire routes follow the parts where they are on screen, including mid-drag ---
 
   const placed: PlacedComponent[] = useMemo(
-    () => nodes.map((n) => ({ component: n.data.component, position: n.position })),
-    [nodes],
+    () => nodes.filter((n) => n.id !== floating).map((n) => ({ component: n.data.component, position: n.position })),
+    [nodes, floating],
   );
   const routes = useWireRoutes(placed, connections, viewMode);
 
@@ -159,19 +198,9 @@ export function useCircuitSync(
   // to them here is which are selected. That has to be taken up at once: React
   // Flow marks its own copy as selected and expects to be given the same back,
   // and if it is not, the canvas shows the wire that was clicked the time before.
-  const selection = useRef({ components: selectedComponents, connections: selectedConnections });
-  selection.current = { components: selectedComponents, connections: selectedConnections };
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
-    const selected = new Set<string>(selection.current.connections);
-    let changed = false;
-    for (const change of changes) {
-      if (change.type !== 'select' || change.selected === selected.has(change.id)) continue;
-      if (change.selected) selected.add(change.id);
-      else selected.delete(change.id);
-      changed = true;
-    }
-    if (changed) setSelection(selection.current.components, [...selected] as ConnectionId[]);
-  }, [setSelection]);
+    takeUpSelection(changes, 'connections');
+  }, [takeUpSelection]);
 
   const onConnect = useCallback((connection: RFConnection) => {
     if (!connection.source || !connection.target || !connection.sourceHandle || !connection.targetHandle) return;
@@ -204,58 +233,21 @@ export function useCircuitSync(
     return result.valid;
   }, [circuit]);
 
-  const onSelectionChange = useCallback(({ nodes: selNodes, edges: selEdges }: { nodes: Node[]; edges: Edge[] }) => {
-    const compIds = selNodes.map(n => n.id as ComponentId);
-    const connIds = selEdges.map(e => e.id as ConnectionId);
-    if (compIds.length === 0 && connIds.length === 0) {
-      clearSelection();
-    } else {
-      setSelection(compIds, connIds);
-    }
-  }, [setSelection, clearSelection]);
+  /**
+   * Remove parts, and wires with them: the Delete key and the inspector's
+   * button both come here. One undo step, and a part that sat in a wire
+   * leaves the wire whole (`removeFromCircuit`).
+   */
+  const deleteComponents = useCallback((ids: ComponentId[], wires: ConnectionId[] = []) => {
+    editCircuit((c) => removeFromCircuit(c, ids, wires));
+  }, [editCircuit]);
 
-  /** Remove parts, whoever asks: the Delete key on the canvas or the inspector's button. */
-  const deleteComponents = useCallback((ids: ComponentId[]) => {
-    for (const id of ids) {
-      // Smart junction delete: if a junction has exactly 2 wires, reconnect them
-      if (circuit.getComponent(id)?.type === 'junction') {
-        const junctionId = id;
-        const conns = circuit.getConnections();
-        const junctionConns = conns.filter(
-          c => c.from.componentId === junctionId || c.to.componentId === junctionId
-        );
-        if (junctionConns.length === 2) {
-          // Find the two "other" endpoints (not the junction)
-          const endpoints = junctionConns.map(c =>
-            c.from.componentId === junctionId ? c.to : c.from
-          );
-          // Remove both wires and the junction, then reconnect
-          for (const c of junctionConns) removeConnection(c.id);
-          removeComponent(junctionId);
-          const color = junctionConns.find(c => c.color)?.color;
-          addConnection({
-            id: generateConnectionId(),
-            from: { componentId: endpoints[0].componentId, pinId: endpoints[0].pinId },
-            to: { componentId: endpoints[1].componentId, pinId: endpoints[1].pinId },
-            net: generateNetId(),
-            ...(color ? { color } : {}),
-          });
-          continue;
-        }
-      }
-      removeComponent(id);
-    }
-  }, [removeComponent, removeConnection, addConnection, circuit]);
-
-  const onNodesDelete = useCallback((deleted: Node[]) => {
-    deleteComponents(deleted.map((node) => node.id as ComponentId));
+  /** Delete whatever is selected. */
+  const deleteSelection = useCallback(() => {
+    const { components: parts, connections: wires } = selection.current;
+    if (parts.length + wires.length === 0) return;
+    deleteComponents(parts as ComponentId[], wires as ConnectionId[]);
   }, [deleteComponents]);
-
-  const onEdgesDelete = useCallback((deleted: Edge[]) => {
-    for (const edge of deleted) {
-      removeConnection(edge.id as ConnectionId);
-    }
-  }, [removeConnection]);
 
   return {
     nodes,
@@ -267,9 +259,7 @@ export function useCircuitSync(
     onEdgesChange,
     onConnect,
     isValidConnection,
-    onSelectionChange,
-    onNodesDelete,
-    onEdgesDelete,
     deleteComponents,
+    deleteSelection,
   };
 }

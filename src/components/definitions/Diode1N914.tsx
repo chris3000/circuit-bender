@@ -10,6 +10,7 @@ export const diode1N914Definition: ComponentDefinition = {
     category: 'active',
     description: 'Small signal switching diode',
   },
+  overload: 'Too much current: a real diode this size would overheat.',
   pins: [
     {
       id: generatePinId('1n914', 0),
@@ -27,7 +28,7 @@ export const diode1N914Definition: ComponentDefinition = {
   defaultParameters: {
     forwardVoltage: 0.7,
   },
-  shelf: { title: '1N914', caption: 'Diode', keywords: ['914', '1n4148', 'rectifier'], art: diodeArt },
+  shelf: { title: '1N914', caption: 'Diode', keywords: ['914', '1n4148', 'rectifier'], art: diodeArt, alike: ['diode'] },
   schematic: {
     symbol: {
       width: 40,

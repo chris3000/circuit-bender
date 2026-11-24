@@ -36,8 +36,10 @@ export const potentiometerDefinition: ComponentDefinition = {
     value: '1M',
   },
   value: { parameter: 'maxResistance', kind: 'resistance', label: 'Resistance', example: '100k' },
+  through: [0, 1], // one end and the wiper: a variable resistor
   shelf: {
     keywords: ['pot', 'knob', 'dial', 'variable', 'trimmer'],
+    alike: ['resistance'],
     art: potentiometerArt,
     stock: [1e3, 5e3, 10e3, 50e3, 100e3, 250e3, 500e3, 1e6],
   },

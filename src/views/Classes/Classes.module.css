@@ -1,0 +1,565 @@
+/* --- The Classes menu in the header --- */
+
+.menu {
+  position: relative;
+}
+
+.menuButton {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: #333;
+  border: none;
+  border-radius: 6px;
+  color: #FF2D55;
+  cursor: pointer;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.menuButton[data-open] {
+  background: #FF2D55;
+  color: white;
+}
+
+.dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1000;
+  width: 330px;
+  max-height: calc(100vh - 60px);
+  margin-top: 6px;
+  padding: 10px 8px 8px;
+  overflow-y: auto;
+  background: #222;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.dropdownTitle {
+  padding: 0 4px;
+  color: #FF2D55;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.dropdownIntro {
+  padding: 4px 4px 2px;
+  color: #999;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.unit {
+  margin-top: 8px;
+  background: #2a2a2a;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.unitTitle {
+  padding: 7px 10px 3px;
+  color: #777;
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+.entry:hover:not(:disabled),
+.entry:focus-visible {
+  background: #333;
+  outline: none;
+}
+
+.entry:disabled {
+  cursor: default;
+  color: #666;
+}
+
+.entryNumber {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #333;
+  color: #ddd;
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 22px;
+  text-align: center;
+}
+
+.entry:disabled .entryNumber {
+  color: #666;
+}
+
+.entryText {
+  flex: 1;
+  min-width: 0;
+}
+
+.entryTitle {
+  display: block;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.entryBuilds {
+  display: block;
+  margin-top: 1px;
+  color: #777;
+  font-size: 9px;
+}
+
+.entry:disabled .entryBuilds {
+  color: #555;
+}
+
+.entryStatus {
+  flex: none;
+  color: #555;
+  font-size: 8px;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.entryStatus[data-status='START'],
+.entryStatus[data-status='CONTINUE'],
+.entryStatus[data-status='OPEN'] {
+  padding: 3px 6px;
+  border-radius: 8px;
+  background: #FF2D55;
+  color: white;
+}
+
+.entryStatus[data-status='DONE'] {
+  color: #FF2D55;
+}
+
+/* --- The class itself, beside the canvas --- */
+
+.panel {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  width: 340px;
+  min-height: 0;
+  /* The scope lies over the bottom of the page */
+  padding-bottom: var(--scope-height, 32px);
+  transition: padding-bottom 0.2s ease;
+  background: white;
+  border-left: 1px solid #EBEBEB;
+  font-family: 'Courier New', Courier, monospace;
+  color: #222;
+}
+
+.head {
+  flex: none;
+  padding: 12px 14px 12px;
+  background: #222;
+  color: white;
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #FF2D55;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.close {
+  width: 22px;
+  height: 22px;
+  background: #333;
+  border: none;
+  border-radius: 50%;
+  color: #999;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.close:hover {
+  background: #444;
+  color: white;
+}
+
+.title {
+  margin-top: 2px;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.promise {
+  margin-top: 5px;
+  color: #ccc;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.tabs {
+  flex: none;
+  display: flex;
+  padding: 0 6px;
+  border-bottom: 1px solid #EBEBEB;
+  background: #F5F5F5;
+}
+
+.tab {
+  flex: 1;
+  padding: 9px 0 7px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #777;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  color: #222;
+}
+
+.tab[aria-current] {
+  border-bottom-color: #FF2D55;
+  color: #222;
+}
+
+.tabTick {
+  color: #FF2D55;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  padding: 14px;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.sectionTitle {
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #FF2D55;
+}
+
+.note {
+  margin-bottom: 10px;
+  color: #666;
+  font-size: 11px;
+}
+
+.paragraph {
+  margin-bottom: 11px;
+}
+
+.lead {
+  font-weight: 800;
+}
+
+/* Steps */
+
+.steps {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 12px;
+}
+
+.stepItem {
+  display: flex;
+  gap: 9px;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.stepItem[data-next] {
+  background: #F5F5F5;
+}
+
+.marker {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border: 1.5px solid #bbb;
+  border-radius: 50%;
+  color: #777;
+  font-size: 9px;
+  font-weight: bold;
+  line-height: 15px;
+  text-align: center;
+}
+
+.stepItem[data-next] .marker {
+  border-color: #222;
+  color: #222;
+}
+
+.stepItem[data-done] .marker {
+  background: #FF2D55;
+  border-color: #FF2D55;
+  color: white;
+  font-size: 11px;
+}
+
+.stepText {
+  padding: 0;
+  background: none;
+  border: none;
+  color: #222;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.stepText:disabled {
+  cursor: default;
+}
+
+.stepItem[data-next] .stepText {
+  font-weight: bold;
+}
+
+.stepItem[data-done] .stepText {
+  color: #888;
+}
+
+.how {
+  margin-top: 4px;
+  color: #555;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/* Experiments */
+
+.trial {
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1.5px solid #EBEBEB;
+  border-radius: 10px;
+}
+
+.trial[data-shown] {
+  border-color: #222;
+}
+
+.trialTitle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 5px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.trialTitle span {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #222;
+  color: white;
+  font-size: 10px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.question {
+  margin-bottom: 7px;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.option {
+  padding: 6px 9px;
+  background: #F5F5F5;
+  border: 1.5px solid transparent;
+  border-radius: 8px;
+  color: #222;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  text-align: left;
+}
+
+.option:hover:not(:disabled) {
+  background: #EBEBEB;
+}
+
+.option[aria-pressed='true'] {
+  border-color: #222;
+  font-weight: bold;
+}
+
+.option:disabled {
+  cursor: default;
+}
+
+.option[data-right] {
+  background: #FF2D55;
+  border-color: #FF2D55;
+  color: white;
+}
+
+.change {
+  margin-top: 9px;
+}
+
+.waiting {
+  margin-top: 6px;
+  color: #888;
+  font-size: 10px;
+}
+
+.result {
+  margin-top: 9px;
+  padding: 8px 10px;
+  border-left: 3px solid #FF2D55;
+  border-radius: 0 8px 8px 0;
+  background: #F5F5F5;
+}
+
+/* The check */
+
+.reading {
+  margin: 4px 0 10px;
+  padding: 14px 10px;
+  border-radius: 10px;
+  background: #222;
+  color: white;
+  font-size: 16px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.reading[data-passed] {
+  background: #FF2D55;
+}
+
+.hint {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #F5F5F5;
+  color: #444;
+  font-size: 11px;
+}
+
+.link {
+  padding: 0;
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+}
+
+.link:hover {
+  color: #FF2D55;
+}
+
+/* Words */
+
+.words {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.words dt {
+  font-weight: 800;
+}
+
+.words dd {
+  color: #444;
+  font-size: 11px;
+}
+
+/* Back and next */
+
+.foot {
+  flex: none;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid #EBEBEB;
+}
+
+.step {
+  padding: 7px 12px;
+  background: #F5F5F5;
+  border: none;
+  border-radius: 10px;
+  color: #222;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.step:hover {
+  background: #EBEBEB;
+}
+
+.next {
+  margin-left: auto;
+  background: #FF2D55;
+  color: white;
+}
+
+.next:hover {
+  background: #e02549;
+}

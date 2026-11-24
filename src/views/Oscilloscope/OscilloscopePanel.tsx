@@ -1,13 +1,19 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import styles from './OscilloscopePanel.module.css';
+import { useInstruments } from '@/views/Instruments';
+import type { SignalReading } from '@/simulation/measure/signal';
+import { formatSignal } from '@/utils/readings';
+import { formatSweep, SCOPE_SECONDS, traceColumns } from './trace';
 
-const TIME_SCALE_OPTIONS = [1, 2, 5, 10, 20, 50, 100]; // ms/div
+// ms/div. The slow ones are for things that can be watched: a blinking LED, a capacitor emptying
+const TIME_SCALE_OPTIONS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
 const VOLT_SCALE_OPTIONS = [0.5, 1, 2, 5]; // V/div
 const CANVAS_WIDTH = 600;
 const CANVAS_HEIGHT = 200;
 const H_DIVS = 10;
 const V_DIVS = 8;
-const MAX_SAMPLES = 48000;
+const SAMPLE_RATE = 48000;
+const MAX_SAMPLES = SAMPLE_RATE * SCOPE_SECONDS;
 const PROBE_COLORS = ['#FF2D55', '#00FF88', '#00AAFF', '#FFAA00'];
 
 export interface ProbeTarget {
@@ -28,9 +34,27 @@ export default function OscilloscopePanel({ onRegisterSampleCallback, probes = [
   const [voltScale, setVoltScale] = useState(5);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // The panel lies over the bottom of the page: whatever must stay clear of it
+  // (the class beside the canvas, with its buttons at the bottom) reads how tall it is
+  useEffect(() => {
+    document.documentElement.style.setProperty('--scope-height', expanded ? '240px' : '32px');
+  }, [expanded]);
+
+  // Each probe's reading (level, swing, frequency), while the panel is open to show it
+  const { playing, meter } = useInstruments();
+  const [readings, setReadings] = useState<SignalReading[]>([]);
+  const watching = expanded && playing && probes.length > 0;
+  useEffect(() => {
+    if (!watching) { setReadings([]); return; }
+    return meter((report) => setReadings(report.probes));
+  }, [watching, meter]);
+
   // Audio output buffer (normalized [-1,1])
   const audioBuffer = useRef<Float32Array>(new Float32Array(MAX_SAMPLES));
   const audioWritePos = useRef(0);
+
+  // What each column of the screen shows of a trace (its low and its high)
+  const columns = useRef(new Float32Array(CANVAS_WIDTH * 2));
 
   // Probe buffers (raw voltage)
   const probeBuffers = useRef<Float32Array[]>([]);
@@ -111,39 +135,28 @@ export default function OscilloscopePanel({ onRegisterSampleCallback, probes = [
       const centerY = CANVAS_HEIGHT / 2;
       ctx.beginPath(); ctx.moveTo(0, centerY); ctx.lineTo(CANVAS_WIDTH, centerY); ctx.stroke();
 
-      const sampleRateHz = 48000;
-      const totalTimeMs = timeScale * H_DIVS;
-      const totalSamples = Math.floor((totalTimeMs / 1000) * sampleRateHz);
-      const samplesPerPixel = Math.max(1, Math.floor(totalSamples / CANVAS_WIDTH));
+      const totalSamples = Math.floor((timeScale * H_DIVS / 1000) * SAMPLE_RATE);
       const totalVoltRange = voltScale * V_DIVS;
       const vdd = 9;
       const vCenter = vdd / 2;
+      // Audio samples are AC-coupled, with a rail-to-rail swing at ±0.5
+      const y = (raw: number, isNormalized: boolean) =>
+        centerY - (((isNormalized ? vCenter + raw * vdd : raw) - vCenter) / totalVoltRange) * CANVAS_HEIGHT;
 
-      // Draw function for a waveform
+      // Draw function for a waveform: each column of the screen from the lowest to the highest value in it
       const drawWaveform = (buf: Float32Array, writePos: number, color: string, isNormalized: boolean) => {
         if (writePos < 2) return;
+        traceColumns(buf, writePos, totalSamples, CANVAS_WIDTH, columns.current);
         ctx.strokeStyle = color;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         let started = false;
-
         for (let px = 0; px < CANVAS_WIDTH; px++) {
-          const sampleOffset = totalSamples - (CANVAS_WIDTH - px) * samplesPerPixel;
-          const idx = ((writePos + sampleOffset) % MAX_SAMPLES + MAX_SAMPLES) % MAX_SAMPLES;
-          const raw = buf[idx];
-
-          let voltage;
-          if (isNormalized) {
-            // Audio samples are AC-coupled, with a rail-to-rail swing at ±0.5
-            voltage = vCenter + raw * vdd;
-          } else {
-            voltage = raw;
-          }
-
-          const y = centerY - ((voltage - vCenter) / totalVoltRange) * CANVAS_HEIGHT;
-
-          if (!started) { ctx.moveTo(px, y); started = true; }
-          else { ctx.lineTo(px, y); }
+          const low = columns.current[2 * px], high = columns.current[2 * px + 1];
+          if (Number.isNaN(low)) continue;
+          if (!started) { ctx.moveTo(px, y(high, isNormalized)); started = true; }
+          else ctx.lineTo(px, y(high, isNormalized));
+          if (low !== high) ctx.lineTo(px, y(low, isNormalized));
         }
         ctx.stroke();
       };
@@ -181,7 +194,7 @@ export default function OscilloscopePanel({ onRegisterSampleCallback, probes = [
         )}
         {expanded && (
           <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: '8px', marginRight: '12px' }}>
-            <span style={{ fontSize: '9px', color: '#666' }}>{timeScale}ms/div</span>
+            <span style={{ fontSize: '9px', color: '#666' }}>{formatSweep(timeScale)}/div</span>
             <span style={{ fontSize: '9px', color: '#666' }}>|</span>
             <span style={{ fontSize: '9px', color: '#666' }}>{voltScale}V/div</span>
           </div>
@@ -205,7 +218,10 @@ export default function OscilloscopePanel({ onRegisterSampleCallback, probes = [
                   className={styles.colorDot}
                   style={{ backgroundColor: PROBE_COLORS[i % PROBE_COLORS.length] }}
                 />
-                <span className={styles.probeLabel}>{probe.label}</span>
+                <span className={styles.probeLabel}>
+                  {probe.label}
+                  {readings[i] && <span className={styles.probeReading} data-testid="probe-reading">{formatSignal(readings[i])}</span>}
+                </span>
                 <button
                   className={styles.removeBtn}
                   onClick={() => onRemoveProbe?.(i)}
@@ -233,7 +249,7 @@ export default function OscilloscopePanel({ onRegisterSampleCallback, probes = [
               <select className={styles.controlSelect} value={timeScale}
                 onChange={(e) => setTimeScale(Number(e.target.value))}>
                 {TIME_SCALE_OPTIONS.map((v) => (
-                  <option key={v} value={v}>{v}ms</option>
+                  <option key={v} value={v}>{formatSweep(v)}</option>
                 ))}
               </select>
             </div>
