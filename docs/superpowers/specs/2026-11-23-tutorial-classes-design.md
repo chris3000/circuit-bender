@@ -1,10 +1,10 @@
 # Tutorial classes: syllabus and class designs
 
-Date: 2026-11-23. Status: class 1 is built (`src/classes/theLoop.ts`), with
-what the app needed first (see "What the app needs" below). Classes 2 to 14
-are designs. Their LED figures were measured before the LED model was given
-its 5 Ω of series resistance: measure them again when each class is built
-(they move by a few percent; class 1's are current).
+Date: 2026-11-23. Status: all fourteen classes are built (`src/classes/`,
+2026-11-24). The sections below are the designs they were built from. Each
+class was measured again in the app and fitted to how the app works, so
+where a class and its design differ, the class is right: its own test
+(`tests/classes/`) measures every figure it quotes.
 
 A course of fourteen classes inside the app that takes someone who has never
 built a circuit to the point where they can read, change and build circuits

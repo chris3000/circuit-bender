@@ -127,7 +127,9 @@ export function rotateParts(circuit: Circuit, partIds: readonly ComponentId[], b
  * other part reaches both sides. That last is what tells a part in a wire
  * from a part across something: a resistor from a gate's output back to its
  * input, a capacitor from a chip's pin to ground, one of two parts side by
- * side. Joining those would short what they sat across.
+ * side. Joining those would short what they sat across. A part that runs to
+ * ground or the supply from a point where two or more other parts meet is
+ * across something too.
  */
 function sitsInWire(circuit: Circuit, part: Component): [PinId, PinId] | null {
   const through = throughPins(definitionOf(part.type));
@@ -163,6 +165,20 @@ function sitsInWire(circuit: Circuit, part: Component): [PinId, PinId] | null {
   for (const other of others) {
     const nets = other.pins.map((pin) => netOf({ componentId: other.id, pinId: pin.id }));
     if (nets.some((net) => sides[0].has(net)) && nets.some((net) => sides[1].has(net))) return null;
+  }
+  // A part from a point to ground or to the supply is in a wire only when it
+  // is that point's one way on (an LED's resistor). From a point where other
+  // parts meet (a filter's capacitor, a pull-down) it is a branch: closing
+  // the wire would short everything on that point to the rail.
+  const rails = new Set(others
+    .filter((c) => c.type === 'ground' || c.type === 'power')
+    .flatMap((c) => c.pins.map((pin) => netOf({ componentId: c.id, pinId: pin.id }))));
+  for (const [rail, point] of [[sides[0], sides[1]], [sides[1], sides[0]]]) {
+    if (![...rail].some((net) => rails.has(net)) || [...point].some((net) => rails.has(net))) continue;
+    const pinsThere = others
+      .filter((c) => c.type !== 'junction')
+      .reduce((count, c) => count + c.pins.filter((pin) => point.has(netOf({ componentId: c.id, pinId: pin.id }))).length, 0);
+    if (pinsThere > 1) return null;
   }
   return [a.id, b.id];
 }

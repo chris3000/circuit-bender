@@ -8,7 +8,7 @@ export const transistor2N3904Definition: ComponentDefinition = {
   metadata: {
     name: '2N3904 NPN Transistor',
     category: 'active',
-    description: 'General-purpose NPN bipolar junction transistor',
+    description: 'NPN transistor: a small current into its base lets a much bigger one run from collector to emitter. A switch worked by a current, and an amplifier',
   },
   pins: [
     {

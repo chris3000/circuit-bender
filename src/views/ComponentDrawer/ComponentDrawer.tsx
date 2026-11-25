@@ -8,6 +8,7 @@ import { ShelfTile } from './ShelfTile';
 import { MAX_RECENT, toggled, useShelfPrefs } from './shelfPrefs';
 import { useReplacePart } from '@/views/ReplacePart/ReplacePartContext';
 import { partTitle } from '@/views/ReplacePart/partTitle';
+import { usePartExamples } from '@/views/PartExamples/PartExamplesContext';
 import styles from './ComponentDrawer.module.css';
 
 const isTextField = (el: EventTarget | null) =>
@@ -22,6 +23,9 @@ const isTextField = (el: EventTarget | null) =>
  * While a part on the canvas is being swapped for "any part" the shelf is
  * where the choosing is done: its tiles are clicked instead of dragged, and
  * those with too few legs for the part's wires are greyed out.
+ *
+ * A tile that is clicked without being dragged shows the part's card: what it
+ * does, and its example (`views/PartExamples`).
  */
 export function ComponentDrawer() {
   const registry = ComponentRegistry.getInstance();
@@ -50,8 +54,15 @@ export function ComponentDrawer() {
   const replacing = replace.wide ? replace.target : null;
   const { replaceWith, cancel: cancelReplace } = replace;
   const pick = useCallback((item: ShelfItem) => replaceWith(item.definition, item.parameters), [replaceWith]);
+  // A tile that is clicked, not dragged, says what its part does: the card comes up beside the shelf
+  const { ask } = usePartExamples();
+  const about = useCallback((item: ShelfItem, element: HTMLElement) => {
+    const box = element.getBoundingClientRect();
+    const shelf = element.closest('aside')?.getBoundingClientRect() ?? box;
+    ask({ definition: item.definition, parameters: item.parameters, at: { x: shelf.right, left: shelf.left, y: box.top + box.height / 2 } });
+  }, [ask]);
   const tile = (item: ShelfItem, compact = false) => (
-    <ShelfTile key={item.key} item={item} onUsed={used} compact={compact}
+    <ShelfTile key={item.key} item={item} onUsed={used} compact={compact} onAbout={about}
       onPick={replacing ? pick : undefined}
       unfit={replacing && !replace.fits(item.definition) ? 'too few legs for the wires on the part being replaced' : undefined} />
   );

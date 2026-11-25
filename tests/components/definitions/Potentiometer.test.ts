@@ -6,9 +6,7 @@ describe('Potentiometer Component', () => {
     expect(potentiometerDefinition.type).toBe('potentiometer');
     expect(potentiometerDefinition.metadata.name).toBe('Potentiometer');
     expect(potentiometerDefinition.metadata.category).toBe('control');
-    expect(potentiometerDefinition.metadata.description).toBe(
-      'Variable resistor with adjustable wiper position'
-    );
+    expect(potentiometerDefinition.metadata.description).toContain('knob');
   });
 
   it('should have 3 bidirectional pins', () => {

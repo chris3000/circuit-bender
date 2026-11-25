@@ -1,7 +1,7 @@
 import { connect, ground, place, resistor } from '@/examples/circuits';
 import { formatAmps, formatVolts } from '@/utils/readings';
 import type { BenchRun } from '@/simulation/measure/bench';
-import type { ClassDefinition } from './types';
+import type { Built, ClassDefinition } from './types';
 import { GROUND, type Work } from './Work';
 
 // --- What this class asks of the learner's circuit ---
@@ -42,6 +42,29 @@ function inLineResistor(work: Work, ohms: number): boolean {
   return amps > DARK && work.parts('resistor').some((r) =>
     near(r.parameters.resistance, ohms) && Math.abs(Math.abs(run.amps(r.id)) - amps) <= amps * 0.01);
 }
+
+/** The light as the class builds it: a loop from the supply through a switch, 470 Ω and an LED. `name` is the switch's. */
+function light(name?: string): Built {
+  const supply = place('power', 200, 300);
+  const supplyGround = ground(200, 400);
+  const toggle = place('switch', 320, 200, name ? { label: name } : {});
+  const limit = resistor(470, 440, 200);
+  const led = place('led', 540, 300, { rotation: 90 });
+  const ledGround = ground(540, 400);
+  return {
+    components: [supply, supplyGround, toggle, limit, led, ledGround],
+    connections: [
+      connect(supply, 1, supplyGround, 0),
+      connect(supply, 0, toggle, 0),
+      connect(toggle, 1, limit, 0),
+      connect(limit, 1, led, 0),
+      connect(led, 1, ledGround, 0),
+    ],
+  };
+}
+
+/** What the class keeps: the light, its switch named LIGHT. Class 3 starts from it. */
+export const theLoopKept = (): Built => light('LIGHT');
 
 /** Class 1: a light with a switch, and why it needs every part it has. */
 export const theLoop: ClassDefinition = {
@@ -260,22 +283,5 @@ export const theLoop: ClassDefinition = {
 
   // Laid out as the loop it is: up from the supply, along the top through the
   // switch and the resistor, down through the LED, and back along the ground
-  circuit: () => {
-    const supply = place('power', 200, 300);
-    const supplyGround = ground(200, 400);
-    const light = place('switch', 320, 200);
-    const limit = resistor(470, 440, 200);
-    const led = place('led', 540, 300, { rotation: 90 });
-    const ledGround = ground(540, 400);
-    return {
-      components: [supply, supplyGround, light, limit, led, ledGround],
-      connections: [
-        connect(supply, 1, supplyGround, 0),
-        connect(supply, 0, light, 0),
-        connect(light, 1, limit, 0),
-        connect(limit, 1, led, 0),
-        connect(led, 1, ledGround, 0),
-      ],
-    };
-  },
+  circuit: () => light(),
 };

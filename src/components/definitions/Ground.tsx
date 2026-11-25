@@ -8,7 +8,7 @@ export const groundDefinition: ComponentDefinition = {
   metadata: {
     name: 'Ground',
     category: 'power',
-    description: '0V reference point',
+    description: 'The point every voltage is measured from: 0 V. Every ground symbol is the same point, so parts wired to ground are wired to each other',
   },
   pins: [
     {

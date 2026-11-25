@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { ComponentRegistry } from '@/components/registry/ComponentRegistry';
 import { Circuit } from '@/models/Circuit';
-import { connect, exampleCircuits, ground, place, resistor } from '@/examples/circuits';
+import { capacitor, connect, exampleCircuits, ground, place, resistor } from '@/examples/circuits';
 import { theLoop } from '@/classes/theLoop';
 import { classCircuit } from '@/classes';
 import { Work } from '@/classes/Work';
@@ -280,6 +280,29 @@ describe('deleting a part', () => {
         expect(new Set([netOf(after, 0), netOf(after, 6), netOf(after, 13)]).size, `${type} ${String(part.parameters.value)}`).toBe(3);
       }
     }
+  });
+
+  it('does not short a point to ground or the supply when a branch from it is deleted', () => {
+    // A low-pass filter: a resistor to a point, a capacitor from there to its own ground, an output on the point
+    const source = place('audio-input', 100, 100), r = resistor(10000, 300, 100), c = capacitor(10e-9, 500, 200, 90);
+    const gnd = place('ground', 500, 300), out = place('audio-output', 700, 100);
+    const filter = circuitOf([source, r, c, gnd, out], [connect(source, 0, r, 0), connect(r, 1, c, 0), connect(c, 1, gnd, 0), connect(r, 1, out, 0)]);
+    const without = removeFromCircuit(filter, [c.id]);
+    expect(new Work(without).grounded(out, 0)).toBe(false);
+    expect(without.getConnections()).toHaveLength(2);
+
+    // A pull-up: from a point where a button and a chip's input meet, to the supply
+    const supply = place('power', 100, 400), button = place('pushbutton', 300, 500), pull = resistor(100000, 300, 400), led = place('led', 500, 500);
+    const g2 = place('ground', 300, 600);
+    const pulled = circuitOf([supply, button, pull, led, g2], [
+      connect(supply, 0, pull, 0), connect(pull, 1, button, 0), connect(pull, 1, led, 0), connect(button, 1, g2, 0), connect(supply, 1, g2, 0),
+    ]);
+    expect(new Work(removeFromCircuit(pulled, [pull.id])).joined(supply, 0, led, 0)).toBe(false);
+
+    // ...but a part that is a point's one way on to ground is in a wire: the LED's resistor
+    const lit = place('led', 100, 800), limit = resistor(470, 300, 800), g3 = place('ground', 500, 800);
+    const row = circuitOf([lit, limit, g3], [connect(lit, 1, limit, 0), connect(limit, 1, g3, 0)]);
+    expect(wired(removeFromCircuit(row, [limit.id]), lit, 1, g3, 0)).toBe(true);
   });
 
   it('keeps everything joined that met at a leg with several wires', () => {

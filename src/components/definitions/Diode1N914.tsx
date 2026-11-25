@@ -8,7 +8,7 @@ export const diode1N914Definition: ComponentDefinition = {
   metadata: {
     name: '1N914 Signal Diode',
     category: 'active',
-    description: 'Small signal switching diode',
+    description: 'A one-way street for current: it passes from A to K and blocks the other way. This is the small, fast diode for signals',
   },
   overload: 'Too much current: a real diode this size would overheat.',
   pins: [

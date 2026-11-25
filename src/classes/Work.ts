@@ -13,6 +13,14 @@ export interface Situation {
   view: 'schematic' | 'board' | 'cover';
   /** The parts that are selected. */
   selected: readonly string[];
+  /** The wires that are selected: a selected wire is read by the meter. */
+  wires?: readonly string[];
+  /** The pins the scope has probes on. */
+  probes?: ReadonlyArray<{ componentId: string; pinId: string }>;
+  /** The sound is close to breaking up, or is: the circuit is about as large as the computer can play. */
+  strained?: boolean;
+  /** The jumper the bend tool is holding between two pins, while it holds one. */
+  bend?: { from: { componentId: string; pinId: string }; to: { componentId: string; pinId: string }; ohms: number } | null;
 }
 
 export const NOWHERE: Situation = { playing: false, saved: false, view: 'schematic', selected: [] };
@@ -27,8 +35,17 @@ const NOTHING: BenchRun = {
   amps: () => 0, across: () => 0, strain: () => 0,
   volts: () => ({ mean: 0, min: 0, max: 0, hertz: null }),
   sound: { mean: 0, min: 0, max: 0, hertz: null },
-  seconds: 0,
+  seconds: 0, sampleRate: 48000,
+  trace: () => null, ampsTrace: () => null, soundTrace: new Float32Array(0),
 };
+
+/** A pin of a part, by its place among the part's pins. */
+export type PinOf = readonly [part: Component, pin: number];
+
+/** How a class asks for a run: pins by their place among a part's pins. */
+export interface BenchRequest extends Omit<BenchOptions, 'watch'> {
+  watch?: PinOf[];
+}
 
 /**
  * The learner's work, as a class sees it: what is on the canvas, what is
@@ -78,19 +95,57 @@ export class Work {
     return false;
   }
 
+  /** Whether the meter is reading this pin: a selected wire is on its net. */
+  metered(part: Component, pin: number): boolean {
+    const net = this.net(part, pin);
+    const selected = this.situation.wires ?? [];
+    return this.circuit.getConnections().some((c) =>
+      selected.includes(c.id) && this.netOf!.get(`${c.from.componentId}::${c.from.pinId}`) === net);
+  }
+
+  /**
+   * The jumper being held with the bend tool, as the two nets it joins and
+   * its resistance; null when none is held.
+   */
+  bent(): { nets: [string, string]; ohms: number } | null {
+    const bend = this.situation.bend;
+    if (!bend) return null;
+    if (!this.netOf) this.netOf = this.findNets();
+    const a = this.netOf.get(`${bend.from.componentId}::${bend.from.pinId}`);
+    const b = this.netOf.get(`${bend.to.componentId}::${bend.to.pinId}`);
+    return a !== undefined && b !== undefined && a !== b ? { nets: [a, b], ohms: bend.ohms } : null;
+  }
+
+  /** Whether the scope has a probe on this pin's net. */
+  probed(part: Component, pin: number): boolean {
+    const net = this.net(part, pin);
+    return (this.situation.probes ?? []).some((probe) => this.netOf!.get(`${probe.componentId}::${probe.pinId}`) === net);
+  }
+
   /**
    * The circuit run on the bench for a moment: as it stands, or with some
    * of its controls put another way (every switch closed, say).
    */
   run(set: ControlChange[] = [], seconds?: number): BenchRun {
-    const key = JSON.stringify([set.map((c) => [c.componentId, c.parameter, c.value]), seconds ?? 0]);
+    return this.bench({ set, seconds });
+  }
+
+  /**
+   * The circuit run on the bench, any way the bench can run it: for longer,
+   * with pins and currents recorded, with a button pressed part of the way
+   * through. A run is kept: asking again for the same one costs nothing.
+   */
+  bench(request: BenchRequest = {}): BenchRun {
+    const watch = (request.watch ?? []).map(([part, pin]) => ({ componentId: part.id, pinId: part.pins[pin]?.id ?? '' }));
+    const options: BenchOptions = { ...request, watch };
+    const key = JSON.stringify(options);
     let cache = runs.get(this.circuit);
     if (!cache) runs.set(this.circuit, cache = new Map());
     let run = cache.get(key);
     if (!run) {
       try {
         const { components, connections } = serializeCircuit(this.circuit);
-        run = runOnBench(components, connections, { set, seconds });
+        run = runOnBench(components, connections, options);
       } catch {
         run = NOTHING; // half-built circuits can be anything at all
       }

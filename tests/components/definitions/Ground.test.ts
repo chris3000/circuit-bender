@@ -6,7 +6,7 @@ describe('Ground Component', () => {
     expect(groundDefinition.type).toBe('ground');
     expect(groundDefinition.metadata.name).toBe('Ground');
     expect(groundDefinition.metadata.category).toBe('power');
-    expect(groundDefinition.metadata.description).toBe('0V reference point');
+    expect(groundDefinition.metadata.description).toContain('0 V');
   });
 
   it('should have 1 ground pin', () => {

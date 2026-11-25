@@ -49,9 +49,9 @@ export function place(type: string, x: number, y: number, options: { rotation?: 
 
 export const resistor = (ohms: number, x: number, y: number, rotation = 0) =>
   place('resistor', x, y, { rotation, parameters: { resistance: ohms, value: formatValue(ohms, 'resistance') } });
-const capacitor = (farads: number, x: number, y: number, rotation = 0) =>
+export const capacitor = (farads: number, x: number, y: number, rotation = 0) =>
   place('capacitor', x, y, { rotation, parameters: { capacitance: farads, value: formatValue(farads, 'capacitance') } });
-const pot = (name: string, ohms: number, position: number, x: number, y: number) =>
+export const pot = (name: string, ohms: number, position: number, x: number, y: number) =>
   place('potentiometer', x, y, { label: name, parameters: { maxResistance: ohms, value: formatValue(ohms, 'resistance'), position } });
 export const ground = (x: number, y: number) => place('ground', x, y);
 

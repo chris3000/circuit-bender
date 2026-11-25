@@ -17,8 +17,12 @@ const MIN_SWING = 0.02;
 /** A cycle is counted when the signal has been this far (as a fraction of its swing) either side of its middle. */
 const HYSTERESIS = 0.15;
 
-/** Level, swing and frequency of a recorded trace. */
-export function measureSignal(samples: ArrayLike<number>, sampleRate: number): SignalReading {
+/**
+ * Level, swing and frequency of a recorded trace. `minSwing` is the smallest
+ * swing that counts as a wave: the default suits volts and sound; a trace of
+ * a small current (an LED's, in amps) needs a smaller one.
+ */
+export function measureSignal(samples: ArrayLike<number>, sampleRate: number, minSwing = MIN_SWING): SignalReading {
   const n = samples.length;
   if (n === 0) return { mean: 0, min: 0, max: 0, hertz: null };
   let min = Infinity, max = -Infinity, sum = 0;
@@ -30,7 +34,7 @@ export function measureSignal(samples: ArrayLike<number>, sampleRate: number): S
   }
   const reading: SignalReading = { mean: sum / n, min, max, hertz: null };
   const swing = max - min;
-  if (!(swing >= MIN_SWING)) return reading;
+  if (!(swing >= minSwing)) return reading;
 
   // Rising crossings of the upper threshold, each placed between two samples
   const middle = (min + max) / 2;
@@ -56,6 +60,120 @@ export function measureSignal(samples: ArrayLike<number>, sampleRate: number): S
   if (edges >= 3 && last > second) reading.hertz = ((edges - 2) / (last - second)) * sampleRate;
   else if (edges === 2 && last > first) reading.hertz = (1 / (last - first)) * sampleRate;
   return reading;
+}
+
+/** Where a recorded trace rises through `level`, in samples, each placed between two samples. A cycle counts once it has also been below `rearm`. */
+export function risings(samples: ArrayLike<number>, level: number, rearm: number): number[] {
+  const at: number[] = [];
+  let high = samples[0] > level;
+  for (let i = 1; i < samples.length; i++) {
+    const v = samples[i];
+    if (!high && v > level) {
+      high = true;
+      const before = samples[i - 1];
+      at.push(before < level ? i - 1 + (level - before) / (v - before) : i);
+    } else if (high && v < rearm) {
+      high = false;
+    }
+  }
+  return at;
+}
+
+/**
+ * How large each harmonic of a recorded wave is: the size (peak, in the
+ * trace's own units) of the pure tone at `hertz`, at twice that, three times
+ * and so on, `count` of them. A square wave swinging ±0.5 reads 0.64, 0,
+ * 0.21, 0, 0.13: it has only the odd ones. Read over a whole number of cycles.
+ */
+export function harmonics(samples: ArrayLike<number>, sampleRate: number, hertz: number, count: number): number[] {
+  const period = sampleRate / hertz;
+  const cycles = Math.floor(samples.length / period);
+  if (!(hertz > 0) || cycles < 1) return new Array(count).fill(0);
+  // The last whole cycles: the start of a trace may still be settling
+  const length = Math.round(cycles * period);
+  const start = samples.length - length;
+  let mean = 0;
+  for (let i = 0; i < length; i++) mean += samples[start + i];
+  mean /= length;
+  const sizes: number[] = [];
+  for (let k = 1; k <= count; k++) {
+    const step = (2 * Math.PI * k * hertz) / sampleRate;
+    let re = 0, im = 0;
+    for (let i = 0; i < length; i++) {
+      const v = samples[start + i] - mean;
+      re += v * Math.cos(step * i);
+      im += v * Math.sin(step * i);
+    }
+    sizes.push((2 * Math.hypot(re, im)) / length);
+  }
+  return sizes;
+}
+
+/**
+ * The part of the time a recorded wave spends in the upper half of its swing:
+ * 0.5 for a square wave, null for a steady level. It is read over whole
+ * cycles when the trace holds any, so a slow blink is not thrown off by where
+ * the trace happens to begin and end. `minSwing` as for `measureSignal`.
+ */
+export function dutyCycle(samples: ArrayLike<number>, minSwing = MIN_SWING): number | null {
+  let min = Infinity, max = -Infinity;
+  for (let i = 0; i < samples.length; i++) {
+    if (samples[i] < min) min = samples[i];
+    if (samples[i] > max) max = samples[i];
+  }
+  const swing = max - min;
+  if (!(swing >= minSwing)) return null;
+  const middle = (min + max) / 2;
+  const edges = risings(samples, middle + swing * HYSTERESIS, middle - swing * HYSTERESIS);
+  const from = edges.length >= 2 ? Math.ceil(edges[0]) : 0;
+  const to = edges.length >= 2 ? Math.ceil(edges[edges.length - 1]) : samples.length;
+  let high = 0;
+  for (let i = from; i < to; i++) if (samples[i] > middle) high++;
+  return high / (to - from);
+}
+
+/** A tone that comes in bursts: a beeper, a gated oscillator. */
+export interface BurstReading {
+  /** Bursts a second. */
+  perSecond: number;
+  /** The pitch of the tone inside a burst. */
+  hertz: number;
+  /** The part of the time it sounds. */
+  on: number;
+}
+
+/**
+ * Reads a recorded tone that is switched on and off: how often, at what
+ * pitch, and for how much of the time. Null for a steady tone, for silence,
+ * and for a trace too short to hold two whole bursts.
+ */
+export function measureBursts(samples: ArrayLike<number>, sampleRate: number): BurstReading | null {
+  const whole = measureSignal(samples, sampleRate);
+  const swing = whole.max - whole.min;
+  if (!(swing >= MIN_SWING)) return null;
+  const middle = (whole.min + whole.max) / 2;
+  const edges = risings(samples, middle + swing * HYSTERESIS, middle - swing * HYSTERESIS);
+  if (edges.length < 4) return null;
+  const gaps = edges.slice(1).map((at, i) => at - edges[i]);
+  const period = [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)];
+  // A silence is a gap several cycles long: the edge after one starts a burst
+  const SILENCE = 3;
+  const starts: number[] = [];
+  for (let i = 0; i < gaps.length; i++) if (gaps[i] > period * SILENCE) starts.push(edges[i + 1]);
+  if (starts.length < 2) return null;
+  // Only the whole bursts, from the first start to the last, are counted
+  const first = starts[0], last = starts[starts.length - 1];
+  let sounding = 0;
+  for (let i = 0; i < gaps.length; i++) {
+    if (edges[i] < first || edges[i + 1] > last) continue;
+    // The cycle that ends a burst is as long as the others, then the silence
+    sounding += gaps[i] > period * SILENCE ? period : gaps[i];
+  }
+  return {
+    perSecond: ((starts.length - 1) / (last - first)) * sampleRate,
+    hertz: sampleRate / period,
+    on: Math.min(1, sounding / (last - first)),
+  };
 }
 
 /** How many reporting periods the swing is judged over: long enough to hold both halves of a slow blink. */

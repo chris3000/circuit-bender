@@ -1,8 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useCircuit } from '@/context/CircuitContext';
 import { useReplaceCircuit } from '@/views/ReplaceGuard';
-import { Circuit } from '@/models/Circuit';
-import { classById, classCircuitName } from '@/classes';
+import { classById, classStart } from '@/classes';
 import type { ClassDefinition } from '@/classes/types';
 import { NEW_CLASS, readProgress, writeProgress, type ClassProgress, type Progress } from '@/classes/progress';
 
@@ -10,7 +9,7 @@ export interface ClassesValue {
   progress: Progress;
   /** The class in the panel, if one is. */
   open: ClassDefinition | undefined;
-  /** Begin a class from the beginning, on an empty canvas (unsaved work is asked about first). */
+  /** Begin a class from the beginning, with what it starts from on the canvas (unsaved work is asked about first). */
   start: (definition: ClassDefinition) => void;
   /** Open the panel on a class that was begun before, where it was left. */
   resume: (definition: ClassDefinition) => void;
@@ -33,13 +32,14 @@ export function ClassesProvider({ children }: { children: ReactNode }) {
   const [progress, setProgress] = useState<Progress>(readProgress);
   useEffect(() => writeProgress(progress), [progress]);
 
-  // A class begins once its empty canvas is there: the person may be asked
+  // A class begins once its own circuit is there: the person may be asked
   // about unsaved work first, and may say no
   const waiting = useRef<{ classId: string; circuitId: string } | null>(null);
   const start = useCallback((definition: ClassDefinition) => {
-    const fresh = new Circuit(classCircuitName(definition));
+    const fresh = classStart(definition);
     waiting.current = { classId: definition.id, circuitId: fresh.id };
-    replaceCircuit(fresh);
+    // What a class starts from is not a copy of anything the learner has kept
+    replaceCircuit(fresh, { unsaved: fresh.getComponents().length > 0 });
   }, [replaceCircuit]);
   useEffect(() => {
     const begun = waiting.current;

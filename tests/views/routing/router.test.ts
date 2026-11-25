@@ -19,6 +19,8 @@ import { ledDefinition } from '@/components/definitions/LED';
 import { switchDefinition } from '@/components/definitions/Switch';
 import { junctionDefinition } from '@/components/definitions/Junction';
 import { exampleCircuits } from '@/examples/circuits';
+import { CLASSES } from '@/classes';
+import { PART_EXAMPLES, partExampleFor } from '@/examples/parts';
 import { ALL_PARTS } from '../allParts';
 import { createComponentFromDefinition } from '@/utils/componentFactory';
 import type { Component, Connection } from '@/types/circuit';
@@ -341,4 +343,68 @@ describe('routing the example circuits', () => {
     expect(crossings.size).toBeLessThanOrEqual(12);
     expect(length([...routes.values()].flatMap(r => r.points))).toBeGreaterThan(0);
   });
+});
+
+/** The solid boxes of two parts that lie on each other. */
+function partsOnParts(components: Component[], viewMode: ViewMode): string[] {
+  const boxes = components.flatMap((c) => {
+    const box = componentObstacles(c, c.position, viewMode).find((o) => !o.soft);
+    return box ? [{ id: `${c.type} at ${c.position.x},${c.position.y}`, box }] : [];
+  });
+  const on: string[] = [];
+  for (let i = 0; i < boxes.length; i++) {
+    for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i].box, b = boxes[j].box;
+      // A box has the room round the symbol in it: parts may stand close, but not on each other
+      const room = 10;
+      if (a.x + room < b.x + b.width && b.x + room < a.x + a.width && a.y + room < b.y + b.height && b.y + room < a.y + a.height) on.push(`${boxes[i].id} on ${boxes[j].id}`);
+    }
+  }
+  return on;
+}
+
+
+describe('routing the circuits of the classes', () => {
+  for (const lesson of CLASSES) {
+    const circuits = [
+      ...(lesson.start ? [{ name: 'what it starts from', build: lesson.start }] : []),
+      ...(lesson.stages ?? []).map((stage) => ({ name: `the build up to "${stage.upTo}"`, build: stage.circuit })),
+      { name: 'the finished circuit', build: lesson.circuit },
+    ];
+    for (const { name, build } of circuits) {
+      it(`class ${lesson.number}, ${name}: no part on another, every wire reaches its pins clear of parts and of other nets`, () => {
+        const { components, connections } = build();
+        for (const viewMode of ['schematic', 'board'] as ViewMode[]) {
+          expect(partsOnParts(components, viewMode)).toEqual([]);
+          const { routes, through, overlaps, detached } = checkCircuit(components, connections, viewMode);
+          expect(routes.size).toBe(connections.length);
+          expect(detached).toEqual([]);
+          expect(through).toEqual([]);
+          expect(overlaps).toEqual([]);
+        }
+      });
+    }
+  }
+});
+
+describe('routing the examples of the parts', () => {
+  for (const example of PART_EXAMPLES) {
+    it(`${example.id}: no part on another, every wire reaches its pins clear of parts and of other nets`, () => {
+      // A part that comes in values: the ends of what the example is for (the names on it change with the value)
+      const spec = ALL_PARTS.find((d) => d.type === example.part)!;
+      const stock = spec.value ? (spec.shelf?.stock ?? []).filter((value) =>
+        partExampleFor(spec, { [spec.value!.parameter]: value })?.example.id === example.id) : [];
+      for (const value of stock.length > 0 ? [stock[0], stock[stock.length - 1]] : [undefined]) {
+        const { components, connections } = example.build(value);
+        for (const viewMode of ['schematic', 'board'] as ViewMode[]) {
+          expect(partsOnParts(components, viewMode)).toEqual([]);
+          const { routes, through, overlaps, detached } = checkCircuit(components, connections, viewMode);
+          expect(routes.size).toBe(connections.length);
+          expect(detached).toEqual([]);
+          expect(through).toEqual([]);
+          expect(overlaps).toEqual([]);
+        }
+      }
+    });
+  }
 });

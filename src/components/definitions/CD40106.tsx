@@ -8,7 +8,7 @@ export const cd40106Definition: ComponentDefinition = {
   metadata: {
     name: 'CD40106',
     category: 'ic',
-    description: 'Hex Schmitt Trigger Inverter - 6 inverting gates with hysteresis',
+    description: 'Six inverters that change over at one level on the way up and a lower one on the way down (Schmitt triggers). One gate, a resistor and a capacitor make an oscillator',
   },
   pins: [
     // 6 inputs (left side): pin_0 through pin_5

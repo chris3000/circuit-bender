@@ -131,10 +131,9 @@ describe('searching', () => {
   });
 
   it('finds every value of a part by its name', () => {
-    // every resistor, and then the pots, which are "variable resistors", the light-dependent one,
-    // and the two parts that are described by the resistor they need or are (the CD4049, the JFET)
+    // every resistor, and then the pots, which are variable resistors, and the light-dependent one
     expect(find('resistor').slice(0, 73).every((k) => k.startsWith('resistor@'))).toBe(true);
-    expect(find('resistor')).toHaveLength(73 + 8 + 1 + 2);
+    expect(find('resistor')).toHaveLength(73 + 8 + 1);
     expect(find('pot')).toHaveLength(8);
     expect(find('cap')).toHaveLength(49);
   });

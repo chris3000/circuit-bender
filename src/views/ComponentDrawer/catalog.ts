@@ -130,7 +130,8 @@ function wordsOf(item: ShelfItem): string[] {
   const { definition } = item;
   const text = [
     item.title, definition.type, definition.metadata.name, shelfName(definition),
-    definition.shelf?.caption ?? '', definition.metadata.description,
+    definition.shelf?.caption ?? '',
+    // Not the description: it is a sentence or two about what the part does, and names other parts
     categoryLabel(definition.metadata.category), ...(definition.shelf?.keywords ?? []),
   ].join(' ').toLowerCase();
   return text.split(/[^a-z0-9.µω]+/).filter(Boolean);

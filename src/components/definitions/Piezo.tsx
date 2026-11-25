@@ -21,7 +21,7 @@ export const piezoDefinition: ComponentDefinition = {
   defaultParameters: { tap: 0 },
   shelf: {
     title: 'Piezo disc', caption: 'Contact mic', art: piezoArt, alike: ['sound out'],
-    keywords: ['piezo', 'contact', 'microphone', 'mic', 'mike', 'disc', 'disk', 'buzzer', 'sounder', 'trigger', 'drum', 'knock', 'tap'],
+    keywords: ['piezo', 'contact', 'microphone', 'mic', 'mike', 'disc', 'disk', 'buzzer', 'sounder', 'speaker', 'trigger', 'drum', 'knock', 'tap'],
   },
   control: { kind: 'hold', parameter: 'tap', name: 'Tap' },
   cover: { control: 'button', parameter: 'tap', name: 'TAP' },

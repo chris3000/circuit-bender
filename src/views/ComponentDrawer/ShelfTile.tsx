@@ -2,6 +2,7 @@ import { memo, useCallback, useMemo } from 'react';
 import type { ComponentDefinition, ComponentParameters } from '@/types/circuit';
 import { shelfName, type ShelfItem } from './catalog';
 import { endPartDrag, writePartDrag } from './dragData';
+import { ASKS_ABOUT_PART } from '@/views/PartExamples/asks';
 import styles from './ComponentDrawer.module.css';
 
 /** The part's picture: its own drawing, or failing that its board symbol fitted to the same box. */
@@ -32,6 +33,8 @@ interface ShelfTileProps {
   unfit?: string;
   /** With `onPick`, among tiles of different parts: a value is shown under the name of what it is a value of. */
   named?: boolean;
+  /** The tile was clicked, not dragged: the person wants to know what the part does. */
+  onAbout?: (item: ShelfItem, tile: HTMLElement) => void;
 }
 
 /**
@@ -39,7 +42,7 @@ interface ShelfTileProps {
  * part (4.7 kΩ) takes one column; a part that stands alone takes two, with
  * room for a word about what it is.
  */
-export const ShelfTile = memo(function ShelfTile({ item, onUsed, compact = false, onPick, unfit, named = false }: ShelfTileProps) {
+export const ShelfTile = memo(function ShelfTile({ item, onUsed, compact = false, onPick, unfit, named = false, onAbout }: ShelfTileProps) {
   const { definition } = item;
   const isValue = item.value !== undefined;
   const parameters = useMemo(
@@ -92,11 +95,17 @@ export const ShelfTile = memo(function ShelfTile({ item, onUsed, compact = false
       className={`${styles.tile} ${isValue ? '' : styles.wide} ${item.custom ? styles.custom : ''}`}
       role="listitem"
       aria-label={name}
-      title={`${name} — ${about}. Drag onto the canvas.`}
+      title={`${name}${item.custom ? ', not a stock value, made to order' : ''}: drag it onto the canvas. Click to see what it does.`}
       data-testid={`shelf-item-${item.key}`}
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
+      {...(onAbout ? {
+        [ASKS_ABOUT_PART]: '',
+        tabIndex: 0,
+        onClick: (e: React.MouseEvent<HTMLDivElement>) => onAbout(item, e.currentTarget),
+        onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => { if (e.key === 'Enter') { e.preventDefault(); onAbout(item, e.currentTarget); } },
+      } : {})}
     >
       <span className={styles.art} data-picture><PartPicture definition={definition} parameters={parameters} /></span>
       <span className={styles.title}>{item.title}</span>

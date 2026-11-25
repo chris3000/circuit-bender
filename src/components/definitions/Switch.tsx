@@ -8,7 +8,7 @@ export const switchDefinition: ComponentDefinition = {
   metadata: {
     name: 'Switch',
     category: 'control',
-    description: 'SPST toggle switch — click to open/close',
+    description: 'A toggle switch: a gap in the wire that stays open or closed. Click it to flip it',
   },
   pins: [
     { id: generatePinId('switch', 0), label: '1', type: 'bidirectional', position: { x: -25, y: 0 } },

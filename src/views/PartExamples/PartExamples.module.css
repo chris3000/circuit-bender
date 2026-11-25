@@ -1,0 +1,200 @@
+/* Beside the part that was asked about: what it does, and its example */
+.card {
+  position: fixed;
+  z-index: 1500;
+  width: 340px;
+  max-height: calc(100vh - 16px);
+  box-sizing: border-box;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #F5F5F5;
+  border: 1px solid #DDD;
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.22);
+  font-family: 'Courier New', Courier, monospace;
+  color: #222;
+  overflow-y: auto;
+  outline: none;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.picture {
+  flex: none;
+  width: 60px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border: 1.5px solid #E0E0E0;
+  border-radius: 8px;
+}
+
+.picture svg {
+  width: 48px;
+  height: 24px;
+}
+
+.heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.kind {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #FF2D55;
+}
+
+.title {
+  margin-top: 1px;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.close {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: #EBEBEB;
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1;
+  color: #666;
+  cursor: pointer;
+}
+
+.close:hover {
+  background: #FF2D55;
+  color: white;
+}
+
+.text {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #888;
+}
+
+.label b {
+  color: #222;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+/* The example's circuit, drawn as the canvas draws it */
+.drawing {
+  height: 200px;
+  padding: 4px;
+  background: white;
+  background-image: radial-gradient(#E4E4E4 1px, transparent 1px);
+  background-size: 12px 12px;
+  border: 1.5px solid #E0E0E0;
+  border-radius: 8px;
+}
+
+.open {
+  padding: 8px 12px;
+  background: #FF2D55;
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  color: white;
+  cursor: pointer;
+}
+
+.open:hover {
+  background: #E0264B;
+}
+
+.open:focus-visible,
+.close:focus-visible {
+  outline: 2px solid #222;
+  outline-offset: 1px;
+}
+
+.hint {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.4;
+  color: #888;
+}
+
+/* Above the canvas, with the example it belongs to */
+.note {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 9px 12px 9px 14px;
+  background: #FFF0F3;
+  border-bottom: 1px solid #FFD0DA;
+  font-family: 'Courier New', Courier, monospace;
+  color: #222;
+}
+
+.noteKind {
+  flex: none;
+  padding-top: 2px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #FF2D55;
+}
+
+.noteText {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.noteText b {
+  margin-right: 8px;
+}
+
+.noteClose {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: white;
+  border: 1px solid #FFD0DA;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1;
+  color: #888;
+  cursor: pointer;
+}
+
+.noteClose:hover {
+  background: #FF2D55;
+  border-color: #FF2D55;
+  color: white;
+}

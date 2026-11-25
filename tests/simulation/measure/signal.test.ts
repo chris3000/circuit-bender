@@ -3,7 +3,7 @@
  * repeats, from a whole trace (measureSignal) or as it arrives (SignalMeter).
  */
 import { describe, it, expect } from 'vitest';
-import { measureSignal, SignalMeter } from '@/simulation/measure/signal';
+import { dutyCycle, harmonics, measureBursts, measureSignal, SignalMeter } from '@/simulation/measure/signal';
 
 const RATE = 48000;
 const square = (hertz: number, seconds: number, low = 0, high = 9) =>
@@ -98,5 +98,65 @@ describe('SignalMeter', () => {
     m.add(3);
     m.read();
     expect(m.read()).toMatchObject({ mean: 3, min: 3, max: 3 });
+  });
+});
+
+describe('harmonics', () => {
+  it('finds only the odd ones in a square wave, at 0.64, 0.21 and 0.13 of a swing of 1', () => {
+    const sizes = harmonics(square(440, 0.5, -0.5, 0.5), RATE, 440, 5);
+    expect(sizes[0]).toBeCloseTo(0.637, 2);
+    expect(sizes[2]).toBeCloseTo(0.212, 2);
+    expect(sizes[4]).toBeCloseTo(0.127, 2);
+    expect(sizes[1]).toBeLessThan(0.01);
+    expect(sizes[3]).toBeLessThan(0.01);
+  });
+
+  it('finds one in a pure tone, whatever level it stands on', () => {
+    const sizes = harmonics(sine(330, 0.5, 2, 4.5), RATE, 330, 4);
+    expect(sizes[0]).toBeCloseTo(2, 2);
+    for (const size of sizes.slice(1)) expect(size).toBeLessThan(0.01);
+  });
+
+  it('reads nothing from a trace shorter than one cycle', () => {
+    expect(harmonics(sine(10, 0.05), RATE, 10, 3)).toEqual([0, 0, 0]);
+    expect(harmonics(sine(440, 0.5), RATE, 0, 2)).toEqual([0, 0]);
+  });
+});
+
+describe('dutyCycle', () => {
+  it('is a half for a square wave and the part of the time a pulse is up', () => {
+    expect(dutyCycle(square(100, 0.5))).toBeCloseTo(0.5, 2);
+    const pulse = Float32Array.from({ length: RATE / 2 }, (_, i) => (((i * 100) / RATE) % 1 < 0.1 ? 9 : 0));
+    expect(dutyCycle(pulse)).toBeCloseTo(0.1, 2);
+  });
+
+  it('has nothing to say about a steady level', () => {
+    expect(dutyCycle(new Float32Array(100).fill(4.5))).toBeNull();
+  });
+});
+
+describe('measureBursts', () => {
+  /** A square tone switched on for `on` of each cycle of `rate` a second. */
+  const beeps = (tone: number, rate: number, on: number, seconds: number) =>
+    Float32Array.from({ length: Math.round(seconds * RATE) }, (_, i) =>
+      (((i * rate) / RATE) % 1 < on && ((i * tone) / RATE) % 1 < 0.5 ? 9 : 0));
+
+  it('reads how often a tone comes, its pitch, and how much of the time it sounds', () => {
+    const reading = measureBursts(beeps(1000, 2, 0.5, 3), RATE)!;
+    expect(reading.perSecond).toBeCloseTo(2, 1);
+    expect(reading.hertz).toBeCloseTo(1000, -1);
+    expect(reading.on).toBeCloseTo(0.5, 1);
+  });
+
+  it('reads short beeps as short', () => {
+    const reading = measureBursts(beeps(800, 4, 0.25, 2), RATE)!;
+    expect(reading.perSecond).toBeCloseTo(4, 1);
+    expect(reading.on).toBeCloseTo(0.25, 1);
+  });
+
+  it('is null for a steady tone, for silence, and for less than two whole bursts', () => {
+    expect(measureBursts(square(440, 1), RATE)).toBeNull();
+    expect(measureBursts(new Float32Array(RATE), RATE)).toBeNull();
+    expect(measureBursts(beeps(1000, 2, 0.5, 0.6), RATE)).toBeNull();
   });
 });

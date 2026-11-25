@@ -62,18 +62,17 @@ const setResistor = (ohms: number) => act(() => canvas.updateComponent(only('res
 }));
 
 describe('the classes menu', () => {
-  it('lists the whole course, with the classes that are not built yet marked so', () => {
+  it('lists the whole course, every class ready to start', () => {
     render(<App />);
     expect(screen.queryByRole('menu')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /Classes/ }));
     const items = screen.getAllByRole('menuitem');
     expect(items).toHaveLength(14);
     expect(items[0]).toHaveTextContent('The loop');
-    expect(items[0]).toHaveTextContent('START');
-    expect(items[0]).toBeEnabled();
-    for (const item of items.slice(1)) {
-      expect(item).toBeDisabled();
-      expect(item).toHaveTextContent('SOON');
+    expect(items[13]).toHaveTextContent('Bending, and the Weird Sound Generator');
+    for (const item of items) {
+      expect(item).toBeEnabled();
+      expect(item).toHaveTextContent('START');
     }
   });
 
@@ -87,6 +86,19 @@ describe('the classes menu', () => {
     expect(canvas.circuit.name).toBe('Class 1: The loop');
     expect(canvas.circuit.getComponents()).toHaveLength(0);
     expect(readProgress().open).toBe('the-loop');
+  });
+
+  it('starts a class that follows on from another with that circuit on the canvas, as work not yet saved', () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /Classes/ }));
+    fireEvent.click(screen.getByTestId('class-3'));
+    expect(screen.getByTestId('class-panel')).toHaveTextContent('Storing charge');
+    expect(canvas.circuit.name).toBe('Class 3: Storing charge');
+    // The light class 1 keeps, with its switch named
+    expect(only('switch').label).toBe('LIGHT');
+    expect(only('led')).toBeDefined();
+    expect(canvas.isDirty).toBe(true);
+    expect(done()).toEqual([]);
   });
 
   it('asks before a class takes the place of unsaved work, and does not start if the answer is no', () => {
@@ -164,6 +176,25 @@ describe('building', () => {
     expect(screen.getByTestId('class-tab-build')).toHaveAttribute('data-done');
     expect(screen.getByTestId('class-section-build')).toHaveTextContent('It works. Now for why.');
     expect(screen.queryByText(/^Stuck\?/)).toBeNull();
+  });
+
+  it('in a class that builds several things, "Stuck?" gives the one being worked on', () => {
+    render(<App playing />);
+    fireEvent.click(screen.getByRole('button', { name: /Classes/ }));
+    fireEvent.click(screen.getByTestId('class-2'));
+    fireEvent.click(screen.getByText('Stuck? Put this part of the build on the canvas, finished.'));
+    // The divider alone: the knob and the photocell come later
+    expect(canvas.circuit.getComponents().filter((c) => c.type === 'resistor')).toHaveLength(2);
+    expect(only('potentiometer')).toBeUndefined();
+    const first = done();
+    expect(first.length).toBeGreaterThan(0);
+    // With that part done, the same button gives the next
+    for (const wire of canvas.circuit.getConnections()) act(() => canvas.setSelection([], [wire.id]));
+    fireEvent.click(screen.getByText('Stuck? Put this part of the build on the canvas, finished.'));
+    // What is on the canvas was never saved, so it is asked about first
+    fireEvent.click(screen.getByRole('button', { name: 'Discard and open' }));
+    expect(only('potentiometer')).toBeDefined();
+    expect(done().length).toBeGreaterThan(first.length);
   });
 
   it('start over empties the canvas and the list', () => {
@@ -263,6 +294,29 @@ describe('the check', () => {
     expect(screen.getByTestId('class-1')).toHaveTextContent('DONE');
   });
 
+  it('looks at once when a control starts to be worked, then waits for it to rest', async () => {
+    begun({ playing: true });
+    tab('check');
+    const turn = (ohms: number) => act(() => canvas.updateComponent(only('resistor').id, {
+      parameters: { ...only('resistor').parameters, resistance: ohms, value: formatValue(ohms, 'resistance') },
+    }, { record: false }));
+    // The first movement is seen as it happens: a button pressed is seen while it is held
+    act(() => canvas.updateComponent(only('switch').id, { parameters: { ...only('switch').parameters, closed: 1 } }, { record: false }));
+    expect(screen.getByTestId('class-reading')).toHaveTextContent('Your LED: 14.5 mA');
+    // A knob on its way round is not measured at every place it passes
+    turn(1000);
+    turn(2200);
+    turn(3300);
+    expect(screen.getByTestId('class-reading')).toHaveTextContent('Your LED: 14.5 mA');
+    expect(screen.queryByTestId('class-finished')).toBeNull();
+    await act(() => new Promise((resolve) => setTimeout(resolve, 260)));
+    expect(screen.getByTestId('class-reading')).toHaveTextContent('Your LED: 2.12 mA');
+    expect(screen.getByTestId('class-finished')).toBeInTheDocument();
+    // An edit that is a step of its own is looked at straight away
+    setResistor(470);
+    expect(screen.getByTestId('class-reading')).toHaveTextContent('Your LED: 14.5 mA');
+  });
+
   it('does not count a right value met on the way there', () => {
     begun({ playing: true });
     closeSwitch();
@@ -293,6 +347,6 @@ describe('keeping it', () => {
     expect(done()).toEqual(['name', 'cover']);
     act(() => canvas.markSaved(canvas.circuit));
     expect(done()).toEqual(['name', 'cover', 'save']);
-    expect(screen.getByTestId('class-section-keep')).toHaveTextContent('Class 2, Sharing voltage, comes next. It is not built yet.');
+    expect(screen.getByTestId('class-section-keep')).toHaveTextContent('Class 2, Sharing voltage, is next: it is in the Classes menu.');
   });
 });

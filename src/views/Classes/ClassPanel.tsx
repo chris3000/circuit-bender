@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { Circuit } from '@/models/Circuit';
 import { useCircuit } from '@/context/CircuitContext';
 import { useReplaceCircuit } from '@/views/ReplaceGuard';
-import { classById, classCircuit } from '@/classes';
+import { classById, classStage } from '@/classes';
 import { SYLLABUS } from '@/classes/syllabus';
 import { SECTIONS, type ClassDefinition, type Experiment, type Step } from '@/classes/types';
 import { Work, type Situation } from '@/classes/Work';
@@ -14,6 +15,12 @@ interface ClassPanelProps {
   /** Whether the circuit is running, and which view is showing: steps ask. */
   playing: boolean;
   view: ActiveView;
+  /** The pins the scope has probes on. */
+  probes?: Situation['probes'];
+  /** The sound is close to breaking up. */
+  strained?: boolean;
+  /** The jumper the bend tool is holding, while it holds one. */
+  bend?: Situation['bend'];
 }
 
 /** A question asked of a half-built circuit must never take the panel down with it. */
@@ -26,14 +33,15 @@ function ask<T>(question: () => T, otherwise: T): T {
  * what to try, the check that finishes it, and what to keep. It watches the
  * learner's own circuit and ticks things off as they are done.
  */
-export function ClassPanel({ playing, view }: ClassPanelProps) {
+export function ClassPanel({ playing, view, probes, strained, bend }: ClassPanelProps) {
   const { open: definition, progress, update, close, start } = useClasses();
-  const { circuit, isDirty, selectedComponents } = useCircuit();
+  const { circuit: latest, adjusting, isDirty, selectedComponents, selectedConnections } = useCircuit();
+  const circuit = useSettled(latest, adjusting);
   const replaceCircuit = useReplaceCircuit();
 
   const situation = useMemo<Situation>(
-    () => ({ playing, saved: !isDirty, view, selected: selectedComponents }),
-    [playing, isDirty, view, selectedComponents],
+    () => ({ playing, saved: !isDirty, view, selected: selectedComponents, wires: selectedConnections, probes, strained, bend }),
+    [playing, isDirty, view, selectedComponents, selectedConnections, probes, strained, bend],
   );
   const work = useMemo(() => new Work(circuit, situation), [circuit, situation]);
   const record = definition ? progress.classes[definition.id] : undefined;
@@ -105,8 +113,10 @@ export function ClassPanel({ playing, view }: ClassPanelProps) {
             {complete.build
               ? <p className={styles.result}>It works. Now for why.</p>
               : (
-                <button className={styles.link} onClick={() => replaceCircuit(classCircuit(definition), { unsaved: true })}>
-                  Stuck? Put the finished circuit on the canvas.
+                <button className={styles.link} onClick={() => replaceCircuit(classStage(definition, record.done), { unsaved: true })}>
+                  {definition.stages
+                    ? 'Stuck? Put this part of the build on the canvas, finished.'
+                    : 'Stuck? Put the finished circuit on the canvas.'}
                 </button>
               )}
           </>
@@ -165,7 +175,7 @@ export function ClassPanel({ playing, view }: ClassPanelProps) {
       <footer className={styles.foot}>
         {record.section > 0
           ? <button className={styles.step} onClick={() => go(record.section - 1)}>← {SECTIONS[record.section - 1].label}</button>
-          : <button className={styles.step} onClick={() => start(definition)} title="Empty the canvas and begin this class again">Start over</button>}
+          : <button className={styles.step} onClick={() => start(definition)} title="Put the canvas back as this class starts and begin again">Start over</button>}
         {record.section < SECTIONS.length - 1 && (
           <button className={`${styles.step} ${styles.next}`} data-testid="class-next" onClick={() => go(record.section + 1)}>
             {SECTIONS[record.section + 1].label} →
@@ -174,6 +184,36 @@ export function ClassPanel({ playing, view }: ClassPanelProps) {
       </footer>
     </aside>
   );
+}
+
+/** How long a control has to rest before the panel looks at the circuit again. */
+const SETTLE_MS = 200;
+
+/**
+ * The circuit the panel measures. Measuring can take a tenth of a second,
+ * and a knob being turned makes a new circuit with every movement, so while
+ * a control is being worked the panel looks at once when the working begins
+ * (a button pressed is seen while it is held) and then not again until the
+ * control has rested a moment. Every other edit is looked at as it is made.
+ */
+function useSettled(circuit: Circuit, adjusting: boolean): Circuit {
+  const [seen, setSeen] = useState(circuit);
+  const changed = useRef(0);
+  useEffect(() => {
+    if (!adjusting) {
+      setSeen(circuit); // kept in step, so that nothing old is looked at when the next control is worked
+      return undefined;
+    }
+    const quiet = performance.now() - changed.current >= SETTLE_MS;
+    changed.current = performance.now();
+    if (quiet) {
+      setSeen(circuit);
+      return undefined;
+    }
+    const timer = setTimeout(() => setSeen(circuit), SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [circuit, adjusting]);
+  return adjusting ? seen : circuit;
 }
 
 /** What comes after a class, in a sentence. */

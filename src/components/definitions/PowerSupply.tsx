@@ -11,7 +11,7 @@ export const powerSupplyDefinition: ComponentDefinition = {
   metadata: {
     name: 'Power Supply',
     category: 'power',
-    description: 'DC voltage source (default +9V), with a starve knob that chokes it',
+    description: 'The battery: 9 V from its − to its +, unless you set another voltage. Its starve knob chokes it, as a dying battery does',
   },
   pins: [
     {

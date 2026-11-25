@@ -9,7 +9,7 @@ export const resistorDefinition: ComponentDefinition = {
   metadata: {
     name: 'Resistor',
     category: 'passive',
-    description: 'Basic resistor - limits current flow',
+    description: 'Holds current back: the more ohms, the less gets through. It sets how bright an LED is, how fast a capacitor fills and how a voltage is shared out',
   },
   pins: [
     {

@@ -11,6 +11,8 @@ import type { Component, ComponentId, ComponentParameters, Connection, Connectio
 import type { MeterReading, MeterTarget } from '@/simulation/worklet/Instruments';
 import { OVERLOADED, useInstruments } from '@/views/Instruments';
 import { useReplacePart } from '@/views/ReplacePart/ReplacePartContext';
+import { usePartExamples } from '@/views/PartExamples/PartExamplesContext';
+import { ASKS_ABOUT_PART } from '@/views/PartExamples/asks';
 import { meterTargetOf, sameTarget } from '@/utils/meterTarget';
 import { formatAmps, formatHertz, formatRange, formatVolts } from '@/utils/readings';
 import styles from './Inspector.module.css';
@@ -143,6 +145,7 @@ export function Inspector({ viewMode, onDeleteComponents, onAddProbe }: Inspecto
           </div>
         </div>
       )}
+      {parts.length === 1 && wires.length === 0 && <AboutButton part={parts[0]} />}
       {parts.length === 1 && wires.length === 0 && parts[0].type !== 'junction' && (
         <button className={styles.button} style={{ flex: 'none' }} data-testid="inspector-replace"
           title="Swap this part for another, keeping its wires (or double-click the part)"
@@ -154,6 +157,25 @@ export function Inspector({ viewMode, onDeleteComponents, onAddProbe }: Inspecto
         Delete <span className={styles.key}>⌫</span>
       </button>
     </aside>
+  );
+}
+
+/** What the part does, and its example: the same card the shelf shows, beside the inspector. */
+function AboutButton({ part }: { part: Component }) {
+  const { ask } = usePartExamples();
+  const definition = ComponentRegistry.getInstance().get(part.type);
+  if (!definition) return null;
+  return (
+    <button className={styles.button} style={{ flex: 'none' }} data-testid="inspector-about" {...{ [ASKS_ABOUT_PART]: '' }}
+      title="What this part does, with a small circuit that shows it"
+      onClick={(e) => {
+        const box = e.currentTarget.getBoundingClientRect();
+        const panel = e.currentTarget.closest('aside')?.getBoundingClientRect() ?? box;
+        // No room to the right of the inspector: the card goes to its left
+        ask({ definition, parameters: part.parameters, at: { x: window.innerWidth, left: panel.left, y: box.top + box.height / 2 } });
+      }}>
+      What it does
+    </button>
   );
 }
 

@@ -10,7 +10,7 @@ export const capacitorDefinition: ComponentDefinition = {
   metadata: {
     name: 'Capacitor',
     category: 'passive',
-    description: 'Stores electrical charge, blocks DC current',
+    description: 'Stores a little charge, and takes time to fill and to empty. It sets the timing of oscillators and filters, and lets a changing signal through while stopping a steady voltage',
   },
   pins: [
     {

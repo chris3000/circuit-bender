@@ -8,7 +8,7 @@ export const ledDefinition: ComponentDefinition = {
   metadata: {
     name: 'LED',
     category: 'active',
-    description: 'Light-emitting diode - emits light when forward biased',
+    description: 'A diode that lights when current runs through it from A to K. It always wants a resistor in line with it, to keep that current small',
   },
   pins: [
     {

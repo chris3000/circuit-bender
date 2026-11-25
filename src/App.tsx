@@ -27,6 +27,8 @@ import { ClassesProvider } from './views/Classes/ClassesContext';
 import { ClassesMenu } from './views/Classes/ClassesMenu';
 import { ClassPanel } from './views/Classes/ClassPanel';
 import { ReplacePartProvider } from './views/ReplacePart/ReplacePartContext';
+import { PartExamplesProvider } from './views/PartExamples/PartExamplesContext';
+import { ExampleNote, PartCard } from './views/PartExamples/PartCard';
 
 export function AppContent() {
   const { circuit, isDirty, selectedComponents, selectedConnections } = useCircuit();
@@ -56,6 +58,8 @@ export function AppContent() {
     return () => { loadListeners.current.delete(listener); };
   }, []);
   const [overload, setOverload] = useState<OverloadCause | null>(null);
+  // Little room to spare, or none: a class that asks for a circuit the computer can play wants to know
+  const [strained, setStrained] = useState(false);
   // How brightly each LED is lit (0 to 1), and which parts are being overdriven
   const [lights, setLights] = useState<Record<string, number>>({});
   const [overloaded, setOverloaded] = useState<ReadonlySet<string>>(() => new Set());
@@ -120,6 +124,7 @@ export function AppContent() {
       const status = loadWatch.current.add(report);
       for (const listener of loadListeners.current) listener(status);
       setOverload(status.cause);
+      setStrained(status.level !== 'ok');
     });
     return () => { audioEngine.close(); };
   }, []);
@@ -169,8 +174,10 @@ export function AppContent() {
   }, []);
 
   // A jumper held on the canvas goes straight to the running simulation: it is not part of the circuit
-  const handleBend = useCallback((bend: Bend | null) => {
-    audioEngineRef.current?.setBend(bend);
+  const [bend, setBend] = useState<Bend | null>(null);
+  const handleBend = useCallback((held: Bend | null) => {
+    audioEngineRef.current?.setBend(held);
+    setBend(held);
   }, []);
 
   const handleRemoveProbe = useCallback((index: number) => {
@@ -218,6 +225,7 @@ export function AppContent() {
     audioEngineRef.current?.suspend();
     setAudioStarted(false);
     setOverload(null);
+    setStrained(false);
     // Nothing is lit and nothing is strained in a circuit that is not running
     setLights({});
     setOverloaded(new Set());
@@ -284,7 +292,10 @@ export function AppContent() {
       </header>
       <main className="app-main" style={{ position: 'relative' }}>
         <ComponentDrawer />
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', position: 'relative' }}>
+        {/* The words of an example lie above the canvas, not on it: nothing of the circuit is hidden */}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <ExampleNote />
+        <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', position: 'relative' }}>
           {noticeKey !== dismissedNotice && (
             <PlayNotice error={startError} warnings={warnings} overload={overload}
               onDismiss={() => { setDismissedNotice(noticeKey); setStartError(null); }} />
@@ -304,7 +315,8 @@ export function AppContent() {
               lights={lights} playing={audioStarted} levels={levels} />
           )}
         </div>
-        <ClassPanel playing={audioStarted} view={activeView} />
+        </div>
+        <ClassPanel playing={audioStarted} view={activeView} probes={probes} strained={strained} bend={bend} />
       </main>
       <OscilloscopePanel
         onRegisterSampleCallback={useCallback((cb: (samples: Float32Array, probeData?: Float32Array[]) => void) => {
@@ -313,6 +325,7 @@ export function AppContent() {
         probes={probes}
         onRemoveProbe={handleRemoveProbe}
       />
+      <PartCard />
     </div>
     </InstrumentsContext.Provider>
   );
@@ -326,7 +339,9 @@ function App() {
       <ReplaceGuard>
         <ClassesProvider>
           <ReplacePartProvider>
-            <AppContent />
+            <PartExamplesProvider>
+              <AppContent />
+            </PartExamplesProvider>
           </ReplacePartProvider>
         </ClassesProvider>
       </ReplaceGuard>

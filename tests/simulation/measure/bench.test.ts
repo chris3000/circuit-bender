@@ -84,4 +84,28 @@ describe('runOnBench', () => {
     expect(run.volts(out.id, out.pins[0].id).hertz).toBeCloseTo(run.sound.hertz!, 0);
     expect(run.seconds).toBe(0.2);
   });
+
+  it('works a control part of the way through, and keeps the traces it was asked for', () => {
+    const supply = place('power', 0, 0), gnd = ground(0, 100);
+    const button = place('pushbutton', 100, 0), r = resistor(1000, 200, 0);
+    const parts = [supply, gnd, button, r];
+    const wires = [connect(supply, 1, gnd, 0), connect(supply, 0, button, 0), connect(button, 1, r, 0), connect(r, 1, gnd, 0)];
+    const run = bench(parts, wires, {
+      seconds: 0.03, sampleRate: 8000,
+      events: [{ at: 0.02, componentId: button.id, parameter: 'closed', value: 0 }, { at: 0.01, componentId: button.id, parameter: 'closed', value: 1 }],
+      watch: [{ componentId: r.id, pinId: r.pins[0].id }], watchAmps: [r.id],
+    });
+    expect(run.sampleRate).toBe(8000);
+    const volts = run.trace(r.id, r.pins[0].id)!, amps = run.ampsTrace(r.id)!;
+    expect(volts).toHaveLength(240);
+    expect(run.soundTrace).toHaveLength(240);
+    // Open, then held from 10 ms to 20 ms, then open again
+    expect(volts[40]).toBeCloseTo(0, 3);
+    expect(volts[120]).toBeCloseTo(9, 3);
+    expect(amps[120]).toBeCloseTo(0.009, 5);
+    expect(volts[200]).toBeCloseTo(0, 3);
+    expect(amps[200]).toBeCloseTo(0, 6);
+    expect(run.trace(r.id, r.pins[1].id)).toBeNull();
+    expect(run.ampsTrace(button.id)).toBeNull();
+  });
 });

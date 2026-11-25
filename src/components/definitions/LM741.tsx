@@ -8,7 +8,7 @@ export const lm741Definition: ComponentDefinition = {
   metadata: {
     name: 'LM741',
     category: 'ic',
-    description: 'General-purpose operational amplifier',
+    description: 'The classic op-amp: an amplifier with two inputs that drives its output whichever way brings them level. With two resistors round it, it amplifies by exactly as much as you choose',
   },
   pins: [
     // pin_0: Inverting input (-) — DIP pin 2

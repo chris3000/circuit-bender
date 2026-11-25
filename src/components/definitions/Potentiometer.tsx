@@ -8,7 +8,7 @@ export const potentiometerDefinition: ComponentDefinition = {
   metadata: {
     name: 'Potentiometer',
     category: 'control',
-    description: 'Variable resistor with adjustable wiper position',
+    description: 'A resistor with a contact that slides along it: the knob. Use two of its legs for a resistance that changes, or all three to share out a voltage',
   },
   pins: [
     {
@@ -38,7 +38,7 @@ export const potentiometerDefinition: ComponentDefinition = {
   value: { parameter: 'maxResistance', kind: 'resistance', label: 'Resistance', example: '100k' },
   through: [0, 1], // one end and the wiper: a variable resistor
   shelf: {
-    keywords: ['pot', 'knob', 'dial', 'variable', 'trimmer'],
+    keywords: ['pot', 'knob', 'dial', 'variable', 'resistor', 'trimmer'],
     alike: ['resistance'],
     art: potentiometerArt,
     stock: [1e3, 5e3, 10e3, 50e3, 100e3, 250e3, 500e3, 1e6],

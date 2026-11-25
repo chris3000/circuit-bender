@@ -7,7 +7,7 @@ export const junctionDefinition: ComponentDefinition = {
   metadata: {
     name: 'Junction',
     category: 'passive',
-    description: 'Wire junction — connects crossing wires electrically',
+    description: 'A dot that joins wires where they meet. Dropping a wire onto a wire puts one in',
   },
   pins: [
     { id: generatePinId('junction', 0), label: 'J', type: 'bidirectional', position: { x: 0, y: 0 } },

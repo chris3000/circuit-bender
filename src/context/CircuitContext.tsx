@@ -48,6 +48,12 @@ interface CircuitContextType {
   loadCircuit: (circuit: Circuit, options?: { dirty?: boolean }) => void;
   /** Whether the circuit has changes that are not in its saved copy (or its example). */
   isDirty: boolean;
+  /**
+   * A control is being worked: the circuit's last change was an edit that is
+   * not an undo step (a knob on its way round, a button held). Whoever does
+   * something slow with each new circuit can wait until it is over.
+   */
+  adjusting: boolean;
   /** The circuit was just saved as `saved` (the same circuit, perhaps under a new name). */
   markSaved: (saved: Circuit) => void;
   selectedComponents: ComponentId[];
@@ -70,6 +76,8 @@ interface CircuitState {
   redoStack: Circuit[];
   selectedComponents: ComponentId[];
   selectedConnections: ConnectionId[];
+  /** The last change to the circuit was a control being worked: an edit that is not an undo step. */
+  adjusting?: boolean;
 }
 
 type CircuitAction =
@@ -103,6 +111,13 @@ function sameIds(a: string[], b: string[]): boolean {
 }
 
 function circuitReducer(state: CircuitState, action: CircuitAction): CircuitState {
+  const next = reduce(state, action);
+  if (next.circuit === state.circuit) return next;
+  const adjusting = action.type === 'UPDATE_COMPONENT' && !action.record;
+  return Boolean(next.adjusting) === adjusting ? next : { ...next, adjusting };
+}
+
+function reduce(state: CircuitState, action: CircuitAction): CircuitState {
   switch (action.type) {
     case 'ADD_COMPONENT':
       return {
@@ -353,6 +368,7 @@ export function CircuitProvider({ children, initial }: { children: React.ReactNo
     setWireColor,
     loadCircuit,
     isDirty: state.circuit !== state.cleanCircuit,
+    adjusting: Boolean(state.adjusting),
     markSaved,
     selectedComponents: state.selectedComponents,
     selectedConnections: state.selectedConnections,

@@ -42,6 +42,23 @@ export interface Check {
   hint: string;
 }
 
+/** A circuit as code builds it, like an example. */
+export interface Built {
+  components: Component[];
+  connections: Connection[];
+}
+
+/**
+ * The circuit as it stands part of the way through the build, once the step
+ * `upTo` and every step before it is done. A class that builds several
+ * things one after another has one for each; "Stuck?" puts the one for the
+ * step being worked on onto the canvas.
+ */
+export interface Stage {
+  upTo: string;
+  circuit: () => Built;
+}
+
 export interface ClassDefinition {
   id: string;
   number: number;
@@ -49,8 +66,10 @@ export interface ClassDefinition {
   title: string;
   /** One sentence: what will be on the canvas at the end. */
   promise: string;
-  /** What the class starts from. */
+  /** What the class starts from, in words. */
   startsFrom: string;
+  /** The circuit it starts from, when that is not an empty canvas: what an earlier class kept, built by code. */
+  start?: () => Built;
   build: Step[];
   /** What is going on: read once the thing works. */
   why: Array<{ title: string; text: string }>;
@@ -63,7 +82,9 @@ export interface ClassDefinition {
    * end of the build, and for whoever is stuck. The class's test measures
    * the numbers the class quotes on it.
    */
-  circuit: () => { components: Component[]; connections: Connection[] };
+  circuit: () => Built;
+  /** The circuits on the way there, in the order of the build, for a class that builds more than one thing. */
+  stages?: Stage[];
 }
 
 /** The parts of a class, in the order they are met. */

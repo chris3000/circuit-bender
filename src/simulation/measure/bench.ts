@@ -8,8 +8,20 @@ export interface BenchOptions {
   sampleRate?: number;
   /** Pins whose voltage is recorded all the way through, to be read with `volts`. */
   watch?: Array<{ componentId: string; pinId: string }>;
-  /** Live controls put somewhere else than the circuit has them: a switch closed, a knob turned. */
+  /**
+   * Controls put somewhere else than the circuit has them: a switch closed, a
+   * knob turned. The circuit starts settled with them there.
+   */
   set?: Array<{ componentId: string; parameter: string; value: number }>;
+  /**
+   * Live controls worked while it runs: a button pressed at `at` seconds and
+   * let go later. The circuit has settled as `set` leaves it before the first.
+   */
+  events?: Array<{ at: number; componentId: string; parameter: string; value: number }>;
+  /** Two-legged parts whose current is recorded all the way through, to be read with `ampsTrace`. */
+  watchAmps?: string[];
+  /** A jumper held between two pins all the way through, as the bend tool holds one: not part of the circuit. */
+  bend?: { from: { componentId: string; pinId: string }; to: { componentId: string; pinId: string }; ohms: number };
 }
 
 /** What was seen of a circuit while it ran on the bench. */
@@ -25,6 +37,14 @@ export interface BenchRun {
   /** What came out of the audio output (a rail-to-rail swing is ±0.5). */
   sound: SignalReading;
   seconds: number;
+  /** Samples a second in the traces below. */
+  sampleRate: number;
+  /** A watched pin's voltage, sample by sample (null if it was not watched). */
+  trace(componentId: string, pinId: string): Float32Array | null;
+  /** A watched part's current, sample by sample (null if it was not watched). */
+  ampsTrace(componentId: string): Float32Array | null;
+  /** The sound, sample by sample. */
+  soundTrace: Float32Array;
 }
 
 const DEFAULT_SECONDS = 0.02;
@@ -43,9 +63,16 @@ export function runOnBench(
   const steps = Math.max(1, Math.round(seconds * sampleRate));
   const dt = 1 / sampleRate;
 
+  // The controls are put where `set` wants them before the circuit is loaded,
+  // so it starts settled that way: a capacitor behind a closed switch is full
+  const loaded = components.map((c) => ({ ...c, parameters: { ...c.parameters } }));
+  for (const change of options.set ?? []) {
+    const part = loaded.find((c) => c.id === change.componentId);
+    if (part) part.parameters[change.parameter] = change.value;
+  }
   const solver = new MNASolver(createStandardModels());
-  solver.loadCircuit(components.map((c) => ({ ...c, parameters: { ...c.parameters } })), [...connections]);
-  for (const change of options.set ?? []) solver.updateParam(change.componentId, change.parameter, change.value);
+  solver.loadCircuit(loaded, [...connections]);
+  if (options.bend) solver.setBend(options.bend.from, options.bend.to, options.bend.ohms);
 
   const parts = components.map((component) => {
     const model = solver.getModel(component.id);
@@ -62,9 +89,16 @@ export function runOnBench(
     node: solver.pinNode(pin.componentId, pin.pinId),
     trace: new Float32Array(steps),
   }));
+  const watchedAmps = (options.watchAmps ?? []).map((id) => ({ id, model: solver.getModel(id), trace: new Float32Array(steps) }));
   const sound = new Float32Array(steps);
+  const events = [...(options.events ?? [])].sort((a, b) => a.at - b.at);
+  let nextEvent = 0;
 
   for (let i = 0; i < steps; i++) {
+    while (nextEvent < events.length && events[nextEvent].at <= i * dt) {
+      const event = events[nextEvent++];
+      solver.updateParam(event.componentId, event.parameter, event.value);
+    }
     sound[i] = solver.step(dt);
     const x = solver.getSolutionVector();
     for (const part of parts) {
@@ -73,6 +107,7 @@ export function runOnBench(
       if (part.nodes) part.across += solver.getNodeVoltage(part.nodes[0]) - solver.getNodeVoltage(part.nodes[1]);
     }
     for (const pin of watched) pin.trace[i] = solver.getNodeVoltage(pin.node);
+    for (const part of watchedAmps) part.trace[i] = part.model?.current ? part.model.current(x) : 0;
   }
 
   const byId = new Map(parts.map((part) => [part.id, part]));
@@ -90,5 +125,9 @@ export function runOnBench(
     },
     sound: measureSignal(sound, sampleRate),
     seconds,
+    sampleRate,
+    trace: (componentId, pinId) => watched.find((w) => w.key === `${componentId}::${pinId}`)?.trace ?? null,
+    ampsTrace: (id) => watchedAmps.find((w) => w.id === id)?.trace ?? null,
+    soundTrace: sound,
   };
 }

@@ -20,7 +20,7 @@ export const ne555Definition: ComponentDefinition = {
   metadata: {
     name: 'NE555',
     category: 'ic',
-    description: 'Timer: the classic oscillator and one-shot chip',
+    description: 'The classic timer. With two resistors and a capacitor it makes pulses without end, from a slow blink to a note you can hear; triggered, it makes one pulse of a set length',
   },
   pins,
   defaultParameters: {},

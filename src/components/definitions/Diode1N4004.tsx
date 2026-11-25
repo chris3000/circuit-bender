@@ -16,7 +16,7 @@ export const diode1N4004Definition: ComponentDefinition = {
     { id: generatePinId('1n4004', 1), label: 'K', type: 'bidirectional', position: { x: 20, y: 0 } },
   ],
   defaultParameters: {},
-  shelf: { title: '1N4004', caption: 'Power diode', keywords: ['4004', '1n4001', '1n4007', 'rectifier', 'power', 'protection', 'diode'], art: rectifierArt, alike: ['diode'] },
+  shelf: { title: '1N4004', caption: 'Power diode', keywords: ['4004', '1n4001', '1n4007', 'rectifier', 'power', 'protection', 'battery', 'diode'], art: rectifierArt, alike: ['diode'] },
   schematic: {
     symbol: {
       width: 40, height: 20,
