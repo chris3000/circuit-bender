@@ -18,6 +18,13 @@ import type { Component } from '@/types/circuit';
 import type { Built, Step } from '@/classes/types';
 import { ALL_PARTS } from '../views/allParts';
 
+/**
+ * Whether a figure is the one the class quotes, to its last digit and a hair
+ * more: 14.2 mA measures 14.1505 on one machine and 14.1499 on another, which
+ * rounding alone would call different.
+ */
+const quotes = (value: number, quoted: number, digit = 0.1) => Math.abs(value - quoted) <= digit * 0.51;
+
 beforeAll(() => {
   const registry = ComponentRegistry.getInstance();
   registry.clear();
@@ -221,7 +228,7 @@ describe('class 11, a small current controls a big one: what it says', () => {
     const circuit = touchLamp();
     const hard = lampRun(circuit, touch(circuit, 1));
     expect(uA(hard.base).toFixed(0)).toBe('138');
-    expect(mA(hard.led).toFixed(1)).toBe('14.2');
+    expect(quotes(mA(hard.led), 14.2)).toBe(true);
     expect(hard.collectorVolts.toFixed(2)).toBe('0.16');
     expect((400 * mA(hard.base)).toFixed(0)).toBe('55');
     // Far less than the gain would allow: the load sets the current, not the transistor
@@ -260,7 +267,7 @@ describe('class 11, a small current controls a big one: what it says', () => {
     expect(bright.baseVolts.toFixed(2)).toBe('0.09');
     expect(bright.led).toBeLessThan(1e-6);
     expect(uA(dark.base).toFixed(0)).toBe('74');
-    expect(mA(dark.led).toFixed(1)).toBe('14.2');
+    expect(quotes(mA(dark.led), 14.2)).toBe(true);
     for (const quoted of ['1 kΩ', '0.09 V', '0.6 V', '1 MΩ', '74 µA']) expect(why('The night light')).toContain(quoted);
     // What the meter shows on the wire into B, as the last step of the build says
     expect(formatVolts(bright.baseVolts)).toBe('89.1 mV');
@@ -399,7 +406,7 @@ describe('class 11, a small current controls a big one: the experiments', () => 
     expect(experiment.made(new Work(nightLight()))).toBe(false);
     expect(experiment.made(new Work(nightLight().addComponent(place('speaker', 780, 640))))).toBe(false);
     // The night light beside it is none the worse
-    expect(mA(lampRun(circuit, light(circuit, 0)).led).toFixed(1)).toBe('14.2');
+    expect(quotes(mA(lampRun(circuit, light(circuit, 0)).led), 14.2)).toBe(true);
   });
 
   it('every experiment asks a question with a right answer among its options, and none is made on an empty canvas', () => {
@@ -529,7 +536,7 @@ describe('class 11, a small current controls a big one: the steps', () => {
     const pads = place('body-contact', 480, 420), base = resistor(10000, 340, 420);
     const otherOrder = add(circuit, [pads, base], [connect(supply, 0, base, 0), connect(base, 1, pads, 0), connect(pads, 1, q, 0)]);
     expect(done(new Work(otherOrder))).toEqual(['clear', 'transistor', 'contacts']);
-    expect(mA(new Work(otherOrder).run(touch(otherOrder, 1)).amps(led(otherOrder).id)).toFixed(1)).toBe('14.2');
+    expect(quotes(mA(new Work(otherOrder).run(touch(otherOrder, 1)).amps(led(otherOrder).id)), 14.2)).toBe(true);
   });
 
   it('pressing the contacts counts while it plays and they are held', () => {
